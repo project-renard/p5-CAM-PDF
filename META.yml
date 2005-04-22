@@ -1,0 +1,40 @@
+---
+name: CAM-PDF
+version: 0.99
+author:
+  - Clotho Advanced Media Inc., I<cpan@clotho.com>
+abstract: PDF manipulation library
+license: perl
+requires:
+  Crypt::RC4: 2.02
+  Digest::MD5: 2.16
+  Text::PDF::File: 0.18
+recommends:
+  Getopt::Long: 2.0
+  Pod::Usage: 1.0
+build_requires:
+  Test::More: 0.01
+provides:
+  CAM::PDF:
+    file: lib/CAM/PDF.pm
+    version: 0.99
+  CAM::PDF::Content:
+    file: lib/CAM/PDF/Content.pm
+  CAM::PDF::Decrypt:
+    file: lib/CAM/PDF/Decrypt.pm
+  CAM::PDF::GS:
+    file: lib/CAM/PDF/GS.pm
+  CAM::PDF::GS::NoText:
+    file: lib/CAM/PDF/GS/NoText.pm
+  CAM::PDF::Node:
+    file: lib/CAM/PDF.pm
+    version: 0.99
+  CAM::PDF::Renderer::Dump:
+    file: lib/CAM/PDF/Renderer/Dump.pm
+  CAM::PDF::Renderer::Images:
+    file: lib/CAM/PDF/Renderer/Images.pm
+  CAM::PDF::Renderer::Text:
+    file: lib/CAM/PDF/Renderer/Text.pm
+  CAM::PDF::Renderer::Text::FB:
+    file: lib/CAM/PDF/Renderer/Text.pm
+generated_by: Module::Build version 0.2609
