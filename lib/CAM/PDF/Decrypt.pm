@@ -117,12 +117,12 @@ sub new($$$$$)
    }
    else
    {
-      if ($doc->{trailer}->{Encrypt}->{type} ne "reference")
+      if ($doc->{trailer}->{Encrypt}->{type} eq "reference")
       {
-         die "Encrypt block ref must be an indirect reference";
+         # If the encryption block is an indirect reference, store
+         # it's location so we don't accidentally encrypt it.
+         $self->{EncryptBlock} = $doc->{trailer}->{Encrypt}->{value};
       }
-      my $encryptref = $doc->{trailer}->{Encrypt}->{value};
-      $self->{EncryptBlock} = $encryptref;
    
       if (!&loadlibs())
       {
@@ -301,11 +301,10 @@ sub set_passwords
    }
 
    die "No trailer" if (!$doc->{trailer});
-   if ((!$doc->{trailer}->{Encrypt}) || 
-       $doc->{trailer}->{Encrypt}->{value} != $objnum)
-   {
-      $doc->{trailer}->{Encrypt} = CAM::PDF::Node->new("reference", $objnum);
-   }
+
+   # This may overwrite an existing ref, but that's no big deal, just a tiny bit inefficient
+   $doc->{trailer}->{Encrypt} = CAM::PDF::Node->new("reference", $objnum);
+   $doc->{EncryptBlock} = $objnum;
 
    #  if no ID, create it
    if (!$doc->{ID})
@@ -379,7 +378,8 @@ sub crypt
       die "Trying to crypt data with non-scalar obj/gennum or content\n";
    }
    
-   return $content if ($objnum && $objnum == $self->{EncryptBlock});
+   # DO NOT encrypt the encryption block!!  :-)
+   return $content if ($objnum && $self->{EncryptBlock} && $objnum == $self->{EncryptBlock});
 
    if (!defined $gennum)
    {

@@ -61,6 +61,14 @@ converted to or from DOS/Windows style (i.e. CR-NL) may be rendered
 unusable even though Acrobat does not complain.  Future library
 versions may relax the parser, but not yet.
 
+=head1 PERFORMANCE
+
+This module is written with good speed and flexibility in mind, often at the
+expense of memory consumption.  Entire PDF documents are typically
+slurped into RAM.  As an example, simply calling C<new()> the 14 MB
+Adobe PDF Reference V1.5 document pushes Perl to consume 84 MB of RAM
+on my development machine.
+
 =cut
 
 use strict;
@@ -73,7 +81,7 @@ my $speedtesting = 0;  # debug flag
 
 use vars qw($VERSION @ISA $MAX_STRING
             $PREF_OPASS $PREF_UPASS $PREF_PRINT $PREF_MODIFY $PREF_COPY $PREF_ADD);
-$VERSION = "0.99";
+$VERSION = "1.00";
 
 $PREF_OPASS  = 0;
 $PREF_UPASS  = 1;

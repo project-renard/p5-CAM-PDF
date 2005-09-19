@@ -1,3 +1,12 @@
+2005-09-19 09:30  chris
+
+	* lib/CAM/: PDF.pm, PDF/Decrypt.pm: v1.00 Fix an artificial
+	  limitation of the encryption module Add a comment about RAM usage
+
+2005-06-06 10:17  chris
+
+	* scripts/rewritepdf.pl: Fix typo
+
 2005-04-22 13:49  chris
 
 	* lib/CAM/PDF/: Content.pm, Decrypt.pm, GS.pm, GS/NoText.pm,

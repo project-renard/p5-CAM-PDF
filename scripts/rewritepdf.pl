@@ -79,7 +79,7 @@ if (!$doc->canModify())
 
 $doc->{pdfversion} = $opts{newversion} if ($opts{newversion});
 
-if ($opts{decode} || @{$ops{filters}} > 0)
+if ($opts{decode} || @{$opts{filters}} > 0)
 {
    foreach my $obj (keys %{$doc->{xref}})
    {
