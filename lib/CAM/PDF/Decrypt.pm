@@ -23,7 +23,7 @@ module.
 
 #----------------
 
-#  These are done via eval below
+#  These are included at runtime via eval below
 # use Digest::MD5 qw(md5);
 # use Crypt::RC4;
 
@@ -32,6 +32,7 @@ use strict;
 use Carp;
 use vars qw(@ISA);
 
+# These constants come from the Adobe PDF Reference document, IIRC
 my @padding = (
                0x28, 0xbf, 0x4e, 0x5e, 
                0x4e, 0x75, 0x8a, 0x41, 
@@ -60,8 +61,8 @@ sub loadlibs
 {
    foreach my $lib ("Digest::MD5 qw(md5)", "Crypt::RC4")
    {
-      eval("local \$SIG{__DIE__} = \'DEFAULT\'; " .
-           "local \$SIG{__WARN__} = \'DEFAULT\'; " .
+      eval("local \$SIG{__DIE__} = 'DEFAULT'; " .
+           "local \$SIG{__WARN__} = 'DEFAULT'; " .
            "use $lib;");
 
       if ($@)
@@ -105,7 +106,6 @@ sub new($$$$$)
    }
 
    my $self = bless({
-      doc => $doc,
       keycache => {},
    }, $pkg);
 
@@ -153,7 +153,7 @@ sub new($$$$$)
 
       my $success = 0;
       do {
-         if ($self->check_pass($opassword, $upassword))
+         if ($self->check_pass($doc, $opassword, $upassword))
          {
             $success = 1;
          }
@@ -175,7 +175,7 @@ sub new($$$$$)
       } while (!$success);
       warn "verified pass\n" if ($CAM::PDF::speedtesting);
 
-      $self->{code} = $self->compute_hash($opassword);
+      $self->{code} = $self->compute_hash($doc, $opassword);
       warn "got hash\n" if ($CAM::PDF::speedtesting);
    }      
 
@@ -231,8 +231,12 @@ sub encode_permissions
       $allow{$key} = ($allow{$key} ? 1 : 0);
    }
 
+   # This is more complicated that decode, because we need to pad
+   # endian-appropriately
+
    my @p = ($allow{print}, $allow{modify}, $allow{copy}, $allow{add});
-   my $b = "00" . join("", @p) . "11";
+   my $b = "00" . join("", @p) . "11"; # 8 bits: 2 pad, 4 data, 2 pad
+   # Pad to 32 bits with the right endian-ness
    if (substr(unpack("B16",pack("s",255)),0,1) eq "1")
    {
       # little endian
@@ -243,6 +247,7 @@ sub encode_permissions
       # big endian
       $b = ("11111111" x 3) . $b;
    }
+   # Make a signed 32-bit number (NOTE: should this really be signed???  need to check spec...)
    my $p = unpack("l",pack("b32", $b));
 
    #warn "(" . join(",", @p) . ") => $b => $p\n";
@@ -250,9 +255,9 @@ sub encode_permissions
 }
 #----------------
 
-=item set_passwords OWNERPASS, USERPASS
+=item set_passwords DOC, OWNERPASS, USERPASS
 
-=item set_passwords OWNERPASS, USERPASS, PERMISSIONS
+=item set_passwords DOC, OWNERPASS, USERPASS, PERMISSIONS
 
 Change the PDF passwords to the specified values.  When the PDF is
 output, it will be encrypted with the new passwords.
@@ -266,6 +271,7 @@ retained.
 sub set_passwords
 {
    my $self = shift;
+   my $doc = shift;
    my $opass = shift;
    my $upass = shift;
    my $p = shift || $self->{P} || $self->encode_permissions(1,1,1,1);
@@ -275,7 +281,6 @@ sub set_passwords
       die $CAM::PDF::errstr;
    }
 
-   my $doc = $self->{doc};
    $doc->clean();  # Mark EVERYTHING changed
 
    #  if no crypt block, create it and a trailer entry
@@ -310,7 +315,7 @@ sub set_passwords
    if (!$doc->{ID})
    {
       $doc->createID();
-      #print "new ID: " . unpack("h*",$$doc{ID}) . " (" . length($$doc{ID}) . ")\n";
+      #print "new ID: " . unpack("h*",$doc->{ID}) . " (" . length($doc->{ID}) . ")\n";
    }
 
    #  record data
@@ -322,7 +327,7 @@ sub set_passwords
    $self->{O} = $self->compute_o($opass, $upass);
 
    #  set U
-   $self->{U} = $self->compute_u($upass);
+   $self->{U} = $self->compute_u($doc, $upass);
 
    #  save O and U in the Encrypt block
    $obj = $doc->dereference($objnum);
@@ -337,7 +342,7 @@ sub set_passwords
 }
 #----------------
 
-=item encrypt STRING
+=item encrypt DOC, STRING
 
 Encrypt the scalar using the passwords previously specified.
 
@@ -350,7 +355,7 @@ sub encrypt
 }
 #----------------
 
-=item decrypt STRING
+=item decrypt DOC, STRING
 
 Decrypt the scalar using the passwords previously specified.
 
@@ -367,6 +372,7 @@ my %tried;
 sub crypt
 {
    my $self = shift;
+   my $doc = shift;
    my $content = shift;
    my $objnum = shift;
    my $gennum = shift;
@@ -391,7 +397,7 @@ sub crypt
 
       &Carp::confess("gennum missing in crypt");
       
-      $gennum = $self->{doc}->dereference($objnum)->{gennum};
+      $gennum = $doc->dereference($objnum)->{gennum};
    }
    
    return RC4($self->compute_key($objnum, $gennum), $content);
@@ -419,6 +425,7 @@ sub compute_key
 sub compute_hash
 {
    my $self = shift;
+   my $doc = shift;
    my $pass = shift;
 
    $pass = $self->format_pass($pass);
@@ -431,7 +438,7 @@ sub compute_hash
       $p = substr($p,3,1).substr($p,2,1).substr($p,1,1).substr($p,0,1);
    }
 
-   my $id = substr $self->{doc}->{ID}, 0, 16;
+   my $id = substr $doc->{ID}, 0, 16;
 
    my $input = $pass . $self->{O} . $p . $id;
    return substr(md5($input), 0, 5)
@@ -441,9 +448,10 @@ sub compute_hash
 sub compute_u
 {
    my $self = shift;
+   my $doc = shift;
    my $upass = shift;
 
-   my $hash = $self->compute_hash($upass);
+   my $hash = $self->compute_hash($doc, $upass);
    return RC4($hash, $padding);
 }
 #----------------
@@ -465,6 +473,7 @@ sub compute_o
 sub check_pass
 {
    my $self = shift;
+   my $doc = shift;
    my $opass = shift;
    my $upass = shift;
    my $verbose = shift;
@@ -479,7 +488,7 @@ sub check_pass
       print "$$self{O}\n";
    }
 
-   my $cryptu = $self->compute_u($upass);
+   my $cryptu = $self->compute_u($doc, $upass);
 
    if ($verbose)
    {

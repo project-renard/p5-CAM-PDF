@@ -1,3 +1,18 @@
+2005-09-20 10:11  chris
+
+	* lib/CAM/PDF.pm: regression fix: parseStream must be able to be
+	  called as a class method
+
+2005-09-20 10:00  chris
+
+	* lib/CAM/: PDF.pm, PDF/Decrypt.pm: v1.01 Remove instances of
+	  circular references so CAM::PDF instances are able   to be
+	  garbage collected.  Add a few more comments in confusing bits of
+	  code.
+
+	  NOTE: the API for CAM::PDF::Decrypt changed.	Several methods now
+	  require a CAM::PDF instance as a first argument.
+
 2005-09-19 09:30  chris
 
 	* lib/CAM/: PDF.pm, PDF/Decrypt.pm: v1.00 Fix an artificial

@@ -81,7 +81,7 @@ my $speedtesting = 0;  # debug flag
 
 use vars qw($VERSION @ISA $MAX_STRING
             $PREF_OPASS $PREF_UPASS $PREF_PRINT $PREF_MODIFY $PREF_COPY $PREF_ADD);
-$VERSION = "1.00";
+$VERSION = "1.01";
 
 $PREF_OPASS  = 0;
 $PREF_UPASS  = 1;
@@ -350,7 +350,6 @@ sub new($$$$$)
 
    return $doc;
 }
-
 #------------------
 
 =item toPDF
@@ -449,8 +448,8 @@ sub startdoc
       $CAM::PDF::errstr = "No root node present in PDF trailer.\n";
       return undef;
    }
-   $doc->{Root} = $doc->getValue($doc->{trailer}->{Root});
-   if ((!$doc->{Root}) || (ref $doc->{Root} ne "HASH"))
+   my $root = $doc->getRootDict();
+   if ((!$root) || (ref $root ne "HASH"))
    {
       $CAM::PDF::errstr = "The PDF root node is not a dictionary.\n";
       return undef;
@@ -459,13 +458,13 @@ sub startdoc
    warn "got root\n" if ($speedtesting);
 
    # Get the root of the page tree
-   if (!exists $doc->{Root}->{Pages})
+   if (!exists $root->{Pages})
    {
       $CAM::PDF::errstr = "The PDF root node doesn't have a reference to the page tree.\n";
       return undef;
    }
-   $doc->{Pages} = $doc->getValue($doc->{Root}->{Pages});
-   if ((!$doc->{Root}) || (ref $doc->{Root} ne "HASH"))
+   my $pages = $doc->getPagesDict();
+   if ((!$pages) || (ref $pages ne "HASH"))
    {
       $CAM::PDF::errstr = "The PDF page tree root is not a dictionary.\n";
       return undef;
@@ -474,7 +473,7 @@ sub startdoc
    warn "got pageroot\n" if ($speedtesting);
 
    # Get the number of pages in the document
-   $doc->{PageCount} = $doc->getValue($doc->{Pages}->{Count});
+   $doc->{PageCount} = $doc->getValue($pages->{Count});
    if ((!$doc->{PageCount}) || $doc->{PageCount} < 1)
    {
       $CAM::PDF::errstr = "Bad number of pages in PDF document\n";
@@ -671,6 +670,34 @@ sub buildNameTable
 
    $doc->{Names}->{$pagenum} = {%n};
 }
+#------------------
+
+=item getRootDict
+
+Returns the Root dictionary for the PDF.
+
+=cut
+
+sub getRootDict
+{
+   my $doc = shift;
+
+   return $doc->getValue($doc->{trailer}->{Root});
+}
+#------------------
+
+=item getPagesDict
+
+Returns the root Pages dictionary for the PDF.
+
+=cut
+
+sub getPagesDict
+{
+   my $doc = shift;
+
+   return $doc->getValue($doc->getRootDict()->{Pages});
+}
 
 #------------------
 # PRIVATE FUNCTION
@@ -810,7 +837,15 @@ sub parseStream
       }
    }
 
-   $stream = $doc->{crypt}->decrypt($stream, $objnum, $gennum) if (ref($doc) && $doc->{crypt});
+   if (ref($doc))
+   {
+      # in the rare case of CAM::PDF::Content::_parseInlineImage, this
+      # may be called as a class method, thus making the above test
+      # necessary
+
+      $stream = $doc->{crypt}->decrypt($doc, $stream, $objnum, $gennum)
+          if ($doc->{crypt});
+   }
 
    return CAM::PDF::Node->new("stream", $stream, $objnum, $gennum);
 }
@@ -1011,8 +1046,12 @@ sub parseString
    }
    $value = join("\\", @parts);
 
-   $value = $pkg_or_doc->{crypt}->decrypt($value, $objnum, $gennum) if (ref($pkg_or_doc) && $pkg_or_doc->{crypt});
-
+   if (ref($pkg_or_doc))
+   {
+      my $doc = $pkg_or_doc;
+      $value = $doc->{crypt}->decrypt($doc, $value, $objnum, $gennum)
+          if ($doc->{crypt});
+   }
    return CAM::PDF::Node->new("string", $value, $objnum, $gennum);
 }
 
@@ -1038,8 +1077,12 @@ sub parseHexString
      die "Expected hex string\n" . $pkg_or_doc->trimstr($$c);
    }
 
-   $str = $pkg_or_doc->{crypt}->decrypt($str, $objnum, $gennum) if (ref($pkg_or_doc) && $pkg_or_doc->{crypt});
-
+   if (ref($pkg_or_doc))
+   {
+      my $doc = $pkg_or_doc;
+      $str = $doc->{crypt}->decrypt($doc, $str, $objnum, $gennum)
+          if ($doc->{crypt});
+   }
    return CAM::PDF::Node->new("hexstring", $str, $objnum, $gennum);
 }
 
@@ -1920,7 +1963,7 @@ sub getPage
 
    if (!exists $doc->{pagecache}->{$pagenum})
    {
-      my $node = $doc->{Pages};
+      my $node = $doc->getPagesDict();
       my $nodestart = 1;
       while ($doc->getValue($node->{Type}) eq "Pages")
       {
@@ -2405,7 +2448,7 @@ sub getFormFieldList
    }
    else
    {
-      my $root = $doc->{Root}->{AcroForm};
+      my $root = $doc->getRootDict()->{AcroForm};
       return () if (!$root);
       my $parent = $doc->getValue($root);
       return () if (!exists $parent->{Fields});
@@ -2479,7 +2522,7 @@ sub getFormField
       }
       else
       {
-         my $root = $doc->{Root}->{AcroForm};
+         my $root = $doc->getRootDict()->{AcroForm};
          return undef if (!$root);
          $parent = $doc->dereference($root->{value});
          return undef if (!$parent);
@@ -2604,7 +2647,7 @@ sub setPrefs
    my @prefs = (@_);
 
    my $p = $doc->{crypt}->encode_permissions(@prefs[2..5]);
-   $doc->{crypt}->set_passwords(@prefs[0..1], $p);
+   $doc->{crypt}->set_passwords($doc, @prefs[0..1], $p);
 }
 
 #------------------
@@ -2863,7 +2906,7 @@ sub deletePage_internal
    # Removing references to the page is hard:
    # (much of this code is lifted from getPage)
    my $parentdict = undef;
-   my $node = $doc->dereference($doc->{Root}->{Pages}->{value});
+   my $node = $doc->dereference($doc->getRootDict()->{Pages}->{value});
    my $nodedict = $node->{value}->{value};
    my $nodestart = 1;
    while ($node && $nodedict->{Type}->{value} eq "Pages")
@@ -3095,12 +3138,14 @@ sub appendPDF
    my $doc2 = shift;
    my $prepend = shift; # boolean, default false
 
-   my $pageroot = $doc->{Pages};
+   my $pageroot = $doc->getPagesDict();
    my ($anyobj) = values %$pageroot;
    my $objnum = $anyobj->{objnum};
    my $gennum = $anyobj->{gennum};
 
-   my $pageobj2 = $doc2->dereference($doc2->{Root}->{Pages}->{value});
+   my $root = $doc->getRootDict();
+   my $root2 = $doc2->getRootDict();
+   my $pageobj2 = $doc2->dereference($root2->{Pages}->{value});
    my ($key, %refkeys) = $doc->appendObject($doc2, $pageobj2->{objnum}, 1);
    my $subpage = $doc->getObjValue($key);
 
@@ -3116,8 +3161,7 @@ sub appendPDF
    $doc->{PageCount} += $doc2->{PageCount};
    $newdict->{Count} = CAM::PDF::Node->new("number", $doc->{PageCount});
    my $newpagekey = $doc->appendObject(undef, $newpage, 0);
-   $doc->{Root}->{Pages}->{value} = $newpagekey;
-   $doc->{Pages} = $doc->getObjValue($newpagekey);
+   $root->{Pages}->{value} = $newpagekey;
 
    $pageroot->{Parent} = CAM::PDF::Node->new("reference", $newpagekey, $key, $subpage->{gennum});
    $subpage->{Parent} = CAM::PDF::Node->new("reference", $newpagekey, $key, $subpage->{gennum});
@@ -3128,9 +3172,9 @@ sub appendPDF
 
    #print STDERR "$newpagekey $objnum $key\n";
 
-   if ($doc2->{Root}->{AcroForm})
+   if ($root2->{AcroForm})
    {
-      my $forms = $doc2->getValue($doc2->getValue($doc2->{Root}->{AcroForm})->{Fields});
+      my $forms = $doc2->getValue($doc2->getValue($root2->{AcroForm})->{Fields});
       my @newforms = ();
       #require Data::Dumper;
       #print STDERR Data::Dumper->Dump([$forms],["forms"]);
@@ -3147,9 +3191,9 @@ sub appendPDF
             push @newforms, CAM::PDF::Node->new("reference", $newkey);
          }
       }
-      if ($doc->{Root}->{AcroForm})
+      if ($root->{AcroForm})
       {
-         my $mainforms = $doc->getValue($doc->getValue($doc->{Root}->{AcroForm})->{Fields});
+         my $mainforms = $doc->getValue($doc->getValue($root->{AcroForm})->{Fields});
          foreach my $reference (@newforms)
          {
             $reference->{objnum} = $mainforms->[0]->{objnum};
@@ -3936,9 +3980,10 @@ sub clearAnnotations
    my $doc = shift;
 
    my $formrsrcs;
-   if ($doc->{Root}->{AcroForm})
+   my $root = $doc->getRootDict();
+   if ($root->{AcroForm})
    {
-      my $acroform = $doc->getValue($doc->{Root}->{AcroForm});
+      my $acroform = $doc->getValue($root->{AcroForm});
       # Get the form resources
       if ($acroform->{DR})
       {
@@ -3946,8 +3991,8 @@ sub clearAnnotations
       }
 
       # Kill off the forms
-      $doc->deleteObject($doc->{Root}->{AcroForm}->{value});
-      delete $doc->{Root}->{AcroForm};
+      $doc->deleteObject($root->{AcroForm}->{value});
+      delete $root->{AcroForm};
    }
 
    # Iterate through the pages, deleting annotations
@@ -4453,13 +4498,13 @@ sub writeAny
 
    if ($key eq "string")
    {
-      $val = $doc->{crypt}->encrypt($val, $objnum, $gennum);
+      $val = $doc->{crypt}->encrypt($doc, $val, $objnum, $gennum);
 
       return $doc->writeString($val);
    }
    elsif ($key eq "hexstring")
    {
-      $val = $doc->{crypt}->encrypt($val, $objnum, $gennum);
+      $val = $doc->{crypt}->encrypt($doc, $val, $objnum, $gennum);
       return "<" . unpack("H*", $val) . ">";
    }
    elsif ($key eq "number")
@@ -4594,7 +4639,7 @@ sub writeAny
       my $str = $doc->writeAny($val);
       if ($stream)
       {
-         $stream = $doc->{crypt}->encrypt($stream, $objnum, $gennum);
+         $stream = $doc->{crypt}->encrypt($doc, $stream, $objnum, $gennum);
          $str .= "\nstream\n" . $stream . "endstream";
       }
       return "obj\n$str\nendobj\n";
