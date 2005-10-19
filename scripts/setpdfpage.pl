@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -12,14 +13,21 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"  => \$opts{verbose},
-           "o|order"    => \$opts{order},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'  => \$opts{verbose},
+           'o|order'    => \$opts{order},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 3)
 {
@@ -29,27 +37,28 @@ if (@ARGV < 3)
 my $infile = shift;
 my $pagetext = shift;
 my $pagenum = shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my $content;
-if ($pagetext eq "-")
+if ($pagetext eq q{-})
 {
-   $content = join('', <STDIN>);
+   $content = join q{}, <STDIN>;
 }
 else
 {
-   local *FILE;
-   open(FILE, $pagetext) or die "Failed to open $pagetext: $!\n";
-   $content = join('', <FILE>);
-   close(FILE);
+   open my $in_fh, '<', $pagetext or die "Failed to open $pagetext: $!\n";
+   $content = join q{}, <$in_fh>;
+   close $in_fh;
 }
 
 $doc->setPageContent($pagenum, $content);
 
-$doc->preserveOrder() if ($opts{order});
+if ($opts{order})
+{
+   $doc->preserveOrder();
+}
 if (!$doc->canModify())
 {
    die "This PDF forbids modification\n";

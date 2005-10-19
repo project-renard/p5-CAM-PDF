@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -13,15 +14,22 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("f|follow"     => \$opts{follow},
-           "v|verbose"    => \$opts{verbose},
-           "o|order"      => \$opts{order},
-           "h|help"       => \$opts{help},
-           "V|version"    => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('f|follow'     => \$opts{follow},
+           'v|verbose'    => \$opts{verbose},
+           'o|order'      => \$opts{order},
+           'h|help'       => \$opts{help},
+           'V|version'    => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 4)
 {
@@ -36,21 +44,20 @@ push @files, shift;
 push @nums, shift;
 push @files, shift;
 push @nums, shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
 foreach my $file (@files)
 {
-   my $doc = CAM::PDF->new($file);
-   die "$CAM::PDF::errstr\n" if (!$doc);
+   my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
    push @docs, $doc;
 }
 
 if (!$opts{follow})
 {
    warn "Warning: if the object from doc2 has references, they may be broken by this process!\n" .
-       "Use -f to follow and copy all references\n";
+        "Use -f to follow and copy all references\n";
 }
-if ($nums[0] eq "a")
+if ($nums[0] eq 'a')
 {
    my $key = $docs[0]->appendObject($docs[1], $nums[1], $opts{follow});
    warn "Appended as object $key\n";
@@ -59,7 +66,10 @@ else
 {
    $docs[0]->replaceObject($nums[0], $docs[1], $nums[1], $opts{follow});
 }
-$docs[0]->preserveOrder() if ($opts{order});
+if ($opts{order})
+{
+   $docs[0]->preserveOrder();
+}
 if (!$docs[0]->canModify())
 {
    die "This PDF forbids modification\n";

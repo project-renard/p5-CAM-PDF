@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Data::Dumper;
@@ -12,13 +13,20 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"  => \$opts{verbose},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'  => \$opts{verbose},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 3)
 {
@@ -34,8 +42,7 @@ if ($pagenum !~ /^\d+$/ || $pagenum < 1)
    die "The page number must be an integer greater than 0\n";
 }
 
-my $doc = CAM::PDF->new($file);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
 
 my $font = $doc->getFont($pagenum, $fontname);
 if (!$font)
@@ -45,7 +52,7 @@ if (!$font)
 
 if ($opts{verbose})
 {
-   print Data::Dumper->Dump([$font], ["font"]);
+   print Data::Dumper->Dump([$font], ['font']);
 }
 
 

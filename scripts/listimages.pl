@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -11,13 +12,20 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"  => \$opts{verbose},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'  => \$opts{verbose},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
@@ -26,12 +34,11 @@ if (@ARGV < 1)
 
 my $file = shift;
 
-my $doc = CAM::PDF->new($file);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
 
 my $pages = $doc->numPages();
 my $nimages = 0;
-for (my $p=1; $p <= $pages; $p++)
+for my $p (1..$pages)
 {
    my $c = $doc->getPageContent($p);
    my @parts = split /(\/[\w]+\s*Do)\b/s, $c;
@@ -45,11 +52,20 @@ for (my $p=1; $p <= $pages; $p++)
          my $objnum = $xobj->{objnum};
          my $im = $doc->getValue($xobj);
          my $l = $im->{Length} || $im->{L} || 0;
-         $l = $doc->getValue($l) if ($l);
+         if ($l)
+         {
+            $l = $doc->getValue($l);
+         }
          my $w = $im->{Width} || $im->{W} || 0;
-         $w = $doc->getValue($w) if ($w);
+         if ($w)
+         {
+            $w = $doc->getValue($w);
+         }
          my $h = $im->{Height} || $im->{H} || 0;
-         $h = $doc->getValue($h) if ($h);
+         if ($h)
+         {
+            $h = $doc->getValue($h);
+         }
          print "Image $nimages page $p, (w,h)=($w,$h), ref $ref = object $objnum, length $l\n";
       }
       else

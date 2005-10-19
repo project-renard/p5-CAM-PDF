@@ -1,12 +1,13 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
 my %opts = (
-            template   => "crunchjpg_tmpl.pdf",
+            template   => 'crunchjpg_tmpl.pdf',
 
             verbose    => 0,
             help       => 0,
@@ -19,19 +20,26 @@ my %opts = (
             skipval    => [],
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("S|skip=s"     => \@{$opts{skipval}},
-           "O|only=s"     => \@{$opts{onlyval}},
-           "v|verbose"  => \$opts{verbose},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('S|skip=s'     => \@{$opts{skipval}},
+           'O|only=s'     => \@{$opts{onlyval}},
+           'v|verbose'  => \$opts{verbose},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 foreach my $flag (qw( skip only ))
 {
-   foreach my $val (@{$opts{$flag."val"}})
+   foreach my $val (@{$opts{$flag.'val'}})
    {
       foreach my $key (split /\D+/, $val)
       {
@@ -52,8 +60,7 @@ if (@ARGV < 2)
 my $infile = shift;
 my $outdir = shift;
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my $nimages = 0;
 my $rimages = 0;
@@ -62,28 +69,37 @@ my %doneobjs = ();
 foreach my $objnum (keys %{$doc->{xref}})
 {
    my $xobj = $doc->dereference($objnum);
-   if ($xobj->{value}->{type} eq "dictionary")
+   if ($xobj->{value}->{type} eq 'dictionary')
    {
       my $im = $xobj->{value}->{value};
-      if (exists $im->{Type} && $doc->getValue($im->{Type}) eq "XObject" &&
-          exists $im->{Subtype} && $doc->getValue($im->{Subtype}) eq "Image")
+      if (exists $im->{Type} && $doc->getValue($im->{Type}) eq 'XObject' &&
+          exists $im->{Subtype} && $doc->getValue($im->{Subtype}) eq 'Image')
       {
-         my $ref = "(no name)";
-         $ref = $doc->getValue($im->{Name}) if ($im->{Name});
+         my $ref = '(no name)';
+         if ($im->{Name})
+         {
+            $ref = $doc->getValue($im->{Name});
+         }
          my $w = $im->{Width} || $im->{W} || 0;
-         $w = $doc->getValue($w) if ($w);
+         if ($w)
+         {
+            $w = $doc->getValue($w);
+         }
          my $h = $im->{Height} || $im->{H} || 0;
-         $h = $doc->getValue($h) if ($h);
+         if ($h)
+         {
+            $h = $doc->getValue($h);
+         }
 
          next if (exists $doneobjs{$objnum});
 
          $nimages++;
-         print STDERR "Image $nimages, $ref = object $objnum, (w,h)=($w,$h)\n" if ($opts{verbose});
+         _inform("Image $nimages, $ref = object $objnum, (w,h)=($w,$h)", $opts{verbose});
 
          if (exists $opts{skip}->{$objnum} || 
-             (scalar (keys %{$opts{only}}) > 0 && (!exists $opts{only}->{$objnum})))
+             (0 < scalar keys %{$opts{only}} && !exists $opts{only}->{$objnum}))
          {
-            print STDERR "Skipping object $objnum\n" if ($opts{verbose});
+            _inform("Skipping object $objnum", $opts{verbose});
             next;
          }
 
@@ -91,14 +107,17 @@ foreach my $objnum (keys %{$doc->{xref}})
          if ($im->{Filter})
          {
             my $f = $im->{Filter};
-            if ($f->{type} eq "array")
+            if ($f->{type} eq 'array')
             {
                foreach my $e (@{$f->{value}})
                {
                   my $name = $doc->getValue($e);
-                  $name = $name->{value} if (ref $name);
+                  if (ref $name)
+                  {
+                     $name = $name->{value};
+                  }
                   #warn "Checking $name\n";
-                  if ($name eq "DCTDecode")
+                  if ($name eq 'DCTDecode')
                   {
                      $isjpg = 1;
                      last;
@@ -108,9 +127,12 @@ foreach my $objnum (keys %{$doc->{xref}})
             else
             {
                my $name = $doc->getValue($f);
-               $name = $name->{value} if (ref $name);
+               if (ref $name)
+               {
+                  $name = $name->{value};
+               }
                #warn "Checking $name\n";
-               if ($name eq "DCTDecode")
+               if ($name eq 'DCTDecode')
                {
                   $isjpg = 1;
                }
@@ -123,8 +145,7 @@ foreach my $objnum (keys %{$doc->{xref}})
             die "PDF error: Failed to get size of image\n";
          }
          
-         my $tmpl = CAM::PDF->new($opts{template});
-         die "$CAM::PDF::errstr\n" if (!$tmpl);
+         my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
          
          # Get a handle on the needed data bits from the template
          my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
@@ -143,17 +164,18 @@ foreach my $objnum (keys %{$doc->{xref}})
          
          if (!-d $outdir)
          {
-            `mkdir -p $outdir`;
+            require File::Path;
+            File::Path::mkpath($outdir);
          }
          if ($isjpg)
          {
-            my $result = `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;
-            print STDERR $result if ($opts{verbose});
+            my $result = `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;  ## no critic
+            _inform($result, $opts{verbose});
          }
          else
          {
-            my $result = `convert -density 72x72 -page ${w}x$h pdf:$ofile gif:$outdir/$objnum.gif`;
-            print STDERR $result if ($opts{verbose});
+            my $result = `convert -density 72x72 -page ${w}x$h pdf:$ofile gif:$outdir/$objnum.gif`;  ## no critic
+            _inform($result, $opts{verbose});
          }
 
          $doneobjs{$objnum} = 1;
@@ -162,7 +184,19 @@ foreach my $objnum (keys %{$doc->{xref}})
    }
 }
 
-print STDERR "Extracted $rimages of $nimages images\n" if ($opts{verbose});
+_inform("Extracted $rimages of $nimages images", $opts{verbose});
+
+
+sub _inform
+{
+   my $str     = shift;
+   my $verbose = shift;
+
+   if ($verbose)
+   {
+      print STDERR $str, "\n";
+   }
+}
 
 __END__
 

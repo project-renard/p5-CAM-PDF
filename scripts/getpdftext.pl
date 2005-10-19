@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -13,15 +14,22 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("g|geometry" => \$opts{geom},
-           "c|check"    => \$opts{check},
-           "v|verbose"  => \$opts{verbose},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('g|geometry' => \$opts{geom},
+           'c|check'    => \$opts{check},
+           'v|verbose'  => \$opts{verbose},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
@@ -31,8 +39,7 @@ if (@ARGV < 1)
 my $file = shift;
 my $pagelist = shift;
 
-my $doc = CAM::PDF->new($file);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
 
 foreach my $p ($doc->rangeToArray(1,$doc->numPages(),$pagelist))
 {
@@ -40,7 +47,7 @@ foreach my $p ($doc->rangeToArray(1,$doc->numPages(),$pagelist))
    {
       print "Checking page $p\n";
       my $tree = $doc->getPageContentTree($p, $opts{verbose});
-      unless ($tree && $tree->validate())
+      if (!$tree || !$tree->validate())
       {
          print "  Failed\n";
       }

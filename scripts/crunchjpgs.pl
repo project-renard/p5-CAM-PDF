@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -7,7 +8,7 @@ use Pod::Usage;
 
 my %opts = (
             # Hardcoded:
-            template   => "crunchjpg_tmpl.pdf",
+            template   => 'crunchjpg_tmpl.pdf',
 
             # User settable values:
             justjpgs   => 0,
@@ -31,25 +32,35 @@ my %opts = (
             scales     => {1 => undef, 2 => '50%', 4 => '25%', 8 => '12.5%'},
            );
 
-Getopt::Long::Configure("bundling");
-GetOptions("S|skip=s"     => \@{$opts{skipval}},
-           "O|only=s"     => \@{$opts{onlyval}},
-           "q|quality=i"  => \$opts{qualityval},
-           "s|scale=i"    => \$opts{scaleval},
-           "m|scalemin=i" => \$opts{scaleminval},
-           "j|justjpgs"   => \$opts{justjpgs},
-           "veryverbose"  => \$opts{Verbose},
-           "v|verbose"    => \$opts{verbose},
-           "o|order"      => \$opts{order},
-           "h|help"       => \$opts{help},
-           "V|version"    => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('S|skip=s'     => \@{$opts{skipval}},
+           'O|only=s'     => \@{$opts{onlyval}},
+           'q|quality=i'  => \$opts{qualityval},
+           's|scale=i'    => \$opts{scaleval},
+           'm|scalemin=i' => \$opts{scaleminval},
+           'j|justjpgs'   => \$opts{justjpgs},
+           'veryverbose'  => \$opts{Verbose},
+           'v|verbose'    => \$opts{verbose},
+           'o|order'      => \$opts{order},
+           'h|help'       => \$opts{help},
+           'V|version'    => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 ## Fix up and validate special options:
 
-$opts{verbose} = 1 if ($opts{Verbose});
+if ($opts{Verbose})
+{
+   $opts{verbose} = 1;
+}
 if (defined $opts{scaleval})
 {
    if (exists $opts{scales}->{$opts{scaleval}})
@@ -85,7 +96,7 @@ if (defined $opts{qualityval})
 }
 foreach my $flag (qw( skip only ))
 {
-   foreach my $val (@{$opts{$flag."val"}})
+   foreach my $val (@{$opts{$flag.'val'}})
    {
       foreach my $key (split /\D+/, $val)
       {
@@ -106,10 +117,9 @@ if (@ARGV < 1)
 }
 
 my $infile = shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 if (!$doc->canModify())
 {
@@ -126,7 +136,7 @@ my $oldcontentsize = $doc->{contentlength};
 my $oldtotsize = 0;
 my $newtotsize = 0;
 
-for (my $p=1; $p <= $pages; $p++)
+for my $p (1..$pages)
 {
    my $c = $doc->getPageContent($p);
    my @parts = split /(\/[\w]+\s*Do)\b/s, $c;
@@ -139,21 +149,30 @@ for (my $p=1; $p <= $pages; $p++)
          my $objnum = $xobj->{objnum};
          my $im = $doc->getValue($xobj);
          my $l = $im->{Length} || $im->{L} || 0;
-         $l = $doc->getValue($l) if ($l);
+         if ($l)
+         {
+            $l = $doc->getValue($l);
+         }
          my $w = $im->{Width} || $im->{W} || 0;
-         $w = $doc->getValue($w) if ($w);
+         if ($w)
+         {
+            $w = $doc->getValue($w);
+         }
          my $h = $im->{Height} || $im->{H} || 0;
-         $h = $doc->getValue($h) if ($h);
+         if ($h)
+         {
+            $h = $doc->getValue($h);
+         }
 
          next if (exists $doneobjs{$objnum});
 
          $nimages++;
-         print STDERR "Image $nimages page $p, $ref = object $objnum, (w,h)=($w,$h), length $l\n" if ($opts{verbose});
+         _inform("Image $nimages page $p, $ref = object $objnum, (w,h)=($w,$h), length $l", $opts{verbose});
 
          if (exists $opts{skip}->{$objnum} ||
-             (scalar (keys %{$opts{only}}) > 0 && (!exists $opts{only}->{$objnum})))
+             (0 < scalar keys %{$opts{only}} && !exists $opts{only}->{$objnum}))
          {
-            print STDERR "Skipping object $objnum\n" if ($opts{verbose});
+            _inform("Skipping object $objnum", $opts{verbose});
             next;
          }
 
@@ -161,14 +180,17 @@ for (my $p=1; $p <= $pages; $p++)
          if ($im->{Filter})
          {
             my $f = $im->{Filter};
-            if ($f->{type} eq "array")
+            if ($f->{type} eq 'array')
             {
                foreach my $e (@{$f->{value}})
                {
                   my $name = $doc->getValue($e);
-                  $name = $name->{value} if (ref $name);
+                  if (ref $name)
+                  {
+                     $name = $name->{value};
+                  }
                   #warn "Checking $name\n";
-                  if ($name eq "DCTDecode")
+                  if ($name eq 'DCTDecode')
                   {
                      $isjpg = 1;
                      last;
@@ -178,9 +200,12 @@ for (my $p=1; $p <= $pages; $p++)
             else
             {
                my $name = $doc->getValue($f);
-               $name = $name->{value} if (ref $name);
+               if (ref $name)
+               {
+                  $name = $name->{value};
+               }
                #warn "Checking $name\n";
-               if ($name eq "DCTDecode")
+               if ($name eq 'DCTDecode')
                {
                   $isjpg = 1;
                }
@@ -189,7 +214,7 @@ for (my $p=1; $p <= $pages; $p++)
 
          if ((!$isjpg) && $opts{justjpgs})
          {
-            print STDERR "Not a jpeg\n" if ($opts{verbose});
+            _inform('Not a jpeg', $opts{verbose});
          }
          else
          {
@@ -200,8 +225,7 @@ for (my $p=1; $p <= $pages; $p++)
             }
             $oldtotsize += $oldsize;
 
-            my $tmpl = CAM::PDF->new($opts{template});
-            die "$CAM::PDF::errstr\n" if (!$tmpl);
+            my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
             
             # Get a handle on the needed data bits from the template
             my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
@@ -218,26 +242,24 @@ for (my $p=1; $p <= $pages; $p++)
             my $ofile = "/tmp/crunchjpg.$$";
             $tmpl->cleanoutput($ofile);
 
-            local *PIPE;
-            my $cmd = ("convert " . 
+            my $cmd = ('convert ' . 
                        ($opts{scale} && $w > $opts{scalemin} && $h > $opts{scalemin} ?
-                        "-scale '$opts{scale}' " : "") . 
+                        "-scale '$opts{scale}' " : q{}) . 
                        "-quality $opts{quality} " .
-                       "-density 72x72 " .
+                       '-density 72x72 ' .
                        "-page ${w}x$h " .
                        "pdf:$ofile jpg:- | " .
-                       "convert jpg:- pdf:- |");
+                       'convert jpg:- pdf:- |');
 
-            print STDERR "$cmd\n" if ($opts{Verbose});
+            _inform($cmd, $opts{Verbose});
 
-            open(PIPE, $cmd)
+            open my $pipe, $cmd
                 or die "Failed to convert object $objnum to a jpg and back\n";
-            my $content = join('', <PIPE>);
-            close(PIPE) 
+            my $content = join q{}, <$pipe>;
+            close $pipe 
                 or die "Failed to convert object $objnum to a jpg and back\n";
 
-            my $jpg = CAM::PDF->new($content);
-            die "$CAM::PDF::errstr\n" if (!$jpg);
+            my $jpg = CAM::PDF->new($content) || die "$CAM::PDF::errstr\n";
 
             $doc->replaceObject($objnum, $jpg, 9, 1);
 
@@ -245,7 +267,8 @@ for (my $p=1; $p <= $pages; $p++)
             my $newsize = $doc->getValue($newim->{Length});
             $newtotsize += $newsize;
 
-            print STDERR "compressed $oldsize -> $newsize (" . sprintf("%.1f",100*($oldsize-$newsize)/$oldsize) . "%)\n" if ($opts{verbose});
+            my $percent = sprintf '%.1f', 100 * ($oldsize - $newsize) / $oldsize;
+            _inform("compressed $oldsize -> $newsize ($percent%)", $opts{verbose});
 
             $doneobjs{$objnum} = 1;
             $rimages++;
@@ -254,22 +277,31 @@ for (my $p=1; $p <= $pages; $p++)
    }
 }
 
-print STDERR "Crunched $rimages of $nimages images\n" if ($opts{verbose});
+_inform("Crunched $rimages of $nimages images", $opts{verbose});
 $doc->cleanoutput($outfile);
 
 my $newcontentsize = $doc->{contentlength};
 
 if ($opts{verbose})
 {
-   print STDERR "Compression summary:\n";
-   print STDERR "  Document: $oldcontentsize -> $newcontentsize (" . 
-       sprintf("%.1f", ($oldcontentsize ? 100*($oldcontentsize-$newcontentsize)/$oldcontentsize : 0)) . 
-           "%)\n";
-   print STDERR "  Images: $oldtotsize -> $newtotsize (" . 
-       sprintf("%.1f", ($oldtotsize ? 100*($oldtotsize-$newtotsize)/$oldtotsize : 0)) . 
-           "%)\n";
+   my $contentpercent = sprintf '%.1f', $oldcontentsize ? 100 * ($oldcontentsize - $newcontentsize) / $oldcontentsize : 0;
+   my $totpercent = sprintf '%.1f', $oldtotsize ? 100 * ($oldtotsize - $newtotsize) / $oldtotsize : 0;
+   _inform('Compression summary:', 1);
+   _inform("  Document: $oldcontentsize -> $newcontentsize ($contentpercent%)", 1);
+   _inform("  Images: $oldtotsize -> $newtotsize ($totpercent%)", 1);
 }
 
+
+sub _inform
+{
+   my $str     = shift;
+   my $verbose = shift;
+
+   if ($verbose)
+   {
+      print STDERR $str, "\n";
+   }
+}
 
 __END__
 

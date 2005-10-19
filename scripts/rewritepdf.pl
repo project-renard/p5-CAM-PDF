@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -23,31 +24,31 @@ my %opts = (
             version     => 0,
 
             # temporary variables
-            looking     => '',
+            looking     => q{},
             state       => 0,
             otherargs   => [],
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("1|2|3|4|5|6|7|8|9" => sub {$opts{newversion} = "1".$_[0]}, 
-           "c|cleanse"     => \$opts{cleanse},
-           "d|decode"      => \$opts{decode},
-           "f|filter=s"    => \@{$opts{filters}},
-           "C|clearannots" => \$opts{clearannots},
-           "X|decrypt"     => \$opts{decrypt},
-           "p|pass"        => sub { @{$opts{pass}}=(); $opts{looking}="pass"; $opts{state}=2; $opts{newpass}=1; },
-           "P|prefs"       => sub { @{$opts{prefs}}=(); $opts{looking}="prefs"; $opts{state}=4; $opts{newprefs}=1; },
-           "v|verbose"     => \$opts{verbose},
-           "o|order"       => \$opts{order},
-           "h|help"        => \$opts{help},
-           "V|version"     => \$opts{version},
-           "<>"            => sub {
+Getopt::Long::Configure('bundling');
+GetOptions('1|2|3|4|5|6|7|8|9' => sub {$opts{newversion} = '1'.$_[0]}, 
+           'c|cleanse'     => \$opts{cleanse},
+           'd|decode'      => \$opts{decode},
+           'f|filter=s'    => \@{$opts{filters}},
+           'C|clearannots' => \$opts{clearannots},
+           'X|decrypt'     => \$opts{decrypt},
+           'p|pass'        => sub { @{$opts{pass}}=(); $opts{looking}='pass'; $opts{state}=2; $opts{newpass}=1; },
+           'P|prefs'       => sub { @{$opts{prefs}}=(); $opts{looking}='prefs'; $opts{state}=4; $opts{newprefs}=1; },
+           'v|verbose'     => \$opts{verbose},
+           'o|order'       => \$opts{order},
+           'h|help'        => \$opts{help},
+           'V|version'     => \$opts{version},
+           '<>'            => sub {
               if ($opts{looking})
               {
                  push @{$opts{$opts{looking}}}, $_[0];
                  if (--$opts{state} == 0)
                  {
-                    $opts{looking} = '';
+                    $opts{looking} = q{};
                  }
               }
               else
@@ -56,8 +57,15 @@ GetOptions("1|2|3|4|5|6|7|8|9" => sub {$opts{newversion} = "1".$_[0]},
               }
            },
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 @ARGV = @{$opts{otherargs}};
 
@@ -67,23 +75,28 @@ if (@ARGV < 1)
 }
 
 my $infile = shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 if (!$doc->canModify())
 {
    die "This PDF forbids modification\n";
 }
 
-$doc->{pdfversion} = $opts{newversion} if ($opts{newversion});
+if ($opts{newversion})
+{
+   $doc->{pdfversion} = $opts{newversion};
+}
 
 if ($opts{decode} || @{$opts{filters}} > 0)
 {
    foreach my $obj (keys %{$doc->{xref}})
    {
-      $doc->decodeObject($obj) if ($opts{decode});
+      if ($opts{decode})
+      {
+         $doc->decodeObject($obj);
+      }
       foreach my $filtername (@{$opts{filters}})
       {
          $doc->encodeObject($obj, $filtername);
@@ -93,12 +106,18 @@ if ($opts{decode} || @{$opts{filters}} > 0)
 if ($opts{newprefs} || $opts{newpass})
 {
    my @p = $doc->getPrefs();
-   $p[0] = $opts{pass}->[0] if ($opts{newpass});
-   $p[1] = $opts{pass}->[1] if ($opts{newpass});
-   $p[2] = $opts{prefs}->[0] if ($opts{newprefs});
-   $p[3] = $opts{prefs}->[1] if ($opts{newprefs});
-   $p[4] = $opts{prefs}->[2] if ($opts{newprefs});
-   $p[5] = $opts{prefs}->[3] if ($opts{newprefs});
+   if ($opts{newpass})
+   {
+      $p[0] = $opts{pass}->[0];
+      $p[1] = $opts{pass}->[1];
+   }
+   if ($opts{newprefs})
+   {
+      $p[2] = $opts{prefs}->[0];
+      $p[3] = $opts{prefs}->[1];
+      $p[4] = $opts{prefs}->[2];
+      $p[5] = $opts{prefs}->[3];
+   }
    $doc->setPrefs(@p);
 }
 if ($opts{decrypt})
@@ -113,9 +132,18 @@ if ($opts{decrypt})
    }
 }
 
-$doc->clearAnnotations() if ($opts{clearannots});
-$doc->cleanse() if ($opts{cleanse});
-$doc->preserveOrder() if ($opts{order});
+if ($opts{clearannots})
+{
+   $doc->clearAnnotations();
+}
+if ($opts{cleanse})
+{
+   $doc->cleanse();
+}
+if ($opts{order})
+{
+   $doc->preserveOrder();
+}
 $doc->cleanoutput($outfile);
 
 

@@ -1,5 +1,13 @@
 package CAM::PDF::GS::NoText;
 
+use 5.006;
+use warnings;
+use strict;
+use Carp;
+use English qw(-no_match_vars);
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::GS::NoText - PDF graphic state
@@ -22,24 +30,9 @@ rendering flow of a PDF page.  This does not include the graphics
 state for text blocks.  That functionality is in the subclass,
 CAM::PDF::GS.
 
-=cut
-
-#----------------
-
-use strict;
-use warnings;
-
-use vars qw(@ISA);
-
-#----------------
-
 =head1 FUNCTIONS
 
-=over 4
-
-=cut
-
-#----------------
+=over
 
 =item new DATA
 
@@ -53,9 +46,9 @@ sub new
    my $pkg = shift;
    my $refs = shift;
 
-   my $self = bless({
+   my $self = bless {
 
-      mode => "n",            # "c"har, "s"tring, "n"oop
+      mode => 'n',            # 'c'har, 's'tring, 'n'oop
 
       refs => $refs || {},
 
@@ -99,13 +92,12 @@ sub new
       last => [0,0],
       current => [0,0],
 
-   }, $pkg);
+   }, $pkg;
 
    $self->{refs}->{fm} = undef;
 
    return $self;
 }
-#----------------
 
 =item clone
 
@@ -123,26 +115,21 @@ sub clone
    # don't clone references, just point to them
    my $refs = delete $self->{refs};
 
-   eval Data::Dumper->Dump([$self], ["newself"]);
-   if ($@)
+   eval Data::Dumper->Dump([$self], ['newself']);  ## no critic for string eval
+   if ($EVAL_ERROR)
    {
-      die "Error in ".__PACKAGE__."::clone() - $@";
+      die 'Error in '.__PACKAGE__."::clone() - $EVAL_ERROR";
    }
    $self->{refs} = $newself->{refs} = $refs;  # restore references
    @{$newself->{moved}} = (0,0);
    return $newself;
 }
-#----------------
 
 =back
 
 =head1 CONVERSION FUNCTIONS
 
-=over 4
-
-=cut
-
-#----------------
+=over
 
 =item applyMatrix M1, M2
 
@@ -156,10 +143,10 @@ sub applyMatrix
    my $m1 = shift;
    my $m2 = shift;
 
-   unless (ref($m1) eq "ARRAY" && ref($m2) eq "ARRAY")
+   if (ref $m1 ne 'ARRAY' || ref $m2 ne 'ARRAY')
    {
       require Data::Dumper;
-      die "Bad arrays:\n".Dumper($m1,$m2);
+      croak "Bad arrays:\n".Dumper($m1,$m2);
    }
 
    my @m3;
@@ -180,7 +167,6 @@ sub applyMatrix
 
    @$m2 = @m3;
 }
-#----------------
 
 =item dot MATRIX, X, Y
 
@@ -198,7 +184,6 @@ sub dot
    return ($cm->[0]*$x + $cm->[2]*$y + $cm->[4],
            $cm->[1]*$x + $cm->[3]*$y + $cm->[5]);
 }
-#----------------
 
 =item userToDevice X, Y
 
@@ -217,7 +202,13 @@ sub userToDevice
    $y -= $self->{refs}->{mediabox}->[1];
    return ($x, $y);
 }
-#----------------
+
+=item getCoords NODE
+
+Computes device coords for the specified node.  This implementation
+handles line-drawing nodes.
+
+=cut
 
 sub getCoords
 {
@@ -225,7 +216,7 @@ sub getCoords
    my $node = shift;
 
    my ($x1,$y1,$x2,$y2);
-   if ($node->{name} =~ /^(m|l|h|c|v|y|re)$/)
+   if ($node->{name} =~ /^(?:m|l|h|c|v|y|re)$/)
    {
       ($x1,$y1) = $self->userToDevice(@{$self->{last}});
       ($x2,$y2) = $self->userToDevice(@{$self->{current}});
@@ -233,44 +224,30 @@ sub getCoords
    return ($x1,$y1,$x2,$y2);
 }
 
+=item nodeType NODE
+
+Returns one of C<block>, C<path>, C<paint>, C<text> or (the fallback
+case) C<op> for the type of the specified node.
+
+=cut
+
 sub nodeType
 {
    my $self = shift;
    my $node = shift;
 
-   if ($node->{type} eq "block")
-   {
-      return "block";
-   }
-   elsif ($node->{name} =~ /^(m|l|h|c|v|y|re)$/)
-   {
-      return "path";
-   }
-   elsif ($node->{name} =~ /^(S|s|F|f|f\*|B|B\*|b|b\*|n)$/)
-   {
-      return "paint";
-   }
-   elsif ($node->{name} =~ /^T/)
-   {
-      return "text";
-   }
-   else
-   {
-      return "op";
-   }
+   return $node->{type} eq 'block'                           ? 'block'
+        : $node->{name} =~ /^(?:m|l|h|c|v|y|re)$/            ? 'path'
+        : $node->{name} =~ /^(?:S|s|F|f|f\*|B|B\*|b|b\*|n)$/ ? 'paint'
+        : $node->{name} =~ /^T/                              ? 'text'
+        :                                                      'op';
 }
-
-#----------------
 
 =back
 
 =head1 DATA FUNCTIONS
 
-=over 4
-
-=cut
-
-#----------------
+=over
 
 =item i FLATNESS
 
@@ -296,14 +273,12 @@ sub nodeType
 
 # default setters
 {
-   my $code = "";
-   foreach my $key (qw(i j J ri Tc TL Tr Ts Tw w))
+   no strict 'refs';
+   foreach my $name (qw(i j J ri Tc TL Tr Ts Tw w))
    {
-      $code .= "sub $key { \$_[0]->{$key} = \$_[1] }";
+      *{$name} = sub { $_[0]->{$name} = $_[1] };
    }
-   eval $code;
 }
-#----------------
 
 =item g GRAY
 
@@ -315,9 +290,8 @@ sub g
    my $g = shift;
 
    $self->{g} = [$g];
-   $self->{device} = "DeviceGray";
+   $self->{device} = 'DeviceGray';
 }
-#----------------
 
 =item G GRAY
 
@@ -329,9 +303,8 @@ sub G
    my $g = shift;
 
    $self->{G} = [$g];
-   $self->{Device} = "DeviceGray";
+   $self->{Device} = 'DeviceGray';
 }
-#----------------
 
 =item rg RED GREEN BLUE
 
@@ -345,9 +318,8 @@ sub rg
    my $b = shift;
 
    $self->{rg} = [$r, $g, $b];
-   $self->{device} = "DeviceRGB";
+   $self->{device} = 'DeviceRGB';
 }
-#----------------
 
 =item RG RED GREEN BLUE
 
@@ -361,9 +333,8 @@ sub RG
    my $b = shift;
 
    $self->{RG} = [$r, $g, $b];
-   $self->{Device} = "DeviceRGB";
+   $self->{Device} = 'DeviceRGB';
 }
-#----------------
 
 =item k CYAN MAGENTA YELLOW BLACK
 
@@ -378,9 +349,8 @@ sub k
    my $k = shift;
 
    $self->{k} = [$c, $m, $y, $k];
-   $self->{device} = "DeviceCMYK";
+   $self->{device} = 'DeviceCMYK';
 }
-#----------------
 
 =item K CYAN MAGENTA YELLOW BLACK
 
@@ -395,9 +365,8 @@ sub K
    my $k = shift;
 
    $self->{K} = [$c, $m, $y, $k];
-   $self->{Device} = "DeviceCMYK";
+   $self->{Device} = 'DeviceCMYK';
 }
-#----------------
 
 =item gs (Not implemented...)
 
@@ -408,9 +377,8 @@ sub gs
    my $self = shift;
 
    # See PDF Ref page 157
-   #warn "gs operator not yet implemented";
+   #warn 'gs operator not yet implemented';
 }
-#----------------
 
 =item cm M1, M2, M3, M4, M5, M6
 
@@ -422,7 +390,6 @@ sub cm
    
    $self->applyMatrix([@_], $self->{cm});
 }
-#----------------
 
 =item d ARRAYREF, SCALAR
 
@@ -437,7 +404,12 @@ sub d
    @{$self->{da}} = @$da;
    $self->{dp} = $dp;
 }
-#----------------
+
+=item m X, Y
+
+Move path.
+
+=cut
 
 sub m
 {
@@ -447,6 +419,13 @@ sub m
 
    @{$self->{start}} = @{$self->{last}} = @{$self->{current}} = ($x,$y);
 }
+
+=item l X, Y
+
+Line path.
+
+=cut
+
 sub l
 {
    my $self = shift;
@@ -456,6 +435,11 @@ sub l
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x,$y);
 }
+
+=item h
+
+=cut
+
 sub h
 {
    my $self = shift;
@@ -463,6 +447,11 @@ sub h
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = @{$self->{start}};
 }
+
+=item c X1, Y1, X2, Y2, X3, Y3
+
+=cut
+
 sub c
 {
    my $self = shift;
@@ -476,6 +465,11 @@ sub c
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x3,$y3);
 }
+
+=item v X1, Y1, X2, Y2
+
+=cut
+
 sub v
 {
    my $self = shift;
@@ -487,6 +481,11 @@ sub v
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x2,$y2);
 }
+
+=item y X1, Y1, X2, Y2
+
+=cut
+
 sub y
 {
    my $self = shift;
@@ -498,6 +497,13 @@ sub y
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x2,$y2);
 }
+
+=item re X, Y, WIDTH, HEIGHT
+
+Rectangle path.
+
+=cut
+
 sub re
 {
    my $self = shift;
@@ -508,7 +514,6 @@ sub re
 
    @{$self->{start}} = @{$self->{last}} = @{$self->{current}} = ($x,$y);
 }
-#----------------
 
 1;
 __END__

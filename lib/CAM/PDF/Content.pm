@@ -1,5 +1,13 @@
 package CAM::PDF::Content;
 
+use 5.006;
+use warnings;
+use strict;
+use Carp;
+use English qw(-no_match_vars);
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::Content - PDF page layout parser
@@ -14,8 +22,8 @@ See CAM::PDF.
     my $pdf = CAM::PDF->new($filename);
     
     my $contentTree = $pdf->getPageContentTree(4);
-    $contentTree->validate() || die "Syntax error";
-    print $contentTree->render("CAM::PDF::Render::Text");
+    $contentTree->validate() || die 'Syntax error';
+    print $contentTree->render('CAM::PDF::Render::Text');
     $pdf->setPageContent(5, $contentTree->toString());
 
 =head1 DESCRIPTION
@@ -31,109 +39,101 @@ and the render() method below for more details.
 
 =cut
 
-use warnings;
-use strict;
-use Carp;
-
 # Package globals:
 
-my %loaded = (); # keep track of eval'd renderers
+my %loaded; # keep track of eval'd renderers
 my %endings = (
-               q => "Q",
-               BT => "ET",
-               BDC => "EMC",
-               BMC => "EMC",
-               BX => "EX",
+               q   => 'Q',
+               BT  => 'ET',
+               BDC => 'EMC',
+               BMC => 'EMC',
+               BX  => 'EX',
                );
-my $starts = join("|", map quotemeta, keys %endings);
-my $ends = join("|", map quotemeta, values %endings);
-sub buildOpSyntax
+my $starts = join q{|}, map {quotemeta} keys %endings;
+my $ends   = join q{|}, map {quotemeta} values %endings;
+
+sub _buildOpSyntax
 {
    %CAM::PDF::Content::ops = (
-                              b => [],
-                              B => [],
-                              'b*' => [],
-                              'B*' => [],
-                              BDC => ["label","dictionary|label"],
-                              BI => ["image"],
-                              BMC => ["label"],
-                              BT => [],
-                              BX => [],
-                              c => ["number","number","number","number","number","number"],
-                              cm => ["number","number","number","number","number","number"],
-                              CS => ["label"],
-                              cs => ["label"],
-                              d => ["array","number"],
-                              d0 => ["number","number"],
-                              d1 => ["number","number","number","number","number","number"],
-                              Do => ["label"],
-                              DP => ["label","dictionary"],
-                              EI => ["end"],
-                              EMC => ["end"],
-                              ET => ["end"],
-                              EX => ["end"],
-                              F => [],
-                              f => [],
-                              'f*' => [],
-                              G => ["number"],
-                              g => ["number"],
-                              gs => ["label"],
-                              h => [],
-                              i => ["number"],
-                              ID => ["end"],
-                              j => ["integer"],
-                              J => ["integer"],
-                              K => ["number","number","number","number"],
-                              k => ["number","number","number","number"],
-                              l => ["number","number"],
-                              m => ["number","number"],
-                              M => ["number"],
-                              MP => ["label"],
-                              n => [],
-                              q => [],
-                              Q => ["end"],
-                              re => ["number","number","number","number"],
-                              RG => ["number","number","number"],
-                              rg => ["number","number","number"],
-                              ri => ["..."], # not really variable, I just don't understand this one
-                              s => [],
-                              S => [],
-                              SC => ["..."],
-                              sc => ["..."],
-                              SCN => ["..."],
-                              scn => ["..."],
-                              sh => ["label"],
-                              'T*' => [],
-                              Tc => ["number"],
-                              TD => ["number","number"],
-                              Td => ["number","number"],
-                              Tf => ["label","number"],
-                              TJ => ["array"],
-                              Tj => ["string"],
-                              TL => ["number"],
-                              Tm => ["number","number","number","number","number","number"],
-                              Tr => ["integer"],
-                              Ts => ["number"],
-                              Tw => ["number"],
-                              Tz => ["number"],
-                              v => ["number","number","number","number"],
-                              w => ["number"],
-                              W => [],
-                              'W*' => [],
-                              y => ["number","number","number","number"],
-                              '\'' => ["string"],
-                              '\"' => ["number","number","string"],
-                              );
+      b    => [],
+      B    => [],
+      'b*' => [],
+      'B*' => [],
+      BDC  => ['label','dictionary|label'],
+      BI   => ['image'],
+      BMC  => ['label'],
+      BT   => [],
+      BX   => [],
+      c    => ['number','number','number','number','number','number'],
+      cm   => ['number','number','number','number','number','number'],
+      CS   => ['label'],
+      cs   => ['label'],
+      d    => ['array','number'],
+      d0   => ['number','number'],
+      d1   => ['number','number','number','number','number','number'],
+      Do   => ['label'],
+      DP   => ['label','dictionary'],
+      EI   => ['end'],
+      EMC  => ['end'],
+      ET   => ['end'],
+      EX   => ['end'],
+      F    => [],
+      f    => [],
+      'f*' => [],
+      G    => ['number'],
+      g    => ['number'],
+      gs   => ['label'],
+      h    => [],
+      i    => ['number'],
+      ID   => ['end'],
+      j    => ['integer'],
+      J    => ['integer'],
+      K    => ['number','number','number','number'],
+      k    => ['number','number','number','number'],
+      l    => ['number','number'],
+      m    => ['number','number'],
+      M    => ['number'],
+      MP   => ['label'],
+      n    => [],
+      q    => [],
+      Q    => ['end'],
+      re   => ['number','number','number','number'],
+      RG   => ['number','number','number'],
+      rg   => ['number','number','number'],
+      ri   => ['...'], # not really variable, I just don't understand this one
+      s    => [],
+      S    => [],
+      SC   => ['...'],
+      sc   => ['...'],
+      SCN  => ['...'],
+      scn  => ['...'],
+      sh   => ['label'],
+      'T*' => [],
+      Tc   => ['number'],
+      TD   => ['number','number'],
+      Td   => ['number','number'],
+      Tf   => ['label','number'],
+      TJ   => ['array'],
+      Tj   => ['string'],
+      TL   => ['number'],
+      Tm   => ['number','number','number','number','number','number'],
+      Tr   => ['integer'],
+      Ts   => ['number'],
+      Tw   => ['number'],
+      Tz   => ['number'],
+      v    => ['number','number','number','number'],
+      w    => ['number'],
+      W    => [],
+      'W*' => [],
+      y    => ['number','number','number','number'],
+      q{'} => ['string'],
+      q{"} => ['number','number','string'],
+   );
 }
-#----------------
 
 =head1 FUNCTIONS
 
-=over 4
-
-=cut
-
-#----------------
+=over
 
 =item new CONTENT
 
@@ -158,20 +158,19 @@ encounters problems.  The default is false.
 
 sub new
 {
-   my $pkg = shift;
+   my $pkg     = shift;
    my $content = shift;
-   my $refs = shift;
+   my $refs    = shift;
    my $verbose = shift;
 
-   my $self = bless({
-      refs => $refs || {},
+   my $self = bless {
+      refs    => $refs || {},
       content => $content,
-      blocks => [],
+      blocks  => [],
       verbose => $verbose,
-   }, $pkg);
+   }, $pkg;
    return $self->parse(\$content);
 }
-#----------------
 
 =item parse CONTENTREF
 
@@ -185,29 +184,31 @@ my $progress = 0;
 sub parse
 {
    my $self = shift;
-   my $c = shift;
+   my $c    = shift;
 
    $progress = 0;
-   pos($$c) = 0;
+   pos($$c) = 0;   ## no critic for builtin with parens
    $$c =~ /^\s+/scg; # prime the regex
    my $result = $self->_parseBlocks($c, $self->{blocks});
    if (!defined $result)
    {
       if ($self->{verbose})
       {
-         carp "Parse failed";
+         carp 'Parse failed';
       }
-      return undef;
+      return;
    }
    if ($$c =~ /\G\S/scg)
    {
-      carp "Trailing unparsed content: " . CAM::PDF->trimstr($$c) if ($self->{verbose});
-      return undef;
+      if ($self->{verbose})
+      {
+         carp 'Trailing unparsed content: ' . CAM::PDF->trimstr($$c);
+      }
+      return;
    }
    return $self;
 }
 
-#----------------
 # Internal method
 #
 
@@ -218,26 +219,19 @@ sub _parseBlocks
    my $A_blocks = shift;
    my $end = shift;
 
-   my @stack = ();
+   my @stack;
    while ($$c =~ /\G.*\S/)
    {
-      #my $p = pos($$c) || 0;
-      #my $f = int(100*($p/length($$c)));
-      #if ($f > $progress)
-      #{
-      #   $progress = $f;
-      #   print STDERR "\r$f% done";
-      #}
-
       my $block = $self->_parseBlock($c, $end);
       if (!defined $block)
       {
-         #use Data::Dumper;
-         #carp "So far: ".Dumper($A_blocks);
-         return undef;
+         return;
       }
-      return $self if (!$block);
-      if ($block->{type} eq "block" || $block->{type} eq "op")
+      if (!$block)
+      {
+         return $self;
+      }
+      if ($block->{type} eq 'block' || $block->{type} eq 'op')
       {
          push @{$block->{args}}, @stack;
          @stack = ();
@@ -250,51 +244,56 @@ sub _parseBlocks
    }
    if (@stack > 0)
    {
-      carp "Error: ".@stack." unprocessed arguments" if ($self->{verbose});
-      return undef;
+      if ($self->{verbose})
+      {
+         carp 'Error: '.@stack.' unprocessed arguments';
+      }
+      return;
    }
    return $self;
 }
 
-#----------------
 # Internal method
 #
 
 sub _parseBlock
 {
    my $self = shift;
-   my $c = shift;
-   my $end = shift;
+   my $c    = shift;
+   my $end  = shift;
 
-   if ($$c =~ /\G($starts)\s*/scgo)
+   if ($$c =~ /\G($starts)\s*/scgo)   ## no critic for if-elsif chain
    {
       my $type = $1;
       my $blocks = [];
       if ($self->_parseBlocks($c, $blocks, $endings{$type}))
       {
-         return &b("block", $type, $blocks);
+         return _b('block', $type, $blocks);
       }
       else
       {
-         return undef;
+         return;
       }
    }
    elsif (defined $end && $$c =~ /\G$end\s*/scg)
    {
-      return "";
+      return q{};
    }
    elsif ($$c =~ /\G($ends)\s*/scgo)
    {
       my $op = $1;
-      if ($end)
+      if ($self->{verbose})
       {
-         carp "Wrong block ending (expected '$end', got '$op')" if ($self->{verbose});
+         if ($end)
+         {
+            carp "Wrong block ending (expected '$end', got '$op')";
+         }
+         else
+         {
+            carp "Unexpected block ending '$op'";
+         }
       }
-      else
-      {
-         carp "Unexpected block ending '$op'" if ($self->{verbose});
-      }
-      return undef;
+      return;
    }
    elsif ($$c =~ /\G(BI)\b/)
    {
@@ -302,26 +301,28 @@ sub _parseBlock
       my $img = CAM::PDF->parseInlineImage($c);
       if (!$img)
       {
-         carp "Failed to parse inline image" if ($self->{verbose});
-         return undef;
+         if ($self->{verbose})
+         {
+            carp 'Failed to parse inline image';
+         }
+         return;
       }
-      my $block = &b("op", $op, &b("image", $img->{value}));
+      my $block = _b('op', $op, _b('image', $img->{value}));
       return $block;
    }
    #elsif ($$c =~ /\G([bBcdfFgGhijJkKlmMnsSvwWy'"]|b\*|B\*|BDC|BI|d[01]|c[sm]|CS|Do|DP|f\*|gs|MP|re|RG|rg|ri|sc|SC|scn|SCN|sh|T[cdDfJjLmrswz\*]|W\*)\b\s*/scg)
    elsif ($$c =~ /\G([A-Za-z\'\"][\w\*]*)\s*/scg)
    {
       my $op = $1;
-      return &b("op", $op);
+      return _b('op', $op);
    }
    else
    {
       my $node = CAM::PDF->parseAny($c);
-      return &b($node->{type}, $node->{value});
+      return _b($node->{type}, $node->{value});
    }
-   die "Content not understood: " . CAM::PDF->trimstr($$c);
+   die 'Content not understood: ' . CAM::PDF->trimstr($$c);
 }
-#----------------
 
 =item validate
 
@@ -332,59 +333,64 @@ specification.
 
 sub validate
 {
-   my $self = shift;
+   my $self   = shift;
    my $blocks = shift || $self->{blocks};
 
-   $self->buildOpSyntax();
+   $self->_buildOpSyntax();
 
    foreach my $block (@$blocks)
    {
-      if ($block->{type} eq "block")
+      if ($block->{type} eq 'block')
       {
-         return undef if (!$self->validate($block->{value}))
+         if (!$self->validate($block->{value}))
+         {
+            return;
+         }
       }
-      elsif ($block->{type} ne "op")
+      elsif ($block->{type} ne 'op')
       {
-         carp "Neither a block nor an op" if ($self->{verbose});
-         return undef;
+         if ($self->{verbose})
+         {
+            carp 'Neither a block nor an op';
+         }
+         return;
       }
 
       my $syntax = $CAM::PDF::Content::ops{$block->{name}};
       if ($syntax)
       {
-         if ($syntax->[0] && $syntax->[0] eq "...")
+         if ($syntax->[0] && $syntax->[0] eq '...')
          {
             # variable args, skip
          }
          elsif (@{$block->{args}} != @$syntax)
          {
-            carp "Wrong number of arguments to '$$block{name}' (got ".@{$block->{args}}." instead of ".@$syntax.")" if ($self->{verbose});
-            #eval "use Data::Dumper";
-            #print join(", ", map $_->{type}, @{$block->{args}})."\n";
-            #print join(", ", map $_->{value}, @{$block->{args}})."\n";
-            #print Dumper($blocks);
-            return undef;
+            if ($self->{verbose})
+            {
+               carp "Wrong number of arguments to '$$block{name}' (got ".@{$block->{args}}.' instead of '.@$syntax.')';
+            }
+            return;
          }
          else
          {
             foreach my $i (0 .. $#$syntax)
             {
-               my $arg = $block->{args}->[$i];
+               my $arg   = $block->{args}->[$i];
                my $types = $syntax->[$i];
                my $match = 0;
                foreach my $type (split /\|/, $types)
                {
-                  if ($type eq "integer")
+                  if ($type eq 'integer')
                   {
-                     if ($arg->{type} eq "number" && $arg->{value} =~ /^\d+$/)
+                     if ($arg->{type} eq 'number' && $arg->{value} =~ /^\d+$/)
                      {
                         $match = 1;
                         last;
                      }
                   }
-                  elsif ($type eq "string")
+                  elsif ($type eq 'string')
                   {
-                     if ($arg->{type} eq "string" || $arg->{type} eq "hexstring")
+                     if ($arg->{type} eq 'string' || $arg->{type} eq 'hexstring')
                      {
                         $match = 1;
                         last;
@@ -398,8 +404,11 @@ sub validate
                }
                if (!$match)
                {
-                  carp "Expected '$types' argument for '$$block{name}' (got $$arg{type})" if ($self->{verbose});
-                  return undef;
+                  if ($self->{verbose})
+                  {
+                     carp "Expected '$types' argument for '$$block{name}' (got $$arg{type})";
+                  }
+                  return;
                }
 
             }
@@ -408,7 +417,6 @@ sub validate
    }
    return $self;
 }
-#----------------
 
 =item render RENDERERCLASS
 
@@ -428,13 +436,15 @@ sub render
 
    if (!$loaded{$renderer})
    {
-      eval "use $renderer";
-      die $@ if ($@);
+      eval "require $renderer";   ## no critic for string eval
+      if ($EVAL_ERROR)
+      {
+         die $EVAL_ERROR;
+      }
       $loaded{$renderer} = 1;
    }
    return $self->traverse($renderer);
 }
-#----------------
 
 =item computeGS
 
@@ -452,12 +462,11 @@ CAM::PDF::GS::NoText selected as the rendering class.
 
 sub computeGS
 {
-   my $self = shift;
-   my $skipText = shift || 0;
+   my $self      = shift;
+   my $skip_text = shift;
    
-   return $self->render("CAM::PDF::GS" . ($skipText ? "::NoText" : ""));
+   return $self->render('CAM::PDF::GS' . ($skip_text ? '::NoText' : q{}));
 }
-#----------------
 
 =item findImages
 
@@ -470,9 +479,8 @@ sub findImages
 {
    my $self = shift;
    
-   return $self->render("CAM::PDF::Renderer::Images");
+   return $self->render('CAM::PDF::Renderer::Images');
 }
-#----------------
 
 =item traverse RENDERERCLASS
 
@@ -531,10 +539,10 @@ sub traverse
          $gs = $newgs;
       }
 
-      if ($block->{type} eq "block")
+      if ($block->{type} eq 'block')
       {
          my $newgs = $self->traverse($renderer, $block->{value}, $gs);
-         if ($block->{name} ne "q")
+         if ($block->{name} ne 'q')
          {
             $gs = $newgs;
          }
@@ -542,7 +550,6 @@ sub traverse
    }
    return $gs;
 }
-#----------------
 
 =item toString
 
@@ -557,11 +564,11 @@ sub toString
    my $self = shift;
    my $blocks = shift || $self->{blocks};
 
-   my $str = "";
+   my $str = q{};
    my $doc = $self->{refs}->{doc};
    foreach my $block (@$blocks)
    {
-      if ($block->{name} eq "BI")
+      if ($block->{name} eq 'BI')
       {
          $str .= $doc->writeInlineImage($block->{args}->[0]) . "\n";
       }
@@ -569,10 +576,10 @@ sub toString
       {
          foreach my $arg (@{$block->{args}})
          {
-            $str .= $doc->writeAny($arg) . " ";
+            $str .= $doc->writeAny($arg) . q{ };
          }
          $str .= $block->{name} . "\n";
-         if ($block->{type} eq "block")
+         if ($block->{type} eq 'block')
          {
             $str .= $self->toString($block->{value});
             $str .= $endings{$block->{name}} . "\n";
@@ -582,14 +589,13 @@ sub toString
    return $str;
 }
 
-#----------------
 # internal function
 # Node creator
 
-sub b
+sub _b
 {
    my $type = shift;
-   if ($type eq "block")
+   if ($type eq 'block')
    {
       return {
          type => $type,
@@ -598,7 +604,7 @@ sub b
          args => [@_],
       };
    }
-   elsif ($type eq "op")
+   elsif ($type eq 'op')
    {
       return {
          type => $type,

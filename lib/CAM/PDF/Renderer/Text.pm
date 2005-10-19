@@ -1,5 +1,12 @@
 package CAM::PDF::Renderer::Text;
 
+use 5.006;
+use warnings;
+use strict;
+use base qw(CAM::PDF::GS);
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::Renderer::Text - Render an ASCII image of a PDF page
@@ -21,19 +28,6 @@ This class is used to print to STDOUT the coordinates of each node of
 a page layout.  It is written both for debugging and as a minimal
 example of a renderer.
 
-=cut
-
-#----------------
-
-use strict;
-use warnings;
-use CAM::PDF::GS;
-
-use vars qw(@ISA $xdensity $ydensity);
-@ISA = qw(CAM::PDF::GS);
-
-#----------------
-
 =head1 GLOBALS
 
 The $CAM::PDF::Renderer::Text::xdensity and
@@ -42,13 +36,12 @@ graphical output device.  They both default to 6.0.
 
 =cut
 
-$xdensity = $ydensity = 6.0;
-
-#----------------
+our $xdensity = 6.0;
+our $ydensity = 6.0;
 
 =head1 FUNCTIONS
 
-=over 4
+=over
 
 =item new
 
@@ -63,16 +56,15 @@ sub new
    my $self = $pkg->SUPER::new(@_);
    if ($self)
    {
-      my $w = int(($self->{refs}->{mediabox}->[2] -
-                   $self->{refs}->{mediabox}->[0]) / $xdensity);
-      my $h = int(($self->{refs}->{mediabox}->[3] -
-                   $self->{refs}->{mediabox}->[1]) / $ydensity);
+      my $fw = ($self->{refs}->{mediabox}->[2] - $self->{refs}->{mediabox}->[0]) / $xdensity;
+      my $fh = ($self->{refs}->{mediabox}->[3] - $self->{refs}->{mediabox}->[1]) / $ydensity;
+      my $w = int $fw;
+      my $h = int $fh;
       $self->{refs}->{framebuffer} = CAM::PDF::Renderer::Text::FB->new($w, $h);
-      $self->{mode} = "c";
+      $self->{mode} = 'c';
    }
    return $self;
 }
-#----------------
 
 =item renderText STRING
 
@@ -86,8 +78,8 @@ sub renderText
    my $string = shift;
 
    my ($x, $y) = $self->textToDevice(0,0);
-   $x = int($x / $xdensity);
-   $y = int($y / $ydensity);
+   $x = int $x / $xdensity;
+   $y = int $y / $ydensity;
 
    $self->{refs}->{framebuffer}->set($x, $y, $string);
    #print "($x,$y) $string\n";
@@ -96,19 +88,13 @@ sub renderText
 
 package CAM::PDF::Renderer::Text::FB;
 
-#----------------
-
 =back
 
 =head1 CAM::PDF::Renderer::Text::FB
 
 This is the FrameBuffer class
 
-=over 4
-
-=cut
-
-#----------------
+=over
 
 =item new WIDTH, HEIGHT
 
@@ -122,18 +108,17 @@ sub new
    my $w = shift;
    my $h = shift;
 
-   my $self = bless({
+   my $self = bless {
       w => $w,
       h => $h,
       fb =>[],
-   }, $pkg);
-   for (my $r=0; $r<$h; $r++)
+   }, $pkg;
+   for my $r (0 .. $h-1)
    {
-      $self->{fb}->[$r] = [("")x$w];
+      $self->{fb}->[$r] = [(q{})x$w];
    }
    return $self;
 }
-#----------------
 
 =item set X, Y, STRING
 
@@ -171,7 +156,6 @@ sub set
       $fb->[$y]->[$x] = $string;
    }
 }
-#----------------
 
 =item DESTROY
 
@@ -184,29 +168,31 @@ sub DESTROY
    my $self = shift;
 
    my $fb = $self->{fb};
-   for (my $r=$#$fb; $r >= 0; $r--)
+   for my $r (reverse 0 .. $#$fb)
    {
       my $row = $fb->[$r];
       if ($row)
       {
          #print "r $r c ".@$row."\n";
-         #print ">";
-         for (my $c=0; $c < @$row; $c++)
+         #print '>';
+         for my $c (0 .. $#$row)
          {
             my $str = $row->[$c];
-            $str = " " unless (defined $str && $str ne "");
+            if (!defined $str || $str eq q{})
+            {
+               $str = q{ };
+            }
             print $str;
          }
       }
       else
       {
          #print "r $r c 0\n";
-         #print ">";
+         #print '>';
       }
       print "\n";
    }
 }
-#----------------
 
 1;
 __END__

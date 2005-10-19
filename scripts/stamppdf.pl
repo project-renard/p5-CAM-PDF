@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -12,14 +13,21 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"  => \$opts{verbose},
-           "o|order"    => \$opts{order},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'  => \$opts{verbose},
+           'o|order'    => \$opts{order},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 2)
 {
@@ -28,13 +36,11 @@ if (@ARGV < 2)
 
 my $infile = shift;
 my $stampfile = shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
-my $stampdoc = CAM::PDF->new($stampfile);
-die "$CAM::PDF::errstr\n" if (!$stampdoc);
+my $stampdoc = CAM::PDF->new($stampfile) || die "$CAM::PDF::errstr\n";
 
 my $stamp = "q\n" . $stampdoc->getPageContent(1) . "Q\n";
 foreach my $p (1 .. $doc->numPages())

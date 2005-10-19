@@ -1,9 +1,11 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+use English qw(-no_match_vars);
 
 my %opts = (
             verbose    => 0,
@@ -11,13 +13,20 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"    => \$opts{verbose},
-           "h|help"       => \$opts{help},
-           "V|version"    => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'    => \$opts{verbose},
+           'h|help'       => \$opts{help},
+           'V|version'    => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
@@ -27,11 +36,15 @@ if (@ARGV < 1)
 while (@ARGV > 0)
 {
    my $file = shift;
-   my $doc = CAM::PDF->new($file, "", "", 1); # prompt for password
-   die "$CAM::PDF::errstr\n" if (!$doc);
+
+   # prompt for password
+   my $doc = CAM::PDF->new($file, q{}, q{}, 1) || die "$CAM::PDF::errstr\n";
    
-   $file = "STDIN" if ($file eq "-");
-   my $size = length($doc->{content});
+   if ($file eq q{-})
+   {
+      $file = 'STDIN';
+   }
+   my $size = length $doc->{content};
    my $pages = $doc->numPages();
    my @prefs = $doc->getPrefs();
    my $pdfversion = $doc->{pdfversion};
@@ -56,23 +69,20 @@ while (@ARGV > 0)
       foreach my $key (sort keys %$info)
       {
          my $val = $info->{$key}->{value};
-         if ($info->{$key}->{type} eq "string" && $val && 
+         if ($info->{$key}->{type} eq 'string' && $val && 
              $val =~ /^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})([+-])(\d{2})\'(\d{2})\'$/)
          {
             my ($Y,$M,$D,$h,$m,$s,$sign,$tzh,$tzm) = ($1,$2,$3,$4,$5,$6,$7,$8,$9);
-            eval "require Time::Local;";
-            if (!$@)
-            {
-               my $time = Time::Local::timegm($s,$m,$h,$D,$M-1,$Y-1900);
-               $time += "$sign".($tzh*3600 + $tzm*60);
-               $val = localtime($time);
-            }
+            require Time::Local;
+            my $time = Time::Local::timegm($s,$m,$h,$D,$M-1,$Y-1900);
+            $time += "$sign".($tzh*3600 + $tzm*60);
+            $val = localtime $time;
          }
-         printf "%-13s %s\n", $key.":", $val;
+         printf "%-13s %s\n", $key.q{:}, $val;
       }
    }
-   print "Page Size:    ".($pagesize[0] ? "$pagesize[0] x $pagesize[1] pts" : "variable")."\n";
-   print "Optimized:    ".($doc->isLinearized()?"yes":"no")."\n";
+   print 'Page Size:    '.($pagesize[0] ? "$pagesize[0] x $pagesize[1] pts" : 'variable')."\n";
+   print 'Optimized:    '.($doc->isLinearized()?'yes':'no')."\n";
    print "PDF version:  $pdfversion\n";
    print "Security\n";
    if ($prefs[0] || $prefs[1])
@@ -83,11 +93,14 @@ while (@ARGV > 0)
    {
       print "  Passwd:     none\n";
    }
-   print "  Print:      ".($prefs[2]?"yes":"no")."\n";
-   print "  Modify:     ".($prefs[3]?"yes":"no")."\n";
-   print "  Copy:       ".($prefs[4]?"yes":"no")."\n";
-   print "  Add:        ".($prefs[5]?"yes":"no")."\n";
-   print "---------------------------------\n" if (@ARGV > 0);
+   print '  Print:      '.($prefs[2]?'yes':'no')."\n";
+   print '  Modify:     '.($prefs[3]?'yes':'no')."\n";
+   print '  Copy:       '.($prefs[4]?'yes':'no')."\n";
+   print '  Add:        '.($prefs[5]?'yes':'no')."\n";
+   if (@ARGV > 0)
+   {
+      print "---------------------------------\n";
+   }
 }
 
 

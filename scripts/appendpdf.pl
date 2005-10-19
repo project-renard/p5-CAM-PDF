@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -14,16 +15,23 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("f|forms"    => \$opts{forms},
-           "v|verbose"  => \$opts{verbose},
-           "p|prepend"  => \$opts{prepend},
-           "o|order"    => \$opts{order},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('f|forms'    => \$opts{forms},
+           'v|verbose'  => \$opts{verbose},
+           'p|prepend'  => \$opts{prepend},
+           'o|order'    => \$opts{order},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 2)
 {
@@ -35,12 +43,11 @@ my @docs = ();
 
 push @files, shift;
 push @files, shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
 foreach my $file (@files)
 {
-   my $doc = CAM::PDF->new($file);
-   die "$CAM::PDF::errstr\n" if (!$doc);
+   my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
    push @docs, $doc;
 }
 
@@ -48,7 +55,7 @@ if ($opts{prepend})
 {
    if ($opts{verbose})
    {
-      print "Prepending ".$docs[1]->numPages()." page(s) to original ".$docs[0]->numPages()." page(s)\n";
+      print 'Prepending '.$docs[1]->numPages().' page(s) to original '.$docs[0]->numPages()." page(s)\n";
    }
    $docs[0]->prependPDF($docs[1]);
 }
@@ -56,7 +63,7 @@ else
 {
    if ($opts{verbose})
    {
-      print "Appending ".$docs[1]->numPages()." page(s) to original ".$docs[0]->numPages()." page(s)\n";
+      print 'Appending '.$docs[1]->numPages().' page(s) to original '.$docs[0]->numPages()." page(s)\n";
    }
    $docs[0]->appendPDF($docs[1]);
 }
@@ -66,7 +73,10 @@ if (!$opts{forms})
    $docs[0]->clearAnnotations();
 }
    
-$docs[0]->preserveOrder() if ($opts{order});
+if ($opts{order})
+{
+   $docs[0]->preserveOrder();
+}
 if (!$docs[0]->canModify())
 {
    die "This PDF forbids modification\n";

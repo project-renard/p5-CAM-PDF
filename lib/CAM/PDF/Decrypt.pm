@@ -1,5 +1,17 @@
 package CAM::PDF::Decrypt;
 
+#  These are included at runtime via eval below
+# use Digest::MD5;
+# use Crypt::RC4;
+
+use 5.006;
+use warnings;
+use strict;
+use Carp;
+use English qw(-no_match_vars);
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::Decrypt - PDF security helper
@@ -21,59 +33,43 @@ module.
 
 =cut
 
-#----------------
-
-#  These are included at runtime via eval below
-# use Digest::MD5 qw(md5);
-# use Crypt::RC4;
-
-use warnings;
-use strict;
-use Carp;
-use vars qw(@ISA);
-
 # These constants come from the Adobe PDF Reference document, IIRC
-my @padding = (
-               0x28, 0xbf, 0x4e, 0x5e, 
-               0x4e, 0x75, 0x8a, 0x41, 
-               0x64, 0x00, 0x4e, 0x56, 
-               0xff, 0xfa, 0x01, 0x08, 
-               0x2e, 0x2e, 0x00, 0xb6, 
-               0xd0, 0x68, 0x3e, 0x80, 
-               0x2f, 0x0c, 0xa9, 0xfe, 
-               0x64, 0x53, 0x69, 0x7a,
-               );
-my $padding = pack("C*", @padding);
+my $padding = pack 'C*',
+    0x28, 0xbf, 0x4e, 0x5e, 
+    0x4e, 0x75, 0x8a, 0x41, 
+    0x64, 0x00, 0x4e, 0x56, 
+    0xff, 0xfa, 0x01, 0x08, 
+    0x2e, 0x2e, 0x00, 0xb6, 
+    0xd0, 0x68, 0x3e, 0x80, 
+    0x2f, 0x0c, 0xa9, 0xfe, 
+    0x64, 0x53, 0x69, 0x7a;
 
-#----------------
 
 =head1 FUNCTIONS
 
-=over 4
+=over
 
 =cut
 
-#----------------
 # Internal function
-#
+#   Safely load libraries needed at runtime
 
-sub loadlibs
+sub _loadlibs
 {
-   foreach my $lib ("Digest::MD5 qw(md5)", "Crypt::RC4")
-   {
-      eval("local \$SIG{__DIE__} = 'DEFAULT'; " .
-           "local \$SIG{__WARN__} = 'DEFAULT'; " .
-           "use $lib;");
+   local $SIG{__DIE__}  = 'DEFAULT';
+   local $SIG{__WARN__} = 'DEFAULT';
 
-      if ($@)
-      {
-         $CAM::PDF::errstr = "Failed to load library $lib.  The document cannot be decrypted.\n";
-         return undef;
-      }
+   eval {
+      require Digest::MD5;
+      require Crypt::RC4;
+   };
+   if ($EVAL_ERROR)
+   {
+      $CAM::PDF::errstr = "Failed to load one of Digest::MD5 or Crypt::RC4.  The document cannot be decrypted.\n";
+      return;
    }
    return 1;
 }
-#----------------
 
 =item new PDF, OWNERPASS, USERPASS, PROMPT
 
@@ -85,7 +81,7 @@ a password on the command line.
 
 =cut
 
-sub new($$$$$)
+sub new
 {
    my $pkg = shift;
    my $doc = shift;
@@ -96,49 +92,47 @@ sub new($$$$$)
    if (!$doc)
    {
       $CAM::PDF::errstr = "This is an invalid PDF doc\n";
-      return undef;
+      return;
    }
 
    if (!exists $doc->{trailer})
    {
       $CAM::PDF::errstr = "This PDF doc has no trailer\n";
-      return undef;
+      return;
    }
 
-   my $self = bless({
+   my $self = bless {
       keycache => {},
-   }, $pkg);
+   }, $pkg;
 
    if (!exists $doc->{trailer}->{Encrypt})
    {
       # This PDF doc is not encrypted.  Return an empty object
       $self->{noop} = 1;
-      warn "got noop crypt\n" if ($CAM::PDF::speedtesting);
    }
    else
    {
-      if ($doc->{trailer}->{Encrypt}->{type} eq "reference")
+      if ($doc->{trailer}->{Encrypt}->{type} eq 'reference')
       {
          # If the encryption block is an indirect reference, store
          # it's location so we don't accidentally encrypt it.
          $self->{EncryptBlock} = $doc->{trailer}->{Encrypt}->{value};
       }
    
-      if (!&loadlibs())
+      if (! _loadlibs())
       {
-         return undef;
+         return;
       }
-      warn "done loadlibs\n" if ($CAM::PDF::speedtesting);
       
       my $dict = $doc->getValue($doc->{trailer}->{Encrypt});
       
-      if ($dict->{Filter}->{value} ne "Standard" || $dict->{V}->{value} != 1)
+      if ($dict->{Filter}->{value} ne 'Standard' || $dict->{V}->{value} != 1)
       {
          $CAM::PDF::errstr = "PDF doc encrypted with something other than Version 1 of the Standard filter\n";
-         return undef;
+         return;
       }
       
-      foreach my $key ("O", "U", "P")
+      foreach my $key ('O', 'U', 'P')
       {
          if (exists $dict->{$key})
          {
@@ -147,36 +141,35 @@ sub new($$$$$)
          else
          {
             $CAM::PDF::errstr = "Requred decryption datum $key is missing.  The document cannot be decrypted.\n";
-            return undef;
+            return;
          }
       }
 
       my $success = 0;
-      do {
-         if ($self->check_pass($doc, $opassword, $upassword))
+      while (!$success)
+      {
+         if ($self->_check_pass($doc, $opassword, $upassword))
          {
             $success = 1;
          }
          elsif ($prompt)
          {
-            print STDERR "Enter owner password: ";
+            print STDERR 'Enter owner password: ';
             $opassword = <STDIN>;
             chop $opassword;
             
-            print STDERR "Enter user password: ";
+            print STDERR 'Enter user password: ';
             $upassword = <STDIN>;
             chop $upassword;
          }
          else
          {
             $CAM::PDF::errstr = "Incorrect password(s).  The document cannot be decrypted.\n";
-            return undef;
+            return;
          }
-      } while (!$success);
-      warn "verified pass\n" if ($CAM::PDF::speedtesting);
+      }
 
-      $self->{code} = $self->compute_hash($doc, $opassword);
-      warn "got hash\n" if ($CAM::PDF::speedtesting);
+      $self->{code} = $self->_compute_hash($doc, $opassword);
    }      
 
    $self->{opass} = $opassword;
@@ -184,7 +177,6 @@ sub new($$$$$)
 
    return $self;
 }
-#----------------
 
 =item decode_permissions FIELD
 
@@ -203,10 +195,9 @@ sub decode_permissions
    my $self = shift;
    my $p = shift;
 
-   my $b = unpack("b*",pack("V", $p));
-   return split(//, substr($b,2,4));
+   my $b = unpack 'b*', pack 'V', $p;
+   return split //, substr $b, 2, 4;
 }
-#----------------
 
 =item encode_permissions PRINT, MODIFY, COPY, ADD
 
@@ -219,41 +210,39 @@ sub encode_permissions
 {
    my $self = shift;
 
-   my %allow = ();
-
-   $allow{print} = shift;
+   my %allow;
+   $allow{print}  = shift;
    $allow{modify} = shift;
-   $allow{copy} = shift;
-   $allow{add} = shift;
+   $allow{copy}   = shift;
+   $allow{add}    = shift;
 
    foreach my $key (keys %allow)
    {
-      $allow{$key} = ($allow{$key} ? 1 : 0);
+      $allow{$key} = $allow{$key} ? 1 : 0;
    }
 
    # This is more complicated that decode, because we need to pad
    # endian-appropriately
 
-   my @p = ($allow{print}, $allow{modify}, $allow{copy}, $allow{add});
-   my $b = "00" . join("", @p) . "11"; # 8 bits: 2 pad, 4 data, 2 pad
+   my $perms = join q{}, $allow{print}, $allow{modify}, $allow{copy}, $allow{add};
+   my $b = '00' . $perms . '11'; # 8 bits: 2 pad, 4 data, 2 pad
    # Pad to 32 bits with the right endian-ness
-   if (substr(unpack("B16",pack("s",255)),0,1) eq "1")
+   my $binary = unpack 'B16', pack 's', 255;
+   if ('1' eq substr $binary, 0, 1)
    {
       # little endian
-      $b .= ("11111111" x 3);
+      $b .= '11111111' x 3;
    }
    else
    {
       # big endian
-      $b = ("11111111" x 3) . $b;
+      $b = ('11111111' x 3) . $b;
    }
    # Make a signed 32-bit number (NOTE: should this really be signed???  need to check spec...)
-   my $p = unpack("l",pack("b32", $b));
+   my $p = unpack 'l', pack 'b32', $b;
 
-   #warn "(" . join(",", @p) . ") => $b => $p\n";
    return $p;
 }
-#----------------
 
 =item set_passwords DOC, OWNERPASS, USERPASS
 
@@ -276,7 +265,7 @@ sub set_passwords
    my $upass = shift;
    my $p = shift || $self->{P} || $self->encode_permissions(1,1,1,1);
 
-   if (!&loadlibs())
+   if (! _loadlibs())
    {
       die $CAM::PDF::errstr;
    }
@@ -284,16 +273,16 @@ sub set_passwords
    $doc->clean();  # Mark EVERYTHING changed
 
    #  if no crypt block, create it and a trailer entry
-   my $dict = CAM::PDF::Node->new("dictionary",
+   my $dict = CAM::PDF::Node->new('dictionary',
                                   {
-                                     Filter => CAM::PDF::Node->new("label", "Standard"),
-                                     V => CAM::PDF::Node->new("number", 1),
-                                     R => CAM::PDF::Node->new("number", 2),
-                                     P => CAM::PDF::Node->new("number", $p),
-                                     O => CAM::PDF::Node->new("string", ""),
-                                     U => CAM::PDF::Node->new("string", ""),
+                                     Filter => CAM::PDF::Node->new('label', 'Standard'),
+                                     V => CAM::PDF::Node->new('number', 1),
+                                     R => CAM::PDF::Node->new('number', 2),
+                                     P => CAM::PDF::Node->new('number', $p),
+                                     O => CAM::PDF::Node->new('string', q{}),
+                                     U => CAM::PDF::Node->new('string', q{}),
                                   });
-   my $obj = CAM::PDF::Node->new("object", $dict);
+   my $obj = CAM::PDF::Node->new('object', $dict);
 
    my $objnum = $self->{EncryptBlock};
    if ($objnum)
@@ -305,17 +294,20 @@ sub set_passwords
       $objnum = $doc->appendObject(undef, $obj, 0);
    }
 
-   die "No trailer" if (!$doc->{trailer});
+   if (!$doc->{trailer})
+   {
+      die 'No trailer';
+   }
 
    # This may overwrite an existing ref, but that's no big deal, just a tiny bit inefficient
-   $doc->{trailer}->{Encrypt} = CAM::PDF::Node->new("reference", $objnum);
+   $doc->{trailer}->{Encrypt} = CAM::PDF::Node->new('reference', $objnum);
    $doc->{EncryptBlock} = $objnum;
 
    #  if no ID, create it
    if (!$doc->{ID})
    {
       $doc->createID();
-      #print "new ID: " . unpack("h*",$doc->{ID}) . " (" . length($doc->{ID}) . ")\n";
+      #print 'new ID: ' . unpack('h*',$doc->{ID}) . ' (' . length($doc->{ID}) . ")\n";
    }
 
    #  record data
@@ -324,10 +316,10 @@ sub set_passwords
    $self->{P} = $p;
 
    #  set O
-   $self->{O} = $self->compute_o($opass, $upass);
+   $self->{O} = $self->_compute_o($opass, $upass);
 
    #  set U
-   $self->{U} = $self->compute_u($doc, $upass);
+   $self->{U} = $self->_compute_u($doc, $upass);
 
    #  save O and U in the Encrypt block
    $obj = $doc->dereference($objnum);
@@ -335,12 +327,11 @@ sub set_passwords
    $obj->{value}->{value}->{U}->{value} = $self->{U};
 
    # Create a brand new object
-   $doc->{crypt} = new(ref($self), $doc, $opass, $upass, 0);
-   die "$CAM::PDF::errstr\n" if (!$doc->{crypt});
+   my $pkg = ref $self;
+   $doc->{crypt} = $pkg->new($doc, $opass, $upass, 0) || die "$CAM::PDF::errstr\n";
 
    return $doc->{crypt};
 }
-#----------------
 
 =item encrypt DOC, STRING
 
@@ -351,9 +342,8 @@ Encrypt the scalar using the passwords previously specified.
 sub encrypt
 {
    my $self = shift;
-   return $self->crypt(@_);
+   return $self->_crypt(@_);
 }
-#----------------
 
 =item decrypt DOC, STRING
 
@@ -364,24 +354,26 @@ Decrypt the scalar using the passwords previously specified.
 sub decrypt
 {
    my $self = shift;
-   return $self->crypt(@_);
+   return $self->_crypt(@_);
 }
-#----------------
+
+# INTERNAL FUNCTIOn
+# The real work behind encrpyt/decrypt
 
 my %tried;
-sub crypt
+sub _crypt
 {
-   my $self = shift;
-   my $doc = shift;
+   my $self    = shift;
+   my $doc     = shift;
    my $content = shift;
-   my $objnum = shift;
-   my $gennum = shift;
+   my $objnum  = shift;
+   my $gennum  = shift;
 
    return $content if ($self->{noop});
 
    if (ref $content || ref $objnum || ref $gennum)
    {
-      die "Trying to crypt data with non-scalar obj/gennum or content\n";
+      die 'Trying to crypt data with non-scalar obj/gennum or content';
    }
    
    # DO NOT encrypt the encryption block!!  :-)
@@ -395,121 +387,113 @@ sub crypt
          return $content;
       }
 
-      &Carp::confess("gennum missing in crypt");
+      croak 'gennum missing in crypt';
       
       $gennum = $doc->dereference($objnum)->{gennum};
    }
    
-   return RC4($self->compute_key($objnum, $gennum), $content);
+   return RC4($self->_compute_key($objnum, $gennum), $content);
 }
-#----------------
 
-sub compute_key
+sub _compute_key
 {
-   my $self = shift;
+   my $self   = shift;
    my $objnum = shift;
    my $gennum = shift;
 
-   my $id = $objnum . "_" .$gennum;
+   my $id = $objnum . '_' .$gennum;
    if (!exists $self->{keycache}->{$id})
    {
-      $self->{keycache}->{$id} = substr(md5($self->{code} . 
-                                            substr(pack("V", $objnum), 0, 3) . 
-                                            substr(pack("V", $gennum), 0, 2)),
-                                        0, 10);
+      my $objstr = pack 'V', $objnum;
+      my $genstr = pack 'V', $gennum;
+
+      my $objpadding = substr $objstr, 0, 3;
+      my $genpadding = substr $genstr, 0, 2;
+
+      my $hash = Digest::MD5::md5($self->{code} . $objpadding . $genpadding);
+
+      $self->{keycache}->{$id} = substr $hash, 0, 10;
    }
    return $self->{keycache}->{$id};
 }
-#----------------
 
-sub compute_hash
+sub _compute_hash
 {
    my $self = shift;
-   my $doc = shift;
+   my $doc  = shift;
    my $pass = shift;
 
-   $pass = $self->format_pass($pass);
+   $pass = $self->_format_pass($pass);
 
-   my $p = pack("L", $self->{P}+0);
-   my $b = unpack("b32", $p);
-   if (substr $b, 0, 1 == 1)
+   my $p = pack 'L', $self->{P}+0;
+   my $b = unpack 'b32', $p;
+   if (1 == substr $b, 0, 1)
    {
       # byte swap
-      $p = substr($p,3,1).substr($p,2,1).substr($p,1,1).substr($p,0,1);
+      $p = (substr $p,3,1).(substr $p,2,1).(substr $p,1,1).(substr $p,0,1);
    }
 
    my $id = substr $doc->{ID}, 0, 16;
 
    my $input = $pass . $self->{O} . $p . $id;
-   return substr(md5($input), 0, 5)
+   return substr Digest::MD5::md5($input), 0, 5;
 }
-#----------------
 
-sub compute_u
+sub _compute_u
 {
-   my $self = shift;
-   my $doc = shift;
+   my $self  = shift;
+   my $doc   = shift;
    my $upass = shift;
 
-   my $hash = $self->compute_hash($doc, $upass);
+   my $hash = $self->_compute_hash($doc, $upass);
    return RC4($hash, $padding);
 }
-#----------------
 
-sub compute_o
+sub _compute_o
 {
-   my $self = shift;
+   my $self  = shift;
    my $opass = shift;
    my $upass = shift;
 
-   my $o = $self->format_pass($opass);
-   my $u = $self->format_pass($upass);
+   my $o = $self->_format_pass($opass);
+   my $u = $self->_format_pass($upass);
 
-   my $code = substr md5($o), 0, 5;
+   my $code = substr Digest::MD5::md5($o), 0, 5;
    return RC4($code, $u);
 }
-#----------------
 
-sub check_pass
+sub _check_pass
 {
-   my $self = shift;
-   my $doc = shift;
-   my $opass = shift;
-   my $upass = shift;
+   my $self    = shift;
+   my $doc     = shift;
+   my $opass   = shift;
+   my $upass   = shift;
    my $verbose = shift;
 
-   my $crypto = $self->compute_o($opass, $upass);
+   my $crypto = $self->_compute_o($opass, $upass);
 
    if ($verbose)
    {
-      print "O: $opass\n";
-      print "$crypto\n";
-      print" vs.\n";
-      print "$$self{O}\n";
+      print "O: $opass\n$crypto\n vs.\n$self->{O}\n";
    }
 
-   my $cryptu = $self->compute_u($doc, $upass);
+   my $cryptu = $self->_compute_u($doc, $upass);
 
    if ($verbose)
    {
-      print "U: $upass\n";
-      print "$cryptu\n";
-      print" vs.\n";
-      print "$$self{U}\n";
+      print "U: $upass\n$cryptu\n vs.\n$self->{U}\n";
    }
 
-   return ($crypto eq $self->{O} && $cryptu eq $self->{U});
+   return $crypto eq $self->{O} && $cryptu eq $self->{U};
 }
-#----------------
 
-sub format_pass
+sub _format_pass
 {
    my $self = shift;
-   my $pass = shift || "";
+   my $pass = shift || q{};
 
    return substr $pass.$padding, 0, 32;
 }
-#----------------
 
 1;
 __END__

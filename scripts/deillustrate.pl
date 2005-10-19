@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -12,14 +13,21 @@ my %opts = (
             version     => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"     => \$opts{verbose},
-           "o|order"       => \$opts{order},
-           "h|help"        => \$opts{help},
-           "V|version"     => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'     => \$opts{verbose},
+           'o|order'       => \$opts{order},
+           'h|help'        => \$opts{help},
+           'V|version'     => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
@@ -27,10 +35,9 @@ if (@ARGV < 1)
 }
 
 my $infile = shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 if (!$doc->canModify())
 {
@@ -41,7 +48,7 @@ foreach my $objnum (keys %{$doc->{xref}})
 {
    my $obj = $doc->dereference($objnum);
    my $val = $obj->{value};
-   if ($val->{type} eq "dictionary")
+   if ($val->{type} eq 'dictionary')
    {
       my $dict = $val->{value};
       my $changed = 0;
@@ -65,7 +72,10 @@ foreach my $objnum (keys %{$doc->{xref}})
 }
 
 $doc->cleanse();
-$doc->preserveOrder() if ($opts{order});
+if ($opts{order})
+{
+   $doc->preserveOrder();
+}
 $doc->cleanoutput($outfile);
 
 

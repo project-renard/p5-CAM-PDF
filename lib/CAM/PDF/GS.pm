@@ -1,5 +1,12 @@
 package CAM::PDF::GS;
 
+use 5.006;
+use strict;
+use warnings;
+use base qw(CAM::PDF::GS::NoText);
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::GS - PDF graphic state
@@ -24,26 +31,17 @@ based in the parent class, CAM::PDF::GS::NoText.
 Subclasses that want to do something useful with text should override
 the renderText() method.
 
-=cut
-
-#----------------
-
-use strict;
-use warnings;
-use CAM::PDF::GS::NoText;
-
-use vars qw(@ISA);
-@ISA = qw(CAM::PDF::GS::NoText);
-
-#----------------
-
 =head1 CONVERSION FUNCTIONS
 
-=over 4
+=over
+
+=item getCoords NODE
+
+Computes device coords for the specified node.  This implementation
+handles text-printing nodes, and hands all other types to the
+superclass.
 
 =cut
-
-#----------------
 
 sub getCoords
 {
@@ -61,8 +59,6 @@ sub getCoords
       return $self->SUPER::getCoords($node);
    }
 }
-
-#----------------
 
 =item textToUser X, Y
 
@@ -85,7 +81,6 @@ sub textToUser
    #          0,                        $self->{Ts}];
    #return $self->dot($self->{Tm}, $self->dot($tf, $x, $y));
 }
-#----------------
 
 =item textToDevice X, Y
 
@@ -102,7 +97,6 @@ sub textToDevice
 
    return $self->userToDevice($self->textToUser($x, $y));
 }
-#----------------
 
 =item textLineToUser X, Y
 
@@ -119,7 +113,6 @@ sub textLineToUser
 
    return $self->dot($self->{Tlm}, $x, $y);
 }
-#----------------
 
 =item textLineToDevice X, Y
 
@@ -136,7 +129,6 @@ sub textLineToDevice
 
    return $self->userToDevice($self->textLineToUser($x, $y));
 }
-#----------------
 
 =item renderText STRING, WIDTH
 
@@ -153,7 +145,6 @@ sub renderText
 
    # noop, override in subclasses
 }
-#----------------
 
 =item Tadvance WIDTH
 
@@ -181,17 +172,12 @@ sub Tadvance
 
    $self->applyMatrix([1,0,0,1,$tx,$ty], $self->{Tm});
 }
-#----------------
 
 =back
 
 =head1 DATA FUNCTIONS
 
-=over 4
-
-=cut
-
-#----------------
+=over
 
 =item BT
 
@@ -204,7 +190,6 @@ sub BT
    @{$self->{Tm}} = (1, 0, 0, 1, 0, 0);
    @{$self->{Tlm}} = (1, 0, 0, 1, 0, 0);
 }
-#----------------
 
 =item Tf FONTNAME, FONTSIZE
 
@@ -223,7 +208,6 @@ sub Tf
    # TODO: support vertical text mode (wm = 1)
    $self->{wm} = 0;
 }
-#----------------
 
 =item Tstar
 
@@ -235,7 +219,6 @@ sub Tstar
 
    $self->Td(0, -$self->{TL});
 }
-#----------------
 
 =item Tz SCALE
 
@@ -248,7 +231,6 @@ sub Tz
 
    $self->{Tz} = $scale/100.0;
 }
-#----------------
 
 =item Td X, Y
 
@@ -263,7 +245,6 @@ sub Td
    $self->applyMatrix([1,0,0,1,$x,$y], $self->{Tlm});
    @{$self->{Tm}} = @{$self->{Tlm}};
 }
-#----------------
 
 =item TD X, Y
 
@@ -278,7 +259,6 @@ sub TD
    $self->TL(-$y);
    $self->Td($x,$y);
 }
-#----------------
 
 =item Tj STRING
 
@@ -299,12 +279,15 @@ sub _Tj
    my $self = shift;
    my $string = shift;
 
-   die "No font metrics for font $$self{Tf}" unless ($self->{refs}->{fm});
+   if (!$self->{refs}->{fm})
+   {
+      die "No font metrics for font $self->{Tf}";
+   }
 
    my @parts;
-   if ($self->{mode} eq "c" || $self->{wm} == 1)
+   if ($self->{mode} eq 'c' || $self->{wm} == 1)
    {
-      @parts = split "", $string;
+      @parts = split //, $string;
    }
    else
    {
@@ -317,9 +300,8 @@ sub _Tj
       $self->Tadvance($dw);
    }
 }
-#----------------
 
-=item Tj ARRAYREF
+=item TJ ARRAYREF
 
 =cut
 
@@ -331,7 +313,7 @@ sub TJ
    @{$self->{last}} = $self->textToUser(0,0);
    foreach my $node (@$array)
    {
-      if ($node->{type} eq "number")
+      if ($node->{type} eq 'number')
       {
          my $dw = -$node->{value} / 1000.0;
          $self->Tadvance($dw);
@@ -343,7 +325,6 @@ sub TJ
    }
    @{$self->{current}} = $self->textToUser(0,0);
 }
-#----------------
 
 =item quote
 
@@ -359,7 +340,6 @@ sub quote
    $self->_Tj($string);
    @{$self->{current}} = $self->textToUser(0,0);
 }
-#----------------
 
 =item doublequote
 
@@ -374,7 +354,6 @@ sub doublequote
 
    $self->quote($string);
 }
-#----------------
 
 =item Tm M1, M2, M3, M4, M5, M6
 
@@ -386,7 +365,6 @@ sub Tm
    
    @{$self->{Tm}} = @{$self->{Tlm}} = @_;
 }
-#----------------
 
 1;
 __END__

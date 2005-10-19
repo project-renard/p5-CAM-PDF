@@ -1,12 +1,13 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
 my %opts = (
-            template   => "crunchjpg_tmpl.pdf",
+            template   => 'crunchjpg_tmpl.pdf',
 
             verbose    => 0,
             help       => 0,
@@ -17,18 +18,25 @@ my %opts = (
             skipval    => [],
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("S|skip=s"     => \@{$opts{skipval}},
-           "v|verbose"  => \$opts{verbose},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('S|skip=s'     => \@{$opts{skipval}},
+           'v|verbose'  => \$opts{verbose},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 foreach my $flag (qw( skip ))
 {
-   foreach my $val (@{$opts{$flag."val"}})
+   foreach my $val (@{$opts{$flag.'val'}})
    {
       foreach my $key (split /\D+/, $val)
       {
@@ -49,15 +57,14 @@ if (@ARGV < 2)
 my $infile = shift;
 my $outdir = shift;
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my $pages = $doc->numPages();
 my $nimages = 0;
 my $rimages = 0;
 my %doneobjs = ();
 
-for (my $p=1; $p <= $pages; $p++)
+for my $p (1..$pages)
 {
    my $c = $doc->getPageContent($p);
    my @parts = split /(\/[\w]+\s*Do)\b/s, $c;
@@ -70,18 +77,24 @@ for (my $p=1; $p <= $pages; $p++)
          my $objnum = $xobj->{objnum};
          my $im = $doc->getValue($xobj);
          my $w = $im->{Width} || $im->{W} || 0;
-         $w = $doc->getValue($w) if ($w);
+         if ($w)
+         {
+            $w = $doc->getValue($w);
+         }
          my $h = $im->{Height} || $im->{H} || 0;
-         $h = $doc->getValue($h) if ($h);
+         if ($h)
+         {
+            $h = $doc->getValue($h);
+         }
 
          next if (exists $doneobjs{$objnum});
 
          $nimages++;
-         print STDERR "Image $nimages page $p, $ref = object $objnum, (w,h)=($w,$h)\n" if ($opts{verbose});
+         _inform("Image $nimages page $p, $ref = object $objnum, (w,h)=($w,$h)", $opts{verbose});
 
          if (exists $opts{skip}->{$objnum})
          {
-            print STDERR "Skipping object $objnum\n" if ($opts{verbose});
+            _inform("Skipping object $objnum", $opts{verbose});
             next;
          }
 
@@ -89,14 +102,17 @@ for (my $p=1; $p <= $pages; $p++)
          if ($im->{Filter})
          {
             my $f = $im->{Filter};
-            if ($f->{type} eq "array")
+            if ($f->{type} eq 'array')
             {
                foreach my $e (@{$f->{value}})
                {
                   my $name = $doc->getValue($e);
-                  $name = $name->{value} if (ref $name);
+                  if (ref $name)
+                  {
+                     $name = $name->{value};
+                  }
                   #warn "Checking $name\n";
-                  if ($name eq "DCTDecode")
+                  if ($name eq 'DCTDecode')
                   {
                      $isjpg = 1;
                      last;
@@ -106,9 +122,12 @@ for (my $p=1; $p <= $pages; $p++)
             else
             {
                my $name = $doc->getValue($f);
-               $name = $name->{value} if (ref $name);
+               if (ref $name)
+               {
+                  $name = $name->{value};
+               }
                #warn "Checking $name\n";
-               if ($name eq "DCTDecode")
+               if ($name eq 'DCTDecode')
                {
                   $isjpg = 1;
                }
@@ -117,7 +136,7 @@ for (my $p=1; $p <= $pages; $p++)
 
          if (!$isjpg)
          {
-            print STDERR "Not a jpeg\n" if ($opts{verbose});
+            _inform('Not a jpeg', $opts{verbose});
          }
          else
          {
@@ -127,8 +146,7 @@ for (my $p=1; $p <= $pages; $p++)
                die "PDF error: Failed to get size of image\n";
             }
 
-            my $tmpl = CAM::PDF->new($opts{template});
-            die "$CAM::PDF::errstr\n" if (!$tmpl);
+            my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
             
             # Get a handle on the needed data bits from the template
             my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
@@ -147,9 +165,10 @@ for (my $p=1; $p <= $pages; $p++)
 
             if (!-d $outdir)
             {
-               `mkdir -p $outdir`;
+               require File::Path;
+               File::Path::mkpath($outdir);
             }
-            `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;
+            `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;  ## no critic
 
             $doneobjs{$objnum} = 1;
             $rimages++;
@@ -158,7 +177,18 @@ for (my $p=1; $p <= $pages; $p++)
    }
 }
 
-print STDERR "Extracted $rimages of $nimages images\n" if ($opts{verbose});
+_inform("Extracted $rimages of $nimages images", $opts{verbose});
+
+sub _inform
+{
+   my $str     = shift;
+   my $verbose = shift;
+
+   if ($verbose)
+   {
+      print STDERR $str, "\n";
+   }
+}
 
 
 __END__

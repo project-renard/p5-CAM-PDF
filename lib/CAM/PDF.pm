@@ -1,5 +1,15 @@
 package CAM::PDF;
 
+use 5.006;
+use warnings;
+use strict;
+use Carp;
+use English qw(-no_match_vars);
+use CAM::PDF::Node;
+use CAM::PDF::Decrypt;
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF - PDF manipulation library
@@ -15,7 +25,7 @@ under the same terms as Perl itself.
 
     use CAM::PDF;
     
-    my $pdf = new CAM::PDF("test1.pdf");
+    my $pdf = new CAM::PDF('test1.pdf');
     
     my $page1 = $pdf->getPageContent(1);
     [ ... mess with page ... ]
@@ -24,10 +34,10 @@ under the same terms as Perl itself.
     $pdf->appendPageContent(1, $newcontent);
     
     my @prefs = $pdf->getPrefs();
-    $prefs[$CAM::PDF::PREF_OPASS] = "mypassword";
+    $prefs[$CAM::PDF::PREF_OPASS] = 'mypassword';
     $pdf->setPrefs(@prefs);
     
-    $pdf->cleanoutput("out1.pdf");
+    $pdf->cleanoutput('out1.pdf');
 
 Many example scripts are included in this distribution to do basic
 tasks.
@@ -35,9 +45,8 @@ tasks.
 =head1 DESCRIPTION
 
 This package reads and writes any document that conforms to the PDF
-specification generously provided by Adobe at (3rd edition, for PDF
-v1.4 as of May 2002)
-http://partners.adobe.com/asn/developer/acrosdk/docs/filefmtspecs/PDFReference.pdf
+specification generously provided by Adobe at (as of Oct 2005)
+L<http://partners.adobe.com/public/developer/pdf/index_reference.html>
 
 The file format is well-supported, with the exception of the
 "linearized" or "optimized" output format, which this module can read
@@ -61,6 +70,13 @@ converted to or from DOS/Windows style (i.e. CR-NL) may be rendered
 unusable even though Acrobat does not complain.  Future library
 versions may relax the parser, but not yet.
 
+=head1 COMPATIBILITY
+
+This library was primarily developed against the 3rd edition of the
+reference (PDF v1.4) with a few updates from 4th edition.  This
+library focuses on PDF v1.2 features.  It should be forward and
+backward compatible in the majority of cases.
+
 =head1 PERFORMANCE
 
 This module is written with good speed and flexibility in mind, often at the
@@ -71,94 +87,82 @@ on my development machine.
 
 =cut
 
-use strict;
-use warnings;
-use Carp;
-use CAM::PDF::Decrypt;
+our $PREF_OPASS  = 0;
+our $PREF_UPASS  = 1;
+our $PREF_PRINT  = 2;
+our $PREF_MODIFY = 3;
+our $PREF_COPY   = 4;
+our $PREF_ADD    = 5;
 
-# For debugging only:
-my $speedtesting = 0;  # debug flag
-
-use vars qw($VERSION @ISA $MAX_STRING
-            $PREF_OPASS $PREF_UPASS $PREF_PRINT $PREF_MODIFY $PREF_COPY $PREF_ADD);
-$VERSION = "1.01";
-
-$PREF_OPASS  = 0;
-$PREF_UPASS  = 1;
-$PREF_PRINT  = 2;
-$PREF_MODIFY = 3;
-$PREF_COPY   = 4;
-$PREF_ADD    = 5;
-
-$MAX_STRING  = 65;  # length of output string
+our $MAX_STRING  = 65;  # length of output string
 
 my %filterabbrevs = (
-                     AHx => "ASCIIHexDecode",
-                     A85 => "ASCII85Decode",
-                     CCF => "CCITTFaxDecode",
-                     DCT => "DCTDecode",
-                     Fl  => "FlateDecode",
-                     LZW => "LZWDecode",
-                     RL  => "RunLengthDecode",
+                     AHx => 'ASCIIHexDecode',
+                     A85 => 'ASCII85Decode',
+                     CCF => 'CCITTFaxDecode',
+                     DCT => 'DCTDecode',
+                     Fl  => 'FlateDecode',
+                     LZW => 'LZWDecode',
+                     RL  => 'RunLengthDecode',
                      );
 
 my %inlineabbrevs = (
                      %filterabbrevs,
-                     BPC => "BitsPerComponent",
-                     CS  => "ColorSpace",
-                     D   => "Decode",
-                     DP  => "DecodeParms",
-                     F   => "Filter",
-                     H   => "Height",
-                     IM  => "ImageMask",
-                     I   => "Interpolate",
-                     W   => "Width",
-                     CMYK => "DeviceCMYK",
-                     G   => "DeviceGray",
-                     RGB => "DeviceRGB",
-                     I   => "Indexed",
+                     BPC => 'BitsPerComponent',
+                     CS  => 'ColorSpace',
+                     D   => 'Decode',
+                     DP  => 'DecodeParms',
+                     F   => 'Filter',
+                     H   => 'Height',
+                     IM  => 'ImageMask',
+                     I   => 'Interpolate',
+                     W   => 'Width',
+                     CMYK => 'DeviceCMYK',
+                     G   => 'DeviceGray',
+                     RGB => 'DeviceRGB',
+                     I   => 'Indexed',
                      );
 
 =head1 API
 
 =head2 Functions intended to be used externally
 
- $doc = CAM::PDF->new(content | filename | '-')
- $doc->toPDF()
- $doc->needsSave()
- $doc->save()
- $doc->cleansave()
- $doc->output(filename | '-')
- $doc->cleanoutput(filename | '-')
- $doc->preserveOrder()
- $doc->appendObject(olddoc, oldnum, [follow=(1|0)])
- $doc->replaceObject(newnum, olddoc, oldnum, [follow=(1|0)])
+ $self = CAM::PDF->new(content | filename | '-')
+ $self->toPDF()
+ $self->needsSave()
+ $self->save()
+ $self->cleansave()
+ $self->output(filename | '-')
+ $self->cleanoutput(filename | '-')
+ $self->preserveOrder()
+ $self->appendObject(olddoc, oldnum, [follow=(1|0)])
+ $self->replaceObject(newnum, olddoc, oldnum, [follow=(1|0)])
     (olddoc can be undef in the above for adding new objects)
- $doc->numPages()
- $doc->getPageText(pagenum)
- $doc->getPageContent(pagenum)
- $doc->setPageContent(pagenum, content)
- $doc->appendPageContent(pagenum, content)
- $doc->deletePage(pagenum)
- $doc->deletePages(pagenum, pagenum, ...)
- $doc->extractPages(pagenum, pagenum, ...)
- $doc->appendPDF(CAM::PDF object)
- $doc->prependPDF(CAM::PDF object)
- $doc->wrapString(string, width, fontsize, page, fontlabel)
- $doc->getFontNames(pagenum)
- $doc->addFont(page, fontname, fontlabel, [fontmetrics])
- $doc->deEmbedFont(page, fontname, [newfontname])
- $doc->deEmbedFontByBaseName(page, basename, [newfont])
- $doc->getPrefs()
- $doc->setPrefs()
- $doc->canPrint()
- $doc->canModify()
- $doc->canCopy()
- $doc->canAdd()
- $doc->getFormFieldList()
- $doc->fillFormFields(fieldname, value, [fieldname, value, ...])
-   or $doc->fillFormFields(%values)
- $doc->clearFormFieldTriggers(fieldname, fieldname, ...)
+ $self->numPages()
+ $self->getPageText(pagenum)
+ $self->getPageContent(pagenum)
+ $self->setPageContent(pagenum, content)
+ $self->appendPageContent(pagenum, content)
+ $self->deletePage(pagenum)
+ $self->deletePages(pagenum, pagenum, ...)
+ $self->extractPages(pagenum, pagenum, ...)
+ $self->appendPDF(CAM::PDF object)
+ $self->prependPDF(CAM::PDF object)
+ $self->wrapString(string, width, fontsize, page, fontlabel)
+ $self->getFontNames(pagenum)
+ $self->addFont(page, fontname, fontlabel, [fontmetrics])
+ $self->deEmbedFont(page, fontname, [newfontname])
+ $self->deEmbedFontByBaseName(page, basename, [newfont])
+ $self->getPrefs()
+ $self->setPrefs()
+ $self->canPrint()
+ $self->canModify()
+ $self->canCopy()
+ $self->canAdd()
+ $self->getFormFieldList()
+ $self->fillFormFields(fieldname, value, [fieldname, value, ...])
+   or $self->fillFormFields(%values)
+ $self->clearFormFieldTriggers(fieldname, fieldname, ...)
 
 Note: 'clean' as in 'cleansave' and 'cleanobject' means write a fresh
 PDF document.  The alternative (e.g. 'save') reuses the existing doc
@@ -169,72 +173,70 @@ resemble the old ones, call 'preserveOrder' before 'cleansave' or
 
 =head2 Slightly less external, but useful, functions
 
- $doc->toString()
- $doc->getPage(pagenum)
- $doc->getFont(pagenum, fontname)
- $doc->getFonts(pagenum)
- $doc->getStringWidth(fontdict, string)
- $doc->getFormField(fieldname)
- $doc->getFormFieldDict(object)
- $doc->isLinearized()
- $doc->decodeObject(objectnum)
- $doc->decodeAll(any-node)
- $doc->decodeOne(dict-node)
- $doc->encodeObject(objectnum, filter)
- $doc->encodeOne(any-node, filter)
- $doc->changeString(obj-node, hashref)
+ $self->toString()
+ $self->getPage(pagenum)
+ $self->getFont(pagenum, fontname)
+ $self->getFonts(pagenum)
+ $self->getStringWidth(fontdict, string)
+ $self->getFormField(fieldname)
+ $self->getFormFieldDict(object)
+ $self->isLinearized()
+ $self->decodeObject(objectnum)
+ $self->decodeAll(any-node)
+ $self->decodeOne(dict-node)
+ $self->encodeObject(objectnum, filter)
+ $self->encodeOne(any-node, filter)
+ $self->changeString(obj-node, hashref)
 
 =head2 Deeper utilities
 
- $doc->pageAddName(pagenum, name, objectnum)
- $doc->getPageObjnum(pagenum)
- $doc->getPropertyNames(pagenum)
- $doc->getProperty(pagenum, propname)
- $doc->getValue(any-node)
- $doc->dereference(objectnum)  or $doc->dereference(name,pagenum)
- $doc->deleteObject(objectnum)
- $doc->copyObject(obj-node)
- $doc->cacheObjects()
- $doc->setObjNum(obj-node, num)
- $doc->getRefList(obj-node)
- $doc->changeRefKeys(obj-node, hashref)
+ $self->pageAddName(pagenum, name, objectnum)
+ $self->getPageObjnum(pagenum)
+ $self->getPropertyNames(pagenum)
+ $self->getProperty(pagenum, propname)
+ $self->getValue(any-node)
+ $self->dereference(objectnum)  or $self->dereference(name,pagenum)
+ $self->deleteObject(objectnum)
+ $self->copyObject(obj-node)
+ $self->cacheObjects()
+ $self->setObjNum(obj-node, num)
+ $self->getRefList(obj-node)
+ $self->changeRefKeys(obj-node, hashref)
 
 =head2 More rarely needed utilities
 
- $doc->getObjValue(objectnum)
+ $self->getObjValue(objectnum)
 
 =head2 Routines that should not be called
 
- $doc->startdoc()
- $doc->delinearlize()
- $doc->build*()
- $doc->parse*()
- $doc->write*()
- $doc->*CB()
- $doc->traverse()
- $doc->fixDecode()
- $doc->abbrevInlineImage()
- $doc->unabbrevInlineImage()
- $doc->cleanse()
- $doc->clean()
- $doc->createID()
+ $self->_startdoc()
+ $self->delinearlize()
+ $self->build*()
+ $self->parse*()
+ $self->write*()
+ $self->*CB()
+ $self->traverse()
+ $self->fixDecode()
+ $self->abbrevInlineImage()
+ $self->unabbrevInlineImage()
+ $self->cleanse()
+ $self->clean()
+ $self->createID()
 
 
 =head1 FUNCTIONS
 
 =head2 Object creation/manipulation
 
-=over 4
-
-=cut
-
-#------------------
+=over
 
 =item new PACKAGE, CONTENT
 
 =item new PACKAGE, CONTENT, OWNERPASS, USERPASS
 
 =item new PACKAGE, CONTENT, OWNERPASS, USERPASS, PROMPT?
+
+=item new PACKAGE, CONTENT, OWNERPASS, USERPASS, OPTIONS
 
 Instantiate a new CAM::PDF object.  CONTENT can be a ducument in a
 string, a filename, or '-'.  The latter indicates that the document
@@ -244,69 +246,109 @@ they are not known, a boolean argument allows the programmer to
 suggest that the constructor prompt the user for a password.  This is
 rudimentary prompting: passwords are in the clear on the console.
 
+This constructor takes an optional final argument which is a hash
+reference.  This hash can contain any of the following optional
+parameters:
+
+=over
+
+=item prompt_for_password => BOOLEAN
+
+This is the same as the C<PROMPT> argument described above.
+
+=item fault_tolerant => BOOLEAN
+
+This flag causes the instance to be more lenient when reading the
+input PDF.  Currently, this only affects PDFs which cannot be
+successfully decrypted.
+
+=back
+
 =cut
 
-sub new($$$$$)
+sub new
 {
    my $pkg = shift;
    my $content = shift;  # or a filename
    # Optional args:
    my $opassword = shift;
    my $upassword = shift;
-   my $promptForPassword = shift;
-
-   my $pdfversion = "1.2";
-   if ($content =~ /^%PDF-([\d\.]+)/)
+   my $options;
+   # Backward compatible support for prompt flag as final argument
+   if (ref $_[0])
    {
-      $pdfversion = $1 if ($1 && $1 > $pdfversion);
+      $options = shift;
+      if ((ref $options) ne 'HASH')
+      {
+         croak 'Options must be a hash reference';
+      }
    }
    else
    {
-      if (length($content) < 1024)
+      $options = {
+         prompt_for_password => shift,
+      };
+   }
+
+
+   my $pdfversion = '1.2';
+   if ($content =~ /^%PDF-([\d\.]+)/)
+   {
+      if ($1 && $1 > $pdfversion)
+      {
+         $pdfversion = $1;
+      }
+   }
+   else
+   {
+      if (1024 > length $content)
       {
          my $file = $content;
-         if ($file eq "-")
+         if ($file eq q{-})
          {
-            $content = "";
+            $content = q{};
             my $offset = 0;
             my $step = 4096;
-            while (read(STDIN, $content, $step, $offset) == $step)
+            while ($step == read STDIN, $content, $step, $offset)
             {
                $offset += $step;
             }
          }
          else
          {
-            local *F;
-            if (!open(F, $file))
+            open my $fh, '<', $file;
+            if (!$fh)
             {
                $CAM::PDF::errstr = "Failed to open $file: $!\n";
-               return undef;
+               return;
             }
-            binmode F;
-            read(F, $content, (-s $file));
-            close(F);
+            binmode $fh;
+            read $fh, $content, (-s $file);
+            close $fh;
          }
       }
       if ($content =~ /^%PDF-([\d\.]+)/)
       {
-         $pdfversion = $1 if ($1 && $1 > $pdfversion);
+         if ($1 && $1 > $pdfversion)
+         {
+            $pdfversion = $1;
+         }
       }
       else
       {
          $CAM::PDF::errstr = "Content does not begin with \"%PDF-\"\n";
-         return undef;
+         return;
       }
    }
    #warn "got pdfversion $pdfversion\n";
 
-   warn "done reading\n" if ($speedtesting);
+   my $self = {
+      options => $options,
 
-   my $doc = {
       pdfversion => $pdfversion,
       maxstr => $CAM::PDF::MAX_STRING,  # length of output string
       content => $content,
-      contentlength => length($content),
+      contentlength => length $content,
       xref => {},
       maxobj => 0,
       changes => {},
@@ -320,37 +362,36 @@ sub new($$$$$)
       NameObjects => {},
       fontmetrics => {},
    };
-   bless $doc, $pkg;
-   if (!$doc->startdoc())
+   bless $self, $pkg;
+   if (!$self->_startdoc())
    {
-      return undef;
+      return;
    }
-   warn "done starting\n" if ($speedtesting);
-
-   if ($doc->{trailer}->{ID})
+   if ($self->{trailer}->{ID})
    {
-      my $id = $doc->getValue($doc->{trailer}->{ID});
+      my $id = $self->getValue($self->{trailer}->{ID});
       if (ref $id)
       {
-         my $accum = "";
-         foreach my $obj (@$id)
+         my $accum = q{};
+         for my $obj (@$id)
          {
-            $accum .= $doc->getValue($obj);
+            $accum .= $self->getValue($obj);
          }
          $id = $accum;
       }
-      $doc->{ID} = $id;
+      $self->{ID} = $id;
    }
-   #$doc->{ID} ||= "";
-   warn "done getting ID\n" if ($speedtesting);
+   #$self->{ID} ||= q{};
 
-   $doc->{crypt} = CAM::PDF::Decrypt->new($doc, $opassword, $upassword, $promptForPassword);
-   return undef if (!defined $doc->{crypt});
-   warn "done loading crypt\n" if ($speedtesting);
+   $self->{crypt} = CAM::PDF::Decrypt->new($self, $opassword, $upassword,
+                                          $self->{options}->{prompt_for_password});
+   if (!$self->{crypt} && !$self->{options}->{fault_tolerant})
+   {
+      return;
+   }
 
-   return $doc;
+   return $self;
 }
-#------------------
 
 =item toPDF
 
@@ -361,15 +402,14 @@ in a scalar.
 
 sub toPDF
 {
-   my $doc = shift;
+   my $self = shift;
 
-   if ($doc->needsSave())
+   if ($self->needsSave())
    {
-      $doc->cleansave();
+      $self->cleansave();
    }
-   return $doc->{content};
+   return $self->{content};
 }
-#------------------
 
 =item toString
 
@@ -380,20 +420,20 @@ Implemented via Data::Dumper.
 
 sub toString
 {
-   my $doc = shift;
+   my $self = shift;
 
    my %hold = ();
-   foreach my $key (qw(content crypt))
+   for my $key (qw(content crypt))
    {
-      $hold{$key} = delete $doc->{$key};
+      $hold{$key} = delete $self->{$key};
    }
 
    require Data::Dumper;
-   my $result = Data::Dumper->Dump([$doc], [qw(doc)]);
+   my $result = Data::Dumper->Dump([$self], [qw(doc)]);
 
-   foreach my $key (keys %hold)
+   for my $key (keys %hold)
    {
-      $doc->{$key} = $hold{$key};
+      $self->{$key} = $hold{$key};
    }
    return $result;
 }
@@ -404,114 +444,102 @@ sub toString
 
 =head2 Document reading
 
-(all of these functions are internal only)
+(all of these functions are intended for internal only)
 
-=over 4
+=over
 
 =cut
 
 
-#------------------
-# PRIVATE FUNCTION
-#  read the document index and some metadata
+# PRIVATE METHOD
+# read the document index and some metadata.
 
-sub startdoc
+sub _startdoc
 {
-   my $doc = shift;
+   my $self = shift;
    
    ### Parse the document metadata
 
    # Start by parsing out the location of the last xref block
-   if ($doc->{content} !~ /startxref\s*(\d+)\s*%%EOF\s*$/s)
+   if ($self->{content} !~ /startxref\s*(\d+)\s*%%EOF\s*$/s)
    {
-      $CAM::PDF::errstr = "Cannot find the index in the PDF content";
-      return undef;
+      $CAM::PDF::errstr = "Cannot find the index in the PDF content\n";
+      return;
    }
-
-   warn "got eof\n" if ($speedtesting);
 
    # Parse the hierarchy of xref blocks
-   $doc->{startxref} = $1;
-   $doc->{trailer} = $doc->buildxref($doc->{startxref}, $doc->{xref}, $doc->{versions});
-   if (!defined $doc->{trailer})
+   $self->{startxref} = $1;
+   $self->{trailer} = $self->_buildxref($self->{startxref}, $self->{xref}, $self->{versions});
+   if (!defined $self->{trailer})
    {
-      return undef;
+      return;
    }
-
-   warn "got xref\n" if ($speedtesting);
 
    ### Cache some page content descriptors
 
    # Get the document root catalog
-   if (!exists $doc->{trailer}->{Root})
+   if (!exists $self->{trailer}->{Root})
    {
       $CAM::PDF::errstr = "No root node present in PDF trailer.\n";
-      return undef;
+      return;
    }
-   my $root = $doc->getRootDict();
-   if ((!$root) || (ref $root ne "HASH"))
+   my $root = $self->getRootDict();
+   if (!$root || (ref $root) ne 'HASH')
    {
       $CAM::PDF::errstr = "The PDF root node is not a dictionary.\n";
-      return undef;
+      return;
    }
-
-   warn "got root\n" if ($speedtesting);
 
    # Get the root of the page tree
    if (!exists $root->{Pages})
    {
       $CAM::PDF::errstr = "The PDF root node doesn't have a reference to the page tree.\n";
-      return undef;
+      return;
    }
-   my $pages = $doc->getPagesDict();
-   if ((!$pages) || (ref $pages ne "HASH"))
+   my $pages = $self->getPagesDict();
+   if (!$pages || (ref $pages) ne 'HASH')
    {
       $CAM::PDF::errstr = "The PDF page tree root is not a dictionary.\n";
-      return undef;
+      return;
    }
-
-   warn "got pageroot\n" if ($speedtesting);
 
    # Get the number of pages in the document
-   $doc->{PageCount} = $doc->getValue($pages->{Count});
-   if ((!$doc->{PageCount}) || $doc->{PageCount} < 1)
+   $self->{PageCount} = $self->getValue($pages->{Count});
+   if (!$self->{PageCount} || $self->{PageCount} < 1)
    {
       $CAM::PDF::errstr = "Bad number of pages in PDF document\n";
-      return undef;
+      return;
    }
-
-   warn "got page count\n" if ($speedtesting);
 
    return 1;
 }
 
-#------------------
 # PRIVATE FUNCTION
 #  read document index
 
-sub buildxref
+sub _buildxref
 {
-   my $doc = shift;
+   my $self = shift;
    my $startxref = shift;
    my $index = shift;
    my $versions = shift;
 
-   warn "  do xref " . ($main::nxref++) . "\n" if ($speedtesting);
+   my $trailerpos = index $self->{content}, 'trailer', $startxref;
 
-   my $trailerpos = index($doc->{content}, "trailer", $startxref);
-   if ($trailerpos > 0 && $trailerpos < $startxref)  # workaround for 5.6.1 bug
+   # Workaround for Perl 5.6.1 bug
+   if ($trailerpos > 0 && $trailerpos < $startxref)
    {
-      $trailerpos = index(substr($doc->{content}, $startxref), "trailer") + $startxref;
-}
-   my $end = substr $doc->{content}, $startxref, $trailerpos-$startxref;
+      my $xrefstr = substr $self->{content}, $startxref;
+      $trailerpos = $startxref + index $xrefstr, 'trailer';
+   }
 
-   warn "    got end\n" if ($speedtesting);
+   my $end = substr $self->{content}, $startxref, $trailerpos-$startxref;
 
    if ($end !~ s/^xref\s+//s)
    {
-      #$CAM::PDF::errstr = "Could not find PDF cross-ref table at location $startxref\n" . $doc->trimstr($end);
-      $CAM::PDF::errstr = "Could not find PDF cross-ref table at location $startxref/$trailerpos/".length($end)."\n" . $doc->trimstr($end);
-      return undef;
+      my $len = length $end;
+      $CAM::PDF::errstr = "Could not find PDF cross-ref table at location $startxref/$trailerpos/$len\n" . $self->trimstr($end);
+      return;
    }
    my $part = 0;
    while ($end =~ s/^(\d+)\s+(\d+)\s+//s)
@@ -520,9 +548,7 @@ sub buildxref
       my $n = $2;
 
       $part++;
-      warn "    do part $part: $s $n\n" if ($speedtesting);
-
-      for (my $i = 0; $i < $n; $i++)
+      for my $i (0 .. $n-1)
       {
          my $objnum = $s+$i;
          next if (exists $index->{$objnum});
@@ -530,129 +556,118 @@ sub buildxref
          my $row = substr $end, $i*20, 20;
          if ($row !~ /^(\d{10}) (\d{5}) (\w)/)
          {
-            $CAM::PDF::errstr = "Could not decipher xref row:\n" . $doc->trimstr($row);
-            return undef;
+            $CAM::PDF::errstr = "Could not decipher xref row:\n" . $self->trimstr($row);
+            return;
          }
-         if ($3 eq "n")
+         if ($3 eq 'n')
          {
             $index->{$objnum} = $1;
             $versions->{$objnum} = $2;
          }
-         if ($objnum > $doc->{maxobj})
+         if ($objnum > $self->{maxobj})
          {
-            $doc->{maxobj} = $objnum;
+            $self->{maxobj} = $objnum;
          }
       }
-
-      warn "    done part $part\n" if ($speedtesting);
 
       $end = substr $end, 20*$n;
    }
 
-   warn "  done xref block\n" if ($speedtesting);
-
-   my $sxrefpos = index $doc->{content}, "startxref", $trailerpos;
+   my $sxrefpos = index $self->{content}, 'startxref', $trailerpos;
    if ($sxrefpos > 0 && $sxrefpos < $trailerpos)  # workaround for 5.6.1 bug
    {
-      $sxrefpos = index(substr($doc->{content}, $trailerpos), "startxref") + $trailerpos;
+      my $tail = substr $self->{content}, $trailerpos;
+      $sxrefpos = $trailerpos + index $tail, 'startxref';
    }
-   $end = substr $doc->{content}, $trailerpos, $sxrefpos-$trailerpos;
-
-   warn "  do trailer\n" if ($speedtesting);
+   $end = substr $self->{content}, $trailerpos, $sxrefpos-$trailerpos;
 
    if ($end !~ s/^trailer\s*//s)
    {
-      $CAM::PDF::errstr = "Did not find expected trailer block after xref\n" . $doc->trimstr($end);
-      return undef;
+      $CAM::PDF::errstr = "Did not find expected trailer block after xref\n" . $self->trimstr($end);
+      return;
    }
-   my $trailer = $doc->parseDict(\$end)->{value};
+   my $trailer = $self->parseDict(\$end)->{value};
    if (exists $trailer->{Prev})
    {
-      if (!$doc->buildxref($trailer->{Prev}->{value}, $index, $versions))
+      if (!$self->_buildxref($trailer->{Prev}->{value}, $index, $versions))
       {
-         return undef;
+         return;
       }
    }
    return $trailer;
 }
 
-#------------------
 # PRIVATE FUNCTION
-# buildendxref -- compute the end of each object
+# _buildendxref -- compute the end of each object
 #    note that this is not always the *actual* end of the object, but
 #    we guarantee that the object will end at or before this point.
 
-sub buildendxref
+sub _buildendxref
 {
-   my $doc = shift;
+   my $self = shift;
 
    my $r = {};
-   warn "  reverse" if ($speedtesting);
-   my %rev = reverse %{$doc->{xref}};
-   warn "  sort" if ($speedtesting);
+   my %rev = reverse %{$self->{xref}};
    my @pos = sort keys %rev;
-   warn "  loop" if ($speedtesting);
-   for (my $i = 0; $i < $#pos; $i++)
+   for my $i (0 .. $#pos-1)
    {
       # set the end of each object to be the beginning of the next object
       $r->{$rev{$pos[$i]}} = $pos[$i+1];
    }
    # The end of the last object is the end of the file
-   $r->{$rev{$pos[$#pos]}} = $doc->{contentlength};
+   $r->{$rev{$pos[$#pos]}} = $self->{contentlength};
 
-   warn "  done" if ($speedtesting);
-
-   $doc->{endxref} = $r;
+   $self->{endxref} = $r;
 }
 
-#------------------
 # PRIVATE FUNTION
-# buildNameTable -- descend into the page tree and extract all XObject
+# _buildNameTable -- descend into the page tree and extract all XObject
 # and Font name references.
 
-sub buildNameTable
+sub _buildNameTable
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   if ((!$pagenum) || $pagenum eq "All")   # Build the ENTIRE name table
+   if (!$pagenum || $pagenum eq 'All')   # Build the ENTIRE name table
    {
-      $doc->cacheObjects();
-      foreach my $p (1 .. $doc->{PageCount})
+      $self->cacheObjects();
+      for my $p (1 .. $self->{PageCount})
       {
-         $doc->buildNameTable($p);
+         $self->_buildNameTable($p);
       }
       my %n = ();
-      foreach my $obj (values %{$doc->{objcache}})
+      for my $obj (values %{$self->{objcache}})
       {
-         if ($obj->{value}->{type} eq "dictionary")
+         if ($obj->{value}->{type} eq 'dictionary')
          {
             my $dict = $obj->{value}->{value};
             if ($dict->{Name})
             {
-               $n{$dict->{Name}->{value}} = CAM::PDF::Node->new("reference", $obj->{objnum});
+               $n{$dict->{Name}->{value}} = CAM::PDF::Node->new('reference', $obj->{objnum});
             }
          }
       }
-      $doc->{Names}->{All} = {%n};
+      $self->{Names}->{All} = {%n};
       return;
    }
 
-   return if (exists $doc->{Names}->{$pagenum});
+   return if (exists $self->{Names}->{$pagenum});
 
-   my %n = ();
-   my $page = $doc->getPage($pagenum);
-   do {
-      my $objnum = $doc->getPageObjnum($pagenum);
+   my %n;
+   my $page = $self->getPage($pagenum);
+   while ($page)
+   {
+      my $objnum = $self->getPageObjnum($pagenum);
       if (exists $page->{Resources})
       {
-         my $r = $doc->getValue($page->{Resources});
-         foreach my $key ("XObject", "Font")
+         my $r = $self->getValue($page->{Resources});
+         for my $key ('XObject', 'Font')
          {
             if (exists $r->{$key})
             {
-               my $x = $doc->getValue($r->{$key});
-               if (ref $x eq "HASH")
+               my $x = $self->getValue($r->{$key});
+               if ((ref $x) eq 'HASH')
                {
                   %n = (%$x, %n);
                }
@@ -664,13 +679,12 @@ sub buildNameTable
       $page = $page->{Parent};
       if ($page)
       {
-         $page = $doc->getValue($page);
+         $page = $self->getValue($page);
       }
-   } while ($page);
+   }
 
-   $doc->{Names}->{$pagenum} = {%n};
+   $self->{Names}->{$pagenum} = {%n};
 }
-#------------------
 
 =item getRootDict
 
@@ -680,11 +694,10 @@ Returns the Root dictionary for the PDF.
 
 sub getRootDict
 {
-   my $doc = shift;
+   my $self = shift;
 
-   return $doc->getValue($doc->{trailer}->{Root});
+   return $self->getValue($self->{trailer}->{Root});
 }
-#------------------
 
 =item getPagesDict
 
@@ -694,24 +707,31 @@ Returns the root Pages dictionary for the PDF.
 
 sub getPagesDict
 {
-   my $doc = shift;
+   my $self = shift;
 
-   return $doc->getValue($doc->getRootDict()->{Pages});
+   return $self->getValue($self->getRootDict()->{Pages});
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseObj STRING
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return an object
+Node.  This can be called as a class method in most circumstances, but
+is intended as an instance method.
+
+=cut
 
 sub parseObj
 {
-   my $doc = shift;
+   my $self = shift;
    my $c = shift;
-   my $objnum = shift;
-   my $gennum = shift;
+   my $objnum = shift; #unused
+   my $gennum = shift; #unused
 
    if ($$c !~ /\G(\d+)\s+(\d+)\s+obj\s*/scg)
    {
-      die "Expected object open tag\n" . $doc->trimstr($$c);
+      die "Expected object open tag\n" . $self->trimstr($$c);
    }
    $objnum = $1;
    $gennum = $2;
@@ -720,91 +740,115 @@ sub parseObj
    if ($$c =~ /\G(.*?)endobj\s*/scg)
    {
       my $string = $1;
-      $obj = $doc->parseAny(\$string, $objnum, $gennum);
+      $obj = $self->parseAny(\$string, $objnum, $gennum);
       if ($string =~ /\Gstream/)
       {
-         if ($obj->{type} ne "dictionary")
+         if ($obj->{type} ne 'dictionary')
          {
-            die "Found an object stream without a preceding dictionary\n" . $doc->trimstr($$c);
+            die "Found an object stream without a preceding dictionary\n" . $self->trimstr($$c);
          }
-         $obj->{value}->{StreamData} = $doc->parseStream(\$string, $objnum, $gennum, $obj->{value});
+         $obj->{value}->{StreamData} = $self->parseStream(\$string, $objnum, $gennum, $obj->{value});
       }
    }
    else
    {
-      die "Expected endobj\n" . $doc->trimstr($$c);
+      die "Expected endobj\n" . $self->trimstr($$c);
    }
-   return CAM::PDF::Node->new("object", $obj, $objnum, $gennum);
+   return CAM::PDF::Node->new('object', $obj, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+
+=item parseInlineImage STRING
+
+=item parseInlineImage STRING, OBJNUM
+
+=item parseInlineImage STRING, OBJNUM, GENNUM
+
+Given a fragment of PDF page content, parse it and return an object
+Node.  This can be called as a class method in some cases, but
+is intended as an instance method.
+
+=cut
 
 sub parseInlineImage
 {
-   my $doc = shift;
+   my $self = shift;
    my $c = shift;
    my $objnum = shift;
    my $gennum = shift;
 
    if ($$c !~ /\GBI\b/s)
    {
-      die "Expected inline image open tag\n" . $doc->trimstr($$c);
+      die "Expected inline image open tag\n" . $self->trimstr($$c);
    }
-   my $dict = $doc->parseDict($c, $objnum, $gennum, "BI\\b\\s*", "ID\\b");
-   $doc->unabbrevInlineImage($dict);
-   $dict->{value}->{Type} = CAM::PDF::Node->new("label", "XObject", $objnum, $gennum);
-   $dict->{value}->{Subtype} = CAM::PDF::Node->new("label", "Image", $objnum, $gennum);
-   $dict->{value}->{StreamData} = $doc->parseStream($c, $objnum, $gennum, $dict->{value}, "\\s*", "\\s*EI\\b");
+   my $dict = $self->parseDict($c, $objnum, $gennum, 'BI\\b\\s*', 'ID\\b');
+   $self->unabbrevInlineImage($dict);
+   $dict->{value}->{Type} = CAM::PDF::Node->new('label', 'XObject', $objnum, $gennum);
+   $dict->{value}->{Subtype} = CAM::PDF::Node->new('label', 'Image', $objnum, $gennum);
+   $dict->{value}->{StreamData} = $self->parseStream($c, $objnum, $gennum, $dict->{value}, qr/\s*/, qr/\s*EI\b/);
    $$c =~ /\G\s+/scg;
 
-   return CAM::PDF::Node->new("object", $dict, $objnum, $gennum);
+   return CAM::PDF::Node->new('object', $dict, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
-#   This is the inverse of parseInlineImage, intended for use only in
-#   the CAM::PDF::Content class
+
+=item writeInlineImage OBJECTNODE
+
+This is the inverse of parseInlineImage, intended for use only in
+the CAM::PDF::Content class.
+
+=cut
+
 sub writeInlineImage
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
    # Make a copy since we are going to trash the image
-   my $dictobj = $doc->copyObject($obj)->{value};
+   my $dictobj = $self->copyObject($obj)->{value};
 
    my $dict = $dictobj->{value};
    delete $dict->{Type};
    delete $dict->{Subtype};
    my $stream = $dict->{StreamData}->{value};
    delete $dict->{StreamData};
-   $doc->abbrevInlineImage($dictobj);
-   #$dict->{L} ||= CAM::PDF::Node->new("number", length($stream));
+   $self->abbrevInlineImage($dictobj);
+   #$dict->{L} ||= CAM::PDF::Node->new('number', length($stream));
    
-   my $str = $doc->writeAny($dictobj);
+   my $str = $self->writeAny($dictobj);
    $str =~ s/^<</BI /s;
    $str =~ s/>>$/ ID/s;
    $str .= "\n" . $stream . "\nEI";
    return $str;
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseStream STRING, OBJNUM, GENNUM, DICTNODE
+
+This should only be used by parseObj(), or other specialized cases.
+
+Given a fragment of PDF page content, parse it and return a stream
+Node.  This can be called as a class method in most circumstances, but
+is intended as an instance method.
+
+The dictionary Node argument is typically the body of the object Node
+that precedes this stream.
+
+=cut
 
 sub parseStream
 {
-   my $doc = shift;
+   my $self = shift;
    my $c = shift;
    my $objnum = shift;
    my $gennum = shift;
    my $dict = shift;
 
-   my $begin = shift || "stream\\r?\\n";
-   my $end = shift || "\\s*endstream\\s*";
+   my $begin = shift || qr/stream\r?\n/;
+   my $end = shift || qr/\s*endstream\s*/;
 
    if ($$c !~ /\G$begin/scg)
    {
-      die "Expected stream open tag\n" . $doc->trimstr($$c);
+      die "Expected stream open tag\n" . $self->trimstr($$c);
    }
 
    my $stream;
@@ -814,44 +858,59 @@ sub parseStream
    {
       if ($begin =~ /\Gstream/)
       {
-         die "Missing stream length\n" . $doc->trimstr($$c);
+         die "Missing stream length\n" . $self->trimstr($$c);
       }
       if ($$c =~ /\G$begin(.*?)$end/scg)
       {
          $stream = $1;
-         $dict->{Length} = CAM::PDF::Node->new("number", length($stream), $objnum, $gennum);
+         my $len = length $stream;
+         $dict->{Length} = CAM::PDF::Node->new('number', $len, $objnum, $gennum);
       }
       else
       {
-         die "Missing stream begin/end\n" . $doc->trimstr($$c);
+         die "Missing stream begin/end\n" . $self->trimstr($$c);
       }
    }
    else
    {
-      my $length = $doc->getValue($l);
-      $stream = substr $$c, pos($$c), $length;
-      pos($$c) += $length;
+      my $length = $self->getValue($l);
+      my $pos = pos $$c;
+      $stream = substr $$c, $pos, $length;
+      pos($$c) += $length;    ## no critic for builtin with parens
       if ($$c !~ /\G$end/scg)
       {
-         die "Expected endstream\n" . $doc->trimstr($$c);
+         die "Expected endstream\n" . $self->trimstr($$c);
       }
    }
 
-   if (ref($doc))
+   if (ref $self)
    {
       # in the rare case of CAM::PDF::Content::_parseInlineImage, this
       # may be called as a class method, thus making the above test
       # necessary
 
-      $stream = $doc->{crypt}->decrypt($doc, $stream, $objnum, $gennum)
-          if ($doc->{crypt});
+      if ($self->{crypt})
+      {
+         $stream = $self->{crypt}->decrypt($self, $stream, $objnum, $gennum);
+      }
    }
 
-   return CAM::PDF::Node->new("stream", $stream, $objnum, $gennum);
+   return CAM::PDF::Node->new('stream', $stream, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseDict STRING
+
+=item parseDict STRING, OBJNUM
+
+=item parseDict STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return an dictionary
+Node.  This can be called as a class method in most circumstances, but
+is intended as an instance method.
+
+=cut
 
 sub parseDict
 {
@@ -860,8 +919,8 @@ sub parseDict
    my $objnum = shift;
    my $gennum = shift;
 
-   my $begin = shift || "<<\\s*";
-   my $end = shift || ">>\\s*";
+   my $begin = shift || '<<\\s*';
+   my $end = shift || '>>\\s*';
 
    my $dict = {};
    if ($$c =~ /\G$begin/scg)
@@ -877,11 +936,21 @@ sub parseDict
       }
    }
 
-   return CAM::PDF::Node->new("dictionary", $dict, $objnum, $gennum);
+   return CAM::PDF::Node->new('dictionary', $dict, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseArray STRING
+
+=item parseArray STRING, OBJNUM
+
+=item parseArray STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return an array
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseArray
 {
@@ -900,11 +969,21 @@ sub parseArray
       }
    }
 
-   return CAM::PDF::Node->new("array", $array, $objnum, $gennum);
+   return CAM::PDF::Node->new('array', $array, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseLabel STRING
+
+=item parseLabel STRING, OBJNUM
+
+=item parseLabel STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a label
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseLabel
 {
@@ -922,11 +1001,21 @@ sub parseLabel
    {
       die "Expected identifier label:\n" . $pkg_or_doc->trimstr($$c);
    }
-   return CAM::PDF::Node->new("label", $label, $objnum, $gennum);
+   return CAM::PDF::Node->new('label', $label, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseRef STRING
+
+=item parseRef STRING, OBJNUM
+
+=item parseRef STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a reference
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseRef
 {
@@ -944,11 +1033,21 @@ sub parseRef
    {
       die "Expected object reference\n" . $pkg_or_doc->trimstr($$c);
    }
-   return CAM::PDF::Node->new("reference", $newobjnum, $objnum, $gennum);
+   return CAM::PDF::Node->new('reference', $newobjnum, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseNum STRING
+
+=item parseNum STRING, OBJNUM
+
+=item parseNum STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a number
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseNum
 {
@@ -966,11 +1065,21 @@ sub parseNum
    {
       die "Expected numerical constant\n" . $pkg_or_doc->trimstr($$c);
    }
-   return CAM::PDF::Node->new("number", $value, $objnum, $gennum);
+   return CAM::PDF::Node->new('number', $value, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseString STRING
+
+=item parseString STRING, OBJNUM
+
+=item parseString STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a string
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseString
 {
@@ -979,7 +1088,7 @@ sub parseString
    my $objnum = shift;
    my $gennum = shift;
 
-   my $value = "";
+   my $value = q{};
    if ($$c =~ /\G\(/)
    {
       while ($$c =~ /\G\(/scg)
@@ -995,11 +1104,11 @@ sub parseString
                
                # Make sure this is not an escaped paren, OR an real paren
                # preceded by an escaped backslash!
-               if ($string =~ /(\\+)$/ && (length($1) % 2) == 1)
+               if ($string =~ /(\\+)$/ && 1 == (length $1) % 2)
                {
                   $value .= $delim;
                }
-               elsif ($delim eq "(")
+               elsif ($delim eq '(')
                {
                   $value .= $delim;
                   $depth++;
@@ -1024,7 +1133,7 @@ sub parseString
 
    # Unescape slash-escaped characters.  Treat \\ specially.
    my @parts = split /\\\\/s, $value;
-   foreach (@parts)
+   for (@parts)
    {
       # concatenate continued lines
       s/\\\r?\n//sg;
@@ -1039,24 +1148,36 @@ sub parseString
       #s/\\b/???/g;
 
       # octal numbers
-      s/\\(\d{1,3})/chr(oct($1))/ge;
+      s/\\(\d{1,3})/chr oct $1/ge;
 
       # Ignore all other slashes (i.e. following characters are treated literally)
       s/\\//g;
    }
-   $value = join("\\", @parts);
+   $value = join q{\\}, @parts;
 
-   if (ref($pkg_or_doc))
+   if (ref $pkg_or_doc)
    {
-      my $doc = $pkg_or_doc;
-      $value = $doc->{crypt}->decrypt($doc, $value, $objnum, $gennum)
-          if ($doc->{crypt});
+      my $self = $pkg_or_doc;
+      if ($self->{crypt})
+      {
+         $value = $self->{crypt}->decrypt($self, $value, $objnum, $gennum);
+      }
    }
-   return CAM::PDF::Node->new("string", $value, $objnum, $gennum);
+   return CAM::PDF::Node->new('string', $value, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseHexString STRING
+
+=item parseHexString STRING, OBJNUM
+
+=item parseHexString STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a hexstring
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseHexString
 {
@@ -1065,29 +1186,45 @@ sub parseHexString
    my $objnum = shift;
    my $gennum = shift;
 
-   my $str = "";
+   my $str = q{};
    if ($$c =~ /\G<([\da-fA-F]*)>\s*/scg)
    {
       $str = $1;
-      $str .= "0" if (length($str) % 2 == 1);
-      $str = pack "H*", $str;
+      my $len = length $str;
+      if ($len % 2 == 1)
+      {
+         $str .= '0';
+      }
+      $str = pack 'H*', $str;
    }
    else
    {
      die "Expected hex string\n" . $pkg_or_doc->trimstr($$c);
    }
 
-   if (ref($pkg_or_doc))
+   if (ref $pkg_or_doc)
    {
-      my $doc = $pkg_or_doc;
-      $str = $doc->{crypt}->decrypt($doc, $str, $objnum, $gennum)
-          if ($doc->{crypt});
+      my $self = $pkg_or_doc;
+      if ($self->{crypt})
+      {
+         $str = $self->{crypt}->decrypt($self, $str, $objnum, $gennum);
+      }
    }
-   return CAM::PDF::Node->new("hexstring", $str, $objnum, $gennum);
+   return CAM::PDF::Node->new('hexstring', $str, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseBoolean STRING
+
+=item parseBoolean STRING, OBJNUM
+
+=item parseBoolean STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a boolean
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseBoolean
 {
@@ -1096,7 +1233,7 @@ sub parseBoolean
    my $objnum = shift;
    my $gennum = shift;
 
-   my $val = "";
+   my $val = q{};
    if ($$c =~ /\G(true|false)\s*/scgi)
    {
       $val = lc $1;
@@ -1106,11 +1243,21 @@ sub parseBoolean
      die "Expected boolean true or false keyword\n" . $pkg_or_doc->trimstr($$c);
    }
 
-   return CAM::PDF::Node->new("boolean", $val, $objnum, $gennum);
+   return CAM::PDF::Node->new('boolean', $val, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseNull STRING
+
+=item parseNull STRING, OBJNUM
+
+=item parseNull STRING, OBJNUM, GENNUM
+
+Use parseAny() instead of this, if possible.
+
+Given a fragment of PDF page content, parse it and return a null
+Node.  This can be called as a class or instance method.
+
+=cut
 
 sub parseNull
 {
@@ -1119,7 +1266,7 @@ sub parseNull
    my $objnum = shift;
    my $gennum = shift;
 
-   my $val = "";
+   my $val = q{};
    if ($$c =~ /\Gnull\s*/scgi)
    {
       $val = undef;
@@ -1129,63 +1276,38 @@ sub parseNull
      die "Expected null keyword\n" . $pkg_or_doc->trimstr($$c);
    }
 
-   return CAM::PDF::Node->new("null", $val, $objnum, $gennum);
+   return CAM::PDF::Node->new('null', $val, $objnum, $gennum);
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item parseAny STRING
+
+=item parseAny STRING, OBJNUM
+
+=item parseAny STRING, OBJNUM, GENNUM
+
+Given a fragment of PDF page content, parse it and return a Node of
+the appropriate type.  This can be called as a class or instance
+method.
+
+=cut
 
 sub parseAny
 {
-   my $pkg_or_doc = shift;
-   my $c = shift;
+   my $p      = shift;  # pkg or doc
+   my $c      = shift;
    my $objnum = shift;
    my $gennum = shift;
 
-   if ($$c =~ /\G\d+\s+\d+\s+R\b/s)
-   {
-      return $pkg_or_doc->parseRef($c, $objnum, $gennum);
-   }
-#   elsif ($$c =~ /\G(\d+)\s+(\d+)\s+obj\b/s)
-#   {
-#      return $pkg_or_doc->parseObj($c, $1, $2);
-#   }
-   elsif ($$c =~ /\G\//)
-   {
-      return $pkg_or_doc->parseLabel($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\G<</)
-   {
-      return $pkg_or_doc->parseDict($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\G\[/)
-   {
-      return $pkg_or_doc->parseArray($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\G\(/)
-   {
-      return $pkg_or_doc->parseString($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\G\</)
-   {
-      return $pkg_or_doc->parseHexString($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\G[\d\.\-\+]+/)
-   {
-      return $pkg_or_doc->parseNum($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\G(true|false)/i)
-   {
-      return $pkg_or_doc->parseBoolean($c, $objnum, $gennum);
-   }
-   elsif ($$c =~ /\Gnull/i)
-   {
-      return $pkg_or_doc->parseNull($c, $objnum, $gennum);
-   }
-   else
-   {
-      die "Unrecognized type in parseAny:\n" . $pkg_or_doc->trimstr($$c);
-   }
+   return $$c =~ /\G\d+\s+\d+\s+R\b/s ? $p->parseRef(      $c, $objnum, $gennum)
+        : $$c =~ /\G\//               ? $p->parseLabel(    $c, $objnum, $gennum)
+        : $$c =~ /\G<</               ? $p->parseDict(     $c, $objnum, $gennum)
+        : $$c =~ /\G\[/               ? $p->parseArray(    $c, $objnum, $gennum)
+        : $$c =~ /\G\(/               ? $p->parseString(   $c, $objnum, $gennum)
+        : $$c =~ /\G\</               ? $p->parseHexString($c, $objnum, $gennum)
+        : $$c =~ /\G[\d\.\-\+]+/      ? $p->parseNum(      $c, $objnum, $gennum)
+        : $$c =~ /\G(true|false)/i    ? $p->parseBoolean(  $c, $objnum, $gennum)
+        : $$c =~ /\Gnull/i            ? $p->parseNull(     $c, $objnum, $gennum)
+        : die "Unrecognized type in parseAny:\n" . $p->trimstr($$c);
 }
 
 ################################################################################
@@ -1194,12 +1316,7 @@ sub parseAny
 
 =head2 Data Accessors
 
-=over 4
-
-=cut
-
-
-#------------------
+=over
 
 =item getValue OBJECT
 
@@ -1214,32 +1331,27 @@ objects.
 
 sub getValue
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   return undef if (!ref $obj);
+   return if (! ref $obj);
 
-   #require Data::Dumper;
-   #warn Data::Dumper->Dump([$obj], ["getvalue"]);
-
-   while ($obj->{type} eq "reference" || $obj->{type} eq "object")
+   while ($obj->{type} eq 'reference' || $obj->{type} eq 'object')
    {
-      if ($obj->{type} eq "reference")
+      if ($obj->{type} eq 'reference')
       {
          my $objnum = $obj->{value};
-         $obj = $doc->dereference($objnum);
+         $obj = $self->dereference($objnum);
       }
-      if ($obj->{type} eq "object")
+      if ($obj->{type} eq 'object')
       {
          $obj = $obj->{value};
       }
-      return undef if (!ref $obj);
+      return if (! ref $obj);
    }
 
    return $obj->{value};
 }
-
-#------------------
 
 =item getObjValue OBJECTNUM
 
@@ -1252,14 +1364,12 @@ getValue() function, but used when all you know is the object number.
 
 sub getObjValue
 {
-   my $doc = shift;
+   my $self = shift;
    my $objnum = shift;
 
-   return $doc->getValue(CAM::PDF::Node->new("reference", $objnum));
+   return $self->getValue(CAM::PDF::Node->new('reference', $objnum));
 }
 
-
-#------------------
 
 =item dereference OBJECTNUM
 
@@ -1277,66 +1387,65 @@ NAME should look something like '/R12'.
 
 sub dereference
 {
-   my $doc = shift;
+   my $self = shift;
    my $key = shift;
    my $pagenum = shift; # only used if $key is a named resource
 
    if ($key =~ s/^\///)  # strip off the leading slash while testing
    {
       # This is a request for a named object
-      $doc->buildNameTable($pagenum);
-      $key = $doc->{Names}->{$pagenum}->{$key};
-      return undef if (!defined $key);
-      # $key should now point to a "reference" object
-      if (ref $key ne "CAM::PDF::Node")
+      $self->_buildNameTable($pagenum);
+      $key = $self->{Names}->{$pagenum}->{$key};
+      return if (!defined $key);
+      # $key should now point to a 'reference' object
+      if ((ref $key) ne 'CAM::PDF::Node')
       {
          die "Assertion failed: key is a reference object in dereference\n";
       }
-      #require Data::Dumper;
-      #warn Data::Dumper->Dump([$key], ["key"]);
       $key = $key->{value};
    }
 
-   if (!exists $doc->{objcache}->{$key})
+   if (!exists $self->{objcache}->{$key})
    {
       #print "Filling cache for obj \#$key...\n";
 
-      my $pos = $doc->{xref}->{$key};
+      my $pos = $self->{xref}->{$key};
 
       if (!$pos)
       {
          warn "Bad request for object $key at position 0 in the file\n";
-         return undef;
+         return;
       }
 
       ## This is the old method.  It is slow.  Below is faster.
-      #my $end = substr $doc->{content}, $pos;
+      #my $end = substr $self->{content}, $pos;
 
-      ## This is faster, but disastrous if "endobj" is a string in the obj!!!
-      #$endpos = index $doc->{content}, "endobj", $pos;
+      ## This is faster, but disastrous if 'endobj' is a string in the obj!!!
+      #$endpos = index $self->{content}, 'endobj', $pos;
       #if ($endpos == -1)
       #{
       #   die "Didn't find endobj after obj\n";
       #}
 
       # This is fastest and safest
-      $doc->buildendxref() if (!exists $doc->{endxref});
-      my $endpos = $doc->{endxref}->{$key};
-      if ((!defined $endpos) || $endpos < $pos)
+      if (!exists $self->{endxref})
+      {
+         $self->_buildendxref();
+      }
+      my $endpos = $self->{endxref}->{$key};
+      if (!defined $endpos || $endpos < $pos)
       {
          # really slow, but a totally safe fallback
-         $endpos = $doc->{contentlength};
+         $endpos = $self->{contentlength};
       }
 
-      my $end = substr $doc->{content}, $pos, $endpos - $pos + 6;
-      $doc->{objcache}->{$key} = $doc->parseObj(\$end, $key);
+      my $end = substr $self->{content}, $pos, $endpos - $pos + 6;
+      $self->{objcache}->{$key} = $self->parseObj(\$end, $key);
    }
 
-   return $doc->{objcache}->{$key};
+   return $self->{objcache}->{$key};
 }
 
-
-#------------------
 
 =item getPropertyNames PAGENUM
 
@@ -1351,28 +1460,26 @@ named property (most likely a reference node).
 
 sub getPropertyNames
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   $doc->buildNameTable($pagenum);
-   my $props = $doc->{Names}->{$pagenum};
-   return () if (!defined $props);
+   $self->_buildNameTable($pagenum);
+   my $props = $self->{Names}->{$pagenum};
+   return if (!defined $props);
    return keys %$props;
 }
 sub getProperty
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $name = shift;
 
-   $doc->buildNameTable($pagenum);
-   my $props = $doc->{Names}->{$pagenum};
-   return undef if (!defined $props);
-   return undef if (!defined $name);
+   $self->_buildNameTable($pagenum);
+   my $props = $self->{Names}->{$pagenum};
+   return if (!defined $props);
+   return if (!defined $name);
    return $props->{$name};
 }
-
-#------------------
 
 =item getFont PAGENUM, FONTNAME
 
@@ -1385,26 +1492,24 @@ referenced by page.
 
 sub getFont
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $fontname = shift;
 
    $fontname =~ s|^/?|/|; # add leading slash if needed
-   my $obj = $doc->dereference($fontname, $pagenum);
-   return undef if (!$obj);
+   my $obj = $self->dereference($fontname, $pagenum);
+   return if (!$obj);
 
-   my $dict = $doc->getValue($obj);
-   if ($dict && $dict->{Type} && $dict->{Type}->{value} eq "Font")
+   my $dict = $self->getValue($obj);
+   if ($dict && $dict->{Type} && $dict->{Type}->{value} eq 'Font')
    {
       return $dict;
    }
    else
    {
-      return undef;
+      return;
    }
 }
-
-#------------------
 
 =item getFontNames PAGENUM
 
@@ -1416,18 +1521,18 @@ Returns a list of fonts for a given page.
 
 sub getFontNames
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   $doc->buildNameTable($pagenum);
-   my $list = $doc->{Names}->{$pagenum};
+   $self->_buildNameTable($pagenum);
+   my $list = $self->{Names}->{$pagenum};
    my @names;
    if ($list)
    {
-      foreach my $key (keys %$list)
+      for my $key (keys %$list)
       {
-         my $dict = $doc->getValue($list->{$key});
-         if ($dict && $dict->{Type} && $dict->{Type}->{value} eq "Font")
+         my $dict = $self->getValue($list->{$key});
+         if ($dict && $dict->{Type} && $dict->{Type}->{value} eq 'Font')
          {
             push @names, $key;
          }
@@ -1447,18 +1552,18 @@ Returns an array of font objects for a given page.
 
 sub getFonts
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   $doc->buildNameTable($pagenum);
-   my $list = $doc->{Names}->{$pagenum};
+   $self->_buildNameTable($pagenum);
+   my $list = $self->{Names}->{$pagenum};
    my @fonts;
    if ($list)
    {
-      foreach my $key (keys %$list)
+      for my $key (keys %$list)
       {
-         my $dict = $doc->getValue($list->{$key});
-         if ($dict && $dict->{Type} && $dict->{Type}->{value} eq "Font")
+         my $dict = $self->getValue($list->{$key});
+         if ($dict && $dict->{Type} && $dict->{Type}->{value} eq 'Font')
          {
             push @fonts, $dict;
          }
@@ -1466,8 +1571,6 @@ sub getFonts
    }
    return @fonts;
 }
-
-#------------------
 
 =item getFontByBaseName PAGENUM, FONTNAME
 
@@ -1480,27 +1583,26 @@ of the base font.
 
 sub getFontByBaseName
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $fontname = shift;
 
-   $doc->buildNameTable($pagenum);
-   my $list = $doc->{Names}->{$pagenum};
-   foreach my $key (keys %$list)
+   $self->_buildNameTable($pagenum);
+   my $list = $self->{Names}->{$pagenum};
+   for my $key (keys %$list)
    {
       my $num = $list->{$key}->{value};
-      my $obj = $doc->dereference($num);
-      my $dict = $doc->getValue($obj);
+      my $obj = $self->dereference($num);
+      my $dict = $self->getValue($obj);
       if ($dict &&
-          $dict->{Type} && $dict->{Type}->{value} eq "Font" &&
+          $dict->{Type} && $dict->{Type}->{value} eq 'Font' &&
           $dict->{BaseFont} && $dict->{BaseFont}->{value} eq $fontname)
       {
          return $dict;
       }
    }
-   return undef;
+   return;
 }
-#------------------
 
 =item getFontMetrics PROPERTIES FONTNAME
 
@@ -1510,15 +1612,15 @@ Returns a data structure representing the font metrics for the named
 font.  The property list is the results of something like the
 following:
 
-  $doc->buildNameTable($pagenum);
-  my $properties = $doc->{Names}->{$pagenum};
+  $self->_buildNameTable($pagenum);
+  my $properties = $self->{Names}->{$pagenum};
 
 Alternatively, if you know the page number, it might be easier to do:
 
-  my $font = $doc->dereference($fontlabel, $pagenum);
+  my $font = $self->dereference($fontlabel, $pagenum);
   my $fontmetrics = $font->{value}->{value};
 
-where the fontlabel is something like "/Helv".  The getFontMetrics
+where the fontlabel is something like '/Helv'.  The getFontMetrics
 method is useful in the cases where you've forgotten which page number
 you are working on (e.g. in CAM::PDF::GS), or if your property list
 isn't part of any page (e.g. working with form field annotation
@@ -1528,7 +1630,7 @@ objects).
 
 sub getFontMetrics
 {
-   my $doc = shift;
+   my $self = shift;
    my $props = shift;
    my $fontname = shift;
 
@@ -1540,13 +1642,13 @@ sub getFontMetrics
    # properties data structure
    if ($props->{Font})
    {
-      $props = $doc->getValue($props->{Font});
+      $props = $self->getValue($props->{Font});
    }
 
    if ($props->{$fontname})
    {
-      my $fontdict = $doc->getValue($props->{$fontname});
-      if ($fontdict && $fontdict->{Type} && $fontdict->{Type}->{value} eq "Font")
+      my $fontdict = $self->getValue($props->{$fontname});
+      if ($fontdict && $fontdict->{Type} && $fontdict->{Type}->{value} eq 'Font')
       {
          $fontmetrics = $fontdict;
          #print STDERR "Got font\n";
@@ -1560,10 +1662,9 @@ sub getFontMetrics
    {
       #print STDERR "No font with that name in the dict\n";
    }
-   #print STDERR "Failed to get font\n" unless($fontmetrics);
+   #print STDERR "Failed to get font\n" if (!$fontmetrics);
    return $fontmetrics;
 }
-#------------------
 
 =item addFont PAGENUM, FONTNAME, FONTLABEL
 
@@ -1585,40 +1686,40 @@ C<FontDescriptor>.
 
 sub addFont
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $name = shift;
    my $label = shift;
    my $fontmetrics = shift; # optional
 
    # Check if this font already exists
-   my $page = $doc->getPage($pagenum);
+   my $page = $self->getPage($pagenum);
    if (exists $page->{Resources})
    {
-      my $r = $doc->getValue($page->{Resources});
+      my $r = $self->getValue($page->{Resources});
       if (exists $r->{Font})
       {
-         my $f = $doc->getValue($r->{Font});
+         my $f = $self->getValue($r->{Font});
          if (exists $f->{$label})
          {
             # Font already exists.  Skip.
-            return $doc;
+            return $self;
          }
       }
    }
 
    # Build the font
-   my $dict = CAM::PDF::Node->new("dictionary",
+   my $dict = CAM::PDF::Node->new('dictionary',
                                  {
-                                    Type => CAM::PDF::Node->new("label", "Font"),
-                                    Name => CAM::PDF::Node->new("label", $label),
-                                    BaseFont => CAM::PDF::Node->new("label", $name),
+                                    Type => CAM::PDF::Node->new('label', 'Font'),
+                                    Name => CAM::PDF::Node->new('label', $label),
+                                    BaseFont => CAM::PDF::Node->new('label', $name),
                                  },
                                  );
    if ($fontmetrics)
    {
-      my $copy = $doc->copyObject($fontmetrics);
-      foreach my $key (keys %$copy)
+      my $copy = $self->copyObject($fontmetrics);
+      for my $key (keys %$copy)
       {
          if (!$dict->{value}->{$key})
          {
@@ -1628,32 +1729,30 @@ sub addFont
    }
    else
    {
-      $dict->{value}->{Subtype} = CAM::PDF::Node->new("label", "Type1");
+      $dict->{value}->{Subtype} = CAM::PDF::Node->new('label', 'Type1');
    }
 
    # Add the font to the document
-   my $fontobjnum = $doc->appendObject(undef, CAM::PDF::Node->new("object", $dict), 0);
+   my $fontobjnum = $self->appendObject(undef, CAM::PDF::Node->new('object', $dict), 0);
 
    # Add the font to the page
-   my ($objnum,$gennum) = $doc->getPageObjnum($pagenum);
+   my ($objnum,$gennum) = $self->getPageObjnum($pagenum);
    if (!exists $page->{Resources})
    {
-      $page->{Resources} = CAM::PDF::Node->new("dictionary", {}, $objnum, $gennum);
+      $page->{Resources} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
    }
-   my $r = $doc->getValue($page->{Resources});
+   my $r = $self->getValue($page->{Resources});
    if (!exists $r->{Font})
    {
-      $page->{Font} = CAM::PDF::Node->new("dictionary", {}, $objnum, $gennum);
+      $page->{Font} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
    }
-   my $f = $doc->getValue($r->{Font});
-   $f->{$label} = CAM::PDF::Node->new("reference", $fontobjnum, $objnum, $gennum);
+   my $f = $self->getValue($r->{Font});
+   $f->{$label} = CAM::PDF::Node->new('reference', $fontobjnum, $objnum, $gennum);
 
-   delete $doc->{Names}->{$pagenum}; # decache
-   $doc->{changes}->{$objnum} = 1;
-   return $doc;
+   delete $self->{Names}->{$pagenum}; # decache
+   $self->{changes}->{$objnum} = 1;
+   return $self;
 }
-
-#------------------
 
 =item deEmbedFont PAGENUM, FONTNAME
 
@@ -1666,8 +1765,8 @@ exist, or the embedded data could not be discarded.
 
 The optional basefont parameter allows you to change the font.  This
 is useful when some applications embed a standard font (see below) and
-give it a funny name, like "SYLXNP+Helvetica".  In this example, it's
-important to change the basename back to the standard "Helvetica" when
+give it a funny name, like 'SYLXNP+Helvetica'.  In this example, it's
+important to change the basename back to the standard 'Helvetica' when
 dembedding.
 
 De-embedding the font does NOT remove it from the PDF document, it
@@ -1675,7 +1774,7 @@ just removes references to it.  To get a size reduction by throwing
 away unused font data, you should use the following code sometime
 after this method.
 
-  $doc->cleanse();
+  $self->cleanse();
 
 For reference, the standard fonts are Times-Roman, Helvetica, and
 Courier (and their bold, italic and bold-italic forms) plus Symbol and
@@ -1685,17 +1784,17 @@ Zapfdingbats. (Adobe PDF Reference v1.4, p.319)
 
 sub deEmbedFont
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $fontname = shift;
    my $basefont = shift;
 
    my $success;
-   my $font = $doc->getFont($pagenum, $fontname);
+   my $font = $self->getFont($pagenum, $fontname);
    if ($font)
    {
-      $doc->deEmbedFontObj($font, $basefont);
-      $success = $doc;
+      $self->_deEmbedFontObj($font, $basefont);
+      $success = $self;
    }
    else
    {
@@ -1703,7 +1802,6 @@ sub deEmbedFont
    }
    return $success;
 }
-#------------------
 
 =item deEmbedFontByBaseName PAGENUM, FONTNAME
 
@@ -1717,17 +1815,17 @@ font.
 
 sub deEmbedFontByBaseName
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $fontname = shift;
    my $basefont = shift;
 
    my $success;
-   my $font = $doc->getFontByBaseName($pagenum, $fontname);
+   my $font = $self->getFontByBaseName($pagenum, $fontname);
    if ($font)
    {
-      $doc->deEmbedFontObj($font, $basefont);
-      $success = $doc;
+      $self->_deEmbedFontObj($font, $basefont);
+      $success = $self;
    }
    else
    {
@@ -1735,24 +1833,23 @@ sub deEmbedFontByBaseName
    }
    return $success;
 }
-#------------------
-sub deEmbedFontObj
+
+sub _deEmbedFontObj
 {
-   my $doc = shift;
+   my $self = shift;
    my $font = shift;
    my $basefont = shift;
    
    if ($basefont)
    {
-      $font->{BaseFont} = CAM::PDF::Node->new("label", $basefont);
+      $font->{BaseFont} = CAM::PDF::Node->new('label', $basefont);
    }
    delete $font->{FontDescriptor};
    delete $font->{Widths};
    delete $font->{FirstChar};
    delete $font->{LastChar};
-   $doc->{changes}->{$font->{Type}->{objnum}} = 1;
+   $self->{changes}->{$font->{Type}->{objnum}} = 1;
 }
-#------------------
 
 =item wrapString STRING, WIDTH, FONTSIZE, FONTMETRICS
 
@@ -1764,13 +1861,13 @@ Returns an array of strings wrapped to the specified width.
 
 sub wrapString
 {
-   my $doc = shift;
+   my $self = shift;
    my $string = shift;
    my $width = shift;
    my $size = shift;
 
    my $fm;
-   if (defined $_[0] && ref($_[0]))
+   if (defined $_[0] && ref $_[0])
    {
       $fm = shift;
    }
@@ -1778,18 +1875,18 @@ sub wrapString
    {
       my $pagenum = shift;
       my $fontlabel = shift;
-      $fm = $doc->getFont($pagenum, $fontlabel);
+      $fm = $self->getFont($pagenum, $fontlabel);
    }
 
    $string =~ s/\r\n/\n/gs;
    my @strings = split /[\r\n]/, $string;
    my @out;
    $width /= $size;
-   #print STDERR "wrapping ".join("|",@strings)."\n";
-   foreach my $s (@strings)
+   #print STDERR 'wrapping '.join('|',@strings)."\n";
+   for my $s (@strings)
    {
       $s =~ s/\s+$//;
-      my $w = $doc->getStringWidth($fm, $s);
+      my $w = $self->getStringWidth($fm, $s);
       if ($w <= $width)
       {
          push @out, $s;
@@ -1798,13 +1895,13 @@ sub wrapString
       {
          $s =~ s/^(\s*)//;
          my $cur = $1;
-         my $curw = $cur eq "" ? 0 : $doc->getStringWidth($fm, $cur);
+         my $curw = $cur eq q{} ? 0 : $self->getStringWidth($fm, $cur);
          while ($s)
          {
             $s =~ s/^(\s*)(\S*)//;
             my $sp = $1;
             my $wd = $2;
-            my $wwd = $wd eq "" ? 0 : $doc->getStringWidth($fm, $wd);
+            my $wwd = $wd eq q{} ? 0 : $self->getStringWidth($fm, $wd);
             if ($curw == 0)
             {
                $cur = $wd;
@@ -1812,7 +1909,7 @@ sub wrapString
             }
             else
             {
-               my $wsp = $sp eq "" ? 0 : $doc->getStringWidth($fm, $sp);
+               my $wsp = $sp eq q{} ? 0 : $self->getStringWidth($fm, $sp);
                if ($curw + $wsp + $wwd <= $width)
                {
                   $cur .= $sp . $wd;
@@ -1826,16 +1923,15 @@ sub wrapString
                }
             }
          }
-         if (length($cur) > 0)
+         if (0 < length $cur)
          {
             push @out, $cur;
          }
       }
    }
-   #print STDERR "wrapped to ".join("|",@out)."\n";
+   #print STDERR 'wrapped to '.join('|',@out)."\n";
    return @out;
 }
-#------------------
 
 =item getStringWidth FONTMETRICS, STRING
 
@@ -1847,23 +1943,26 @@ Returns the width of the string, using the font metrics if possible.
 
 sub getStringWidth
 {
-   my $doc = shift;
+   my $self = shift;
    my $fontmetrics = shift;
    my $string = shift;
 
-   return 0 if ((! defined $string) || $string eq "");
+   if (! defined $string || $string eq q{})
+   {
+      return 0;
+   }
 
    my $width = 0;
    if ($fontmetrics)
    {
       if ($fontmetrics->{Widths})
       {
-         my $first  = $doc->getValue($fontmetrics->{FirstChar});
-         my $last   = $doc->getValue($fontmetrics->{LastChar});
-         my $widths = $doc->getValue($fontmetrics->{Widths});
-         my $missingWidth;
+         my $first  = $self->getValue($fontmetrics->{FirstChar});
+         my $last   = $self->getValue($fontmetrics->{LastChar});
+         my $widths = $self->getValue($fontmetrics->{Widths});
+         my $missing_width;
          my $fd;
-         foreach my $char (unpack "C*", $string)
+         for my $char (unpack 'C*', $string)
          {
             if ($char >= $first && $char <= $last)
             {
@@ -1871,62 +1970,60 @@ sub getStringWidth
             }
             else
             {
-               if (!defined $missingWidth)
+               if (!defined $missing_width)
                {
-                  $missingWidth = 0; # fallback
+                  $missing_width = 0; # fallback
                   if (!$fd)
                   {
                      if (exists $fontmetrics->{FontDescriptor})
                      {
-                        $fd = $doc->getValue($fontmetrics->{FontDescriptor});
+                        $fd = $self->getValue($fontmetrics->{FontDescriptor});
                      }
                   }
                   if ($fd)
                   {
                      if (exists $fd->{MissingWidth})
                      {
-                        $missingWidth = $doc->getValue($fd->{MissingWidth});
+                        $missing_width = $self->getValue($fd->{MissingWidth});
                      }
                   }
                }
-               $width += $missingWidth;
+               $width += $missing_width;
             }
          }
          $width /= 1000.0;  # units conversion
       }
       elsif ($fontmetrics->{BaseFont})
       {
-         my $fontname = $doc->getValue($fontmetrics->{BaseFont});
-         if (!exists $doc->{fontmetrics}->{$fontname})
+         my $fontname = $self->getValue($fontmetrics->{BaseFont});
+         if (!exists $self->{fontmetrics}->{$fontname})
          {
             require Text::PDF::SFont;
             require Text::PDF::File;
             my $pdf = Text::PDF::File->new();
-            $doc->{fontmetrics}->{$fontname} =
-                Text::PDF::SFont->new($pdf, $fontname, "NULL");
+            $self->{fontmetrics}->{$fontname} =
+                Text::PDF::SFont->new($pdf, $fontname, 'NULL');
          }
-         if ($doc->{fontmetrics}->{$fontname})
+         if ($self->{fontmetrics}->{$fontname})
          {
-            $width = $doc->{fontmetrics}->{$fontname}->width($string);
+            $width = $self->{fontmetrics}->{$fontname}->width($string);
          }
       }
       else
       {
-         warn "Can't comprehend this font";
+         warn 'Failed to understand this font';
       }
    }
 
    if ($width == 0)
    {
       # HACK!!!
-      warn "Using klugy width!\n";
-      $width = length($string)*0.2;
+      #warn "Using klugy width!\n";
+      $width = 0.2 * length $string;
    }
 
    return $width;
 }
-
-#------------------
 
 =item numPages
 
@@ -1936,11 +2033,9 @@ Returns the number of pages in the PDF document.
 
 sub numPages
 {
-   my $doc = shift;
-   return $doc->{PageCount};
+   my $self = shift;
+   return $self->{PageCount};
 }
-
-#------------------
 
 =item getPage PAGENUM
 
@@ -1952,24 +2047,24 @@ Returns a dictionary for a given numbered page.
 
 sub getPage
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   if ($pagenum < 1 || $pagenum > $doc->{PageCount})
+   if ($pagenum < 1 || $pagenum > $self->{PageCount})
    {
       warn "Invalid page number requested: $pagenum\n";
-      return undef;
+      return;
    }
 
-   if (!exists $doc->{pagecache}->{$pagenum})
+   if (!exists $self->{pagecache}->{$pagenum})
    {
-      my $node = $doc->getPagesDict();
+      my $node = $self->getPagesDict();
       my $nodestart = 1;
-      while ($doc->getValue($node->{Type}) eq "Pages")
+      while ($self->getValue($node->{Type}) eq 'Pages')
       {
          #warn "getPage: nodestart $nodestart\n";
-         my $kids = $doc->getValue($node->{Kids});
-         if (ref $kids ne "ARRAY")
+         my $kids = $self->getValue($node->{Kids});
+         if ((ref $kids) ne 'ARRAY')
          {
             die "Error: \@kids is not an array\n";
          }
@@ -2002,8 +2097,8 @@ sub getPage
                }
 
                # Retrieve the dictionary of this child
-               my $sub = $doc->getValue($kids->[$child]);
-               if ($sub->{Type}->{value} ne "Pages")
+               my $sub = $self->getValue($kids->[$child]);
+               if ($sub->{Type}->{value} ne 'Pages')
                {
                   #warn "getPage:   wrong leaf\n";
                   # Its a leaf, and not the right one.  Move on.
@@ -2011,7 +2106,7 @@ sub getPage
                }
                else
                {
-                  my $count = $doc->getValue($sub->{Count});
+                  my $count = $self->getValue($sub->{Count});
                   if ($nodestart + $count - 1 >= $pagenum)
                   {
                      #warn "getPage:   descend\n";
@@ -2031,8 +2126,8 @@ sub getPage
          }
          #warn "getPage: get new node\n";
 
-         $node = $doc->getValue($kids->[$child]);
-         if (!ref $node)
+         $node = $self->getValue($kids->[$child]);
+         if (! ref $node)
          {
             require Data::Dumper;
             Carp::cluck(Data::Dumper::Dumper($node));
@@ -2042,13 +2137,11 @@ sub getPage
       #warn "getPage: done\n";
 
       # Ok, now we've got the right page.  Store it.
-      $doc->{pagecache}->{$pagenum} = $node;
+      $self->{pagecache}->{$pagenum} = $node;
    }
 
-   return $doc->{pagecache}->{$pagenum};
+   return $self->{pagecache}->{$pagenum};
 }
-
-#------------------
 
 =item getPageObjnum PAGENUM
 
@@ -2060,11 +2153,11 @@ Return the number of the PDF object in which the specified page occurs.
 
 sub getPageObjnum
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   my $page = $doc->getPage($pagenum);
-   return undef if (!$page);
+   my $page = $self->getPage($pagenum);
+   return if (!$page);
    my ($anyobj) = values %$page;
    if (!$anyobj)
    {
@@ -2080,8 +2173,6 @@ sub getPageObjnum
    }
 }   
 
-#------------------
-
 =item getPageText PAGENUM
 
 Extracts the text from a PDF page as a string.
@@ -2090,114 +2181,19 @@ Extracts the text from a PDF page as a string.
 
 sub getPageText
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $verbose = shift;
 
-   my $pagetree = $doc->getPageContentTree($pagenum, $verbose);
+   my $pagetree = $self->getPageContentTree($pagenum, $verbose);
    if (!$pagetree)
    {
-      return undef;
+      return;
    }
 
-   #require Data::Dumper;
-   #warn Data::Dumper->Dump([$pagetree], ["pagetree"]);
-
-   my $str = "";
-   my @stack = ([@{$pagetree->{blocks}}]);
-   my $inBT = 0;
-   while (@stack > 0)
-   {
-      my $node = $stack[-1];
-      if (ref($node))
-      {
-         if (@$node > 0)
-         {
-            my $block = shift @$node;
-            if ($block->{type} eq "block")
-            {
-               if ($block->{name} eq "BT")
-               {
-                  push @stack, "BT";
-                  $inBT = 1;
-               }
-               push @stack, [@{$block->{value}}];  # descend
-            }
-            elsif ($inBT)
-            {
-               die "misconception" if ($block->{type} ne "op");
-               my @args = @{$block->{args}};
-               if ($block->{name} eq "TJ")
-               {
-                  die "Bad TJ" if (@args != 1 || $args[0]->{type} ne "array");
-
-                  $str =~ s/(\S)$/$1 /s;
-                  foreach my $node (@{$args[0]->{value}})
-                  {
-                     if ($node->{type} =~ /string/)
-                     {
-                        $str .= $node->{value};
-                     }
-                     elsif ($node->{type} eq "number")
-                     {
-                        # Heuristic:
-                        #  "offset of more than a quarter unit forward"
-                        # means significant positive spacing
-                        if ($node->{value} < -250)
-                        {
-                           $str =~ s/(\S)$/$1 /s;
-                        }
-                     }
-                  }
-               }
-               elsif ($block->{name} =~ /^Tj|\'|\"$/)
-               {
-                  die "Bad Tj" unless (@args >= 1 &&
-                                       $args[-1]->{type} =~ /string$/);
-                  if ($block->{name} eq "Tj")
-                  {
-                     $str =~ s/(\S)$/$1 /s;
-                  }
-                  else
-                  {
-                     $str =~ s/ *$/\n/s;
-                  }
-                  $str .= $args[-1]->{value};
-               }
-               elsif ($block->{name} eq "Td" || $block->{name} eq "TD")
-               {
-                  die "Bad Td/TD" unless (@args == 2 && 
-                                          $args[0]->{type} eq "number" &&
-                                          $args[1]->{type} eq "number");
-                  # Heuristic:
-                  #   "move down in Y, and Y motion a large fraction of the X motion"
-                  # means new line
-                  if ($args[1]->{value} < 0 && 2*abs($args[1]->{value}) > abs($args[0]->{value}))
-                  {
-                     $str =~ s/ *$/\n/s;
-                  }
-               }
-               elsif ($block->{name} eq "T*")
-               {
-                  $str =~ s/ *$/\n/s;
-               }
-            }
-         }
-         else
-         {
-            pop @stack;
-         }
-      }
-      else
-      {
-         $inBT = 0;
-         $str =~ s/ *$/\n/s;
-         pop @stack;
-      }
-   }
-   return $str;
+   require CAM::PDF::PageText;
+   return CAM::PDF::PageText->render($pagetree, $verbose);
 }
-#------------------
 
 =item getPageContentTree PAGENUM
 
@@ -2208,36 +2204,35 @@ syntax error or if the page does not exist.
 
 sub getPageContentTree
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $verbose = shift;
 
-   my $content = $doc->getPageContent($pagenum);
-   return undef if (!defined $content);
+   my $content = $self->getPageContent($pagenum);
+   return if (!defined $content);
 
-   $doc->buildNameTable($pagenum);
+   $self->_buildNameTable($pagenum);
 
-   my $page = $doc->getPage($pagenum);
+   my $page = $self->getPage($pagenum);
    my $box = [0, 0, 612, 792];
    if ($page->{MediaBox})
    {
-      my $mediabox = $doc->getValue($page->{MediaBox});
-      $box->[0] = $doc->getValue($mediabox->[0]);
-      $box->[1] = $doc->getValue($mediabox->[1]);
-      $box->[2] = $doc->getValue($mediabox->[2]);
-      $box->[3] = $doc->getValue($mediabox->[3]);
+      my $mediabox = $self->getValue($page->{MediaBox});
+      $box->[0] = $self->getValue($mediabox->[0]);
+      $box->[1] = $self->getValue($mediabox->[1]);
+      $box->[2] = $self->getValue($mediabox->[2]);
+      $box->[3] = $self->getValue($mediabox->[3]);
    }
 
    require CAM::PDF::Content;
    my $tree = CAM::PDF::Content->new($content, {
-      doc => $doc,
-      properties => $doc->{Names}->{$pagenum},
+      doc => $self,
+      properties => $self->{Names}->{$pagenum},
       mediabox => $box,
    }, $verbose);
 
    return $tree;
 }
-#------------------
 
 =item getPageContent PAGENUM
 
@@ -2247,39 +2242,39 @@ Return a string with the layout contents of one page.
 
 sub getPageContent
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   my $page = $doc->getPage($pagenum);
+   my $page = $self->getPage($pagenum);
    if (!$page || !exists $page->{Contents})
    {
-      return "";
+      return q{};
    }
 
-   my $contents = $doc->getValue($page->{Contents});
+   my $contents = $self->getValue($page->{Contents});
 
-   if (!ref $contents)
+   if (! ref $contents)
    {
       return $contents;
    }
-   elsif (ref $contents eq "HASH")
+   elsif ((ref $contents) eq 'HASH')
    {
       # doesn't matter if it's not encoded...
-      return $doc->decodeOne(CAM::PDF::Node->new("dictionary", $contents));
+      return $self->decodeOne(CAM::PDF::Node->new('dictionary', $contents));
    }
-   elsif (ref $contents eq "ARRAY")
+   elsif ((ref $contents) eq 'ARRAY')
    {
-      my $stream = "";
-      foreach my $arrobj (@$contents)
+      my $stream = q{};
+      for my $arrobj (@$contents)
       {
-         my $data = $doc->getValue($arrobj);
-         if (!ref $data)
+         my $data = $self->getValue($arrobj);
+         if (! ref $data)
          {
             $stream .= $data;
          }
-         elsif (ref $data eq "HASH")
+         elsif ((ref $data) eq 'HASH')
          {
-            $stream .= $doc->decodeOne(CAM::PDF::Node->new("dictionary",$data));  # doesn't matter if it's not encoded...
+            $stream .= $self->decodeOne(CAM::PDF::Node->new('dictionary',$data));  # doesn't matter if it's not encoded...
          }
          else
          {
@@ -2294,8 +2289,6 @@ sub getPageContent
    }
 }
 
-#------------------
-
 =item getName OBJECT
 
 I<For INTERNAL use>
@@ -2307,21 +2300,19 @@ is useful for indirect references to images in particular.
 
 sub getName
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   if ($obj->{value}->{type} eq "dictionary")
+   if ($obj->{value}->{type} eq 'dictionary')
    {
       my $dict = $obj->{value}->{value};
       if (exists $dict->{Name})
       {
-         return $doc->getValue($dict->{Name});
+         return $self->getValue($dict->{Name});
       }
    }
-   return "";
+   return q{};
 }
-
-#------------------
 
 =item getPrefs
 
@@ -2348,22 +2339,21 @@ convenience:
 
 So, you can retrieve the value of the Copy boolean via:
 
-  my ($canCopy) = ($doc->getPrefs())[$CAM::PDF::PREF_COPY];
+  my ($canCopy) = ($self->getPrefs())[$CAM::PDF::PREF_COPY];
 
 =cut
 
 sub getPrefs
 {
-   my $doc = shift;
+   my $self = shift;
 
    my @p = (1,1,1,1);
-   if (exists $doc->{crypt}->{P})
+   if (exists $self->{crypt}->{P})
    {
-      @p = $doc->{crypt}->decode_permissions($doc->{crypt}->{P});
+      @p = $self->{crypt}->decode_permissions($self->{crypt}->{P});
    }
-   return($doc->{crypt}->{opass}, $doc->{crypt}->{upass}, @p);
+   return($self->{crypt}->{opass}, $self->{crypt}->{upass}, @p);
 }
-#------------------
 
 =item canPrint
 
@@ -2374,10 +2364,9 @@ on the PDF.
 
 sub canPrint
 {
-   my $doc = shift;
-   return ($doc->getPrefs())[$PREF_PRINT];
+   my $self = shift;
+   return ($self->getPrefs())[$PREF_PRINT];
 }
-#------------------
 
 =item canModify
 
@@ -2388,10 +2377,9 @@ on the PDF.
 
 sub canModify
 {
-   my $doc = shift;
-   return ($doc->getPrefs())[$PREF_MODIFY];
+   my $self = shift;
+   return ($self->getPrefs())[$PREF_MODIFY];
 }
-#------------------
 
 =item canCopy
 
@@ -2402,10 +2390,9 @@ on the PDF.
 
 sub canCopy
 {
-   my $doc = shift;
-   return ($doc->getPrefs())[$PREF_COPY];
+   my $self = shift;
+   return ($self->getPrefs())[$PREF_COPY];
 }
-#------------------
 
 =item canAdd
 
@@ -2416,10 +2403,9 @@ on the PDF.
 
 sub canAdd
 {
-   my $doc = shift;
-   return ($doc->getPrefs())[$PREF_ADD];
+   my $self = shift;
+   return ($self->getPrefs())[$PREF_ADD];
 }
-#------------------
 
 =item getFormFieldList
 
@@ -2432,62 +2418,60 @@ function.
 
 sub getFormFieldList
 {
-   my $doc = shift;
+   my $self = shift;
    my $parentname = shift;  # very optional
 
-   my $prefix = (defined $parentname ? $parentname . "." : "");
+   my $prefix = (defined $parentname ? $parentname . q{.} : q{});
 
    my $kidlist;
-   if (defined $parentname && $parentname ne "")
+   if (defined $parentname && $parentname ne q{})
    {
-      my $parent = $doc->getFormField($parentname);
-      return () if (!$parent);
-      my $dict = $doc->getValue($parent);
-      return () if (!exists $dict->{Kids});
-      $kidlist = $doc->getValue($dict->{Kids});
+      my $parent = $self->getFormField($parentname);
+      return if (!$parent);
+      my $dict = $self->getValue($parent);
+      return if (!exists $dict->{Kids});
+      $kidlist = $self->getValue($dict->{Kids});
    }
    else
    {
-      my $root = $doc->getRootDict()->{AcroForm};
-      return () if (!$root);
-      my $parent = $doc->getValue($root);
-      return () if (!exists $parent->{Fields});
-      $kidlist = $doc->getValue($parent->{Fields});
+      my $root = $self->getRootDict()->{AcroForm};
+      return if (!$root);
+      my $parent = $self->getValue($root);
+      return if (!exists $parent->{Fields});
+      $kidlist = $self->getValue($parent->{Fields});
    }
 
    my @list = ();
-   foreach my $kid (@$kidlist)
+   for my $kid (@$kidlist)
    {
-      if ((!ref($kid)) || ref($kid) ne "CAM::PDF::Node" || $kid->{type} ne "reference")
+      if ((! ref $kid) || (ref $kid) ne 'CAM::PDF::Node' || $kid->{type} ne 'reference')
       {
          die "Expected a reference as the form child of '$parentname'\n";
       }
-      my $obj = $doc->dereference($kid->{value});
-      my $dict = $doc->getValue($obj);
-      my $name = "(no name)";  # assume the worst
+      my $obj = $self->dereference($kid->{value});
+      my $dict = $self->getValue($obj);
+      my $name = '(no name)';  # assume the worst
       if (exists $dict->{T})
       {
-         $name = $doc->getValue($dict->{T});
+         $name = $self->getValue($dict->{T});
       }
       $name = $prefix . $name;
       push @list, $name;
       if (exists $dict->{TU})
       {
-         push @list, $prefix . $doc->getValue($dict->{TU}) . " (alternate name)";
+         push @list, $prefix . $self->getValue($dict->{TU}) . ' (alternate name)';
       }
-      $doc->{formcache}->{$name} = $obj;
-      my @kidnames = $doc->getFormFieldList($name);
+      $self->{formcache}->{$name} = $obj;
+      my @kidnames = $self->getFormFieldList($name);
       if (@kidnames > 0)
       {
-         #push @list, "descend...";
+         #push @list, 'descend...';
          push @list, @kidnames;
-         #push @list, "ascend...";
+         #push @list, 'ascend...';
       }
    }
    return @list;
 }
-
-#------------------
 
 =item getFormField NAME
 
@@ -2501,12 +2485,12 @@ specified field name.  NAME can be either the full name or the
 
 sub getFormField
 {
-   my $doc = shift;
+   my $self = shift;
    my $fieldname = shift;
 
-   return undef if (!defined $fieldname);
+   return if (!defined $fieldname);
 
-   if (! exists $doc->{formcache}->{$fieldname})
+   if (! exists $self->{formcache}->{$fieldname})
    {
       my $kidlist;
       my $parent;
@@ -2514,44 +2498,42 @@ sub getFormField
       {
          $fieldname =~ s/^(.*)\.([\.]+)$/$2/;
          my $parentname = $1;
-         $parent = $doc->getFormField($parentname);
-         return undef if (!$parent);
-         my $dict = $doc->getValue($parent);
-         return undef if (!exists $dict->{Kids});
-         $kidlist = $doc->getValue($dict->{Kids});
+         $parent = $self->getFormField($parentname);
+         return if (!$parent);
+         my $dict = $self->getValue($parent);
+         return if (!exists $dict->{Kids});
+         $kidlist = $self->getValue($dict->{Kids});
       }
       else
       {
-         my $root = $doc->getRootDict()->{AcroForm};
-         return undef if (!$root);
-         $parent = $doc->dereference($root->{value});
-         return undef if (!$parent);
-         my $dict = $doc->getValue($parent);
-         return undef if (!exists $dict->{Fields});
-         $kidlist = $doc->getValue($dict->{Fields});
+         my $root = $self->getRootDict()->{AcroForm};
+         return if (!$root);
+         $parent = $self->dereference($root->{value});
+         return if (!$parent);
+         my $dict = $self->getValue($parent);
+         return if (!exists $dict->{Fields});
+         $kidlist = $self->getValue($dict->{Fields});
       }
 
-      $doc->{formcache}->{$fieldname} = undef;  # assume the worst...
-      foreach my $kid (@$kidlist)
+      $self->{formcache}->{$fieldname} = undef;  # assume the worst...
+      for my $kid (@$kidlist)
       {
-         my $obj = $doc->dereference($kid->{value});
+         my $obj = $self->dereference($kid->{value});
          $obj->{formparent} = $parent;
-         my $dict = $doc->getValue($obj);
+         my $dict = $self->getValue($obj);
          if (exists $dict->{T})
          {
-            $doc->{formcache}->{$doc->getValue($dict->{T})} = $obj;
+            $self->{formcache}->{$self->getValue($dict->{T})} = $obj;
          }
          if (exists $dict->{TU})
          {
-            $doc->{formcache}->{$doc->getValue($dict->{TU})} = $obj;
+            $self->{formcache}->{$self->getValue($dict->{TU})} = $obj;
          }
       }
    }
 
-   return $doc->{formcache}->{$fieldname};
+   return $self->{formcache}->{$fieldname};
 }
-
-#------------------
 
 =item getFormFieldDict FORMFIELDOBJECT
 
@@ -2566,33 +2548,33 @@ knows about.
 
 sub getFormFieldDict
 {
-   my $doc = shift;
+   my $self = shift;
    my $field = shift;
 
-   return undef if (!defined $field);
+   return if (!defined $field);
 
    my $dict = {};
    if ($field->{formparent})
    {
-      $dict = $doc->getFormFieldDict($field->{formparent});
+      $dict = $self->getFormFieldDict($field->{formparent});
    }
-   my $olddict = $doc->getValue($field);
+   my $olddict = $self->getValue($field);
 
    if ($olddict->{DR})
    {
-      $dict->{DR} ||= CAM::PDF::Node->new("dictionary", {});
-      my $dr = $doc->getValue($dict->{DR});
-      my $olddr = $doc->getValue($olddict->{DR});
-      foreach my $key (keys %{%$olddr})
+      $dict->{DR} ||= CAM::PDF::Node->new('dictionary', {});
+      my $dr = $self->getValue($dict->{DR});
+      my $olddr = $self->getValue($olddict->{DR});
+      for my $key (keys %{%$olddr})
       {
          if ($dr->{$key})
          {
-            if ($key eq "Font")
+            if ($key eq 'Font')
             {
-               my $fonts = $doc->getValue($olddr->{$key});
-               foreach my $font (keys %$fonts)
+               my $fonts = $self->getValue($olddr->{$key});
+               for my $font (keys %$fonts)
                {
-                  $dr->{$key}->{$font} = $doc->copyObject($fonts->{$font});
+                  $dr->{$key}->{$font} = $self->copyObject($fonts->{$font});
                }
             }
             else
@@ -2602,17 +2584,17 @@ sub getFormFieldDict
          }
          else
          {
-            $dr->{$key} = $doc->copyObject($olddr->{$key});
+            $dr->{$key} = $self->copyObject($olddr->{$key});
          }
       }
    }
 
    # Some properties are simple: inherit means override
-   foreach my $prop (qw(Q DA Ff V FT))
+   for my $prop (qw(Q DA Ff V FT))
    {
       if ($olddict->{$prop})
       {
-         $dict->{$prop} = $doc->copyObject($olddict->{$prop});
+         $dict->{$prop} = $self->copyObject($olddict->{$prop});
       }
    }
 
@@ -2625,12 +2607,7 @@ sub getFormFieldDict
 
 =head2 Data/Object Manipulation
 
-=over 4
-
-=cut
-
-
-#------------------
+=over
 
 =item setPrefs OWNERPASS, USERPASS, PRINT?, MODIFY?, COPY?, ADD?
 
@@ -2643,14 +2620,12 @@ reference manual.
 
 sub setPrefs
 {
-   my $doc = shift;
+   my $self = shift;
    my @prefs = (@_);
 
-   my $p = $doc->{crypt}->encode_permissions(@prefs[2..5]);
-   $doc->{crypt}->set_passwords($doc, @prefs[0..1], $p);
+   my $p = $self->{crypt}->encode_permissions(@prefs[2..5]);
+   $self->{crypt}->set_passwords($self, @prefs[0..1], $p);
 }
-
-#------------------
 
 =item setName OBJECT, NAME
 
@@ -2662,20 +2637,21 @@ Change the name of a PDF object structure.
 
 sub setName
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $name = shift;
 
-   if ($name && $obj->{value}->{type} eq "dictionary")
+   if ($name && $obj->{value}->{type} eq 'dictionary')
    {
-      $obj->{value}->{value}->{Name} = CAM::PDF::Node->new("label", $name, $obj->{objnum}, $obj->{gennum});
-      $doc->{changes}->{$obj->{objnum}} = 1 if ($obj->{objnum});
-      return 1;
+      $obj->{value}->{value}->{Name} = CAM::PDF::Node->new('label', $name, $obj->{objnum}, $obj->{gennum});
+      if ($obj->{objnum})
+      {
+         $self->{changes}->{$obj->{objnum}} = 1;
+      }
+      return $self;
    }
-   return 0;
+   return;
 }
-
-#------------------
 
 =item removeName OBJECT
 
@@ -2687,20 +2663,21 @@ Delete the name of a PDF object structure.
 
 sub removeName
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   if ($obj->{value}->{type} eq "dictionary" && exists $obj->{value}->{value}->{Name})
+   if ($obj->{value}->{type} eq 'dictionary' && exists $obj->{value}->{value}->{Name})
    {
       delete $obj->{value}->{value}->{Name};
-      $doc->{changes}->{$obj->{objnum}} = 1 if ($obj->{objnum});
-      return 1;
+      if ($obj->{objnum})
+      {
+         $self->{changes}->{$obj->{objnum}} = 1;
+      }
+      return $self;
    }
-   return 0;
+   return;
 }
 
-
-#------------------
 
 =item pageAddName PAGENUM, NAME, OBJECTNUM
 
@@ -2712,35 +2689,39 @@ Append a named object to the metadata for a given page.
 
 sub pageAddName
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $name = shift;
    my $key = shift;
 
-   $doc->buildNameTable($pagenum);
-   my $page = $doc->getPage($pagenum);
-   my ($objnum, $gennum) = $doc->getPageObjnum($pagenum);
+   $self->_buildNameTable($pagenum);
+   my $page = $self->getPage($pagenum);
+   my ($objnum, $gennum) = $self->getPageObjnum($pagenum);
    
-   if (!exists $doc->{NameObjects}->{$pagenum})
+   if (!exists $self->{NameObjects}->{$pagenum})
    {
-      $doc->{changes}->{$objnum} = 1 if ($objnum);
+      if ($objnum)
+      {
+         $self->{changes}->{$objnum} = 1;
+      }
       if (!exists $page->{Resources})
       {
-         $page->{Resources} = CAM::PDF::Node->new("dictionary", {}, $objnum, $gennum);
+         $page->{Resources} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
       }
-      my $r = $doc->getValue($page->{Resources});
+      my $r = $self->getValue($page->{Resources});
       if (!exists $r->{XObject})
       {
-         $r->{XObject} = CAM::PDF::Node->new("dictionary", {}, $objnum, $gennum);
+         $r->{XObject} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
       }
-      $doc->{NameObjects}->{$pagenum} = $doc->getValue($r->{XObject});
+      $self->{NameObjects}->{$pagenum} = $self->getValue($r->{XObject});
    }
    
-   $doc->{NameObjects}->{$pagenum}->{$name} = CAM::PDF::Node->new("reference", $key, $objnum, $gennum);
-   $doc->{changes}->{$objnum} = 1 if ($objnum);
+   $self->{NameObjects}->{$pagenum}->{$name} = CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
+   if ($objnum)
+   {
+      $self->{changes}->{$objnum} = 1;
+   }
 }
-
-#------------------
 
 =item setPageContent PAGENUM, CONTENT
 
@@ -2752,7 +2733,7 @@ manipulation of the returned string from that function.
 
 sub setPageContent
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $content = shift;
 
@@ -2762,24 +2743,22 @@ sub setPageContent
    # but that would lose the optimization below of reusing the content
    # object, where possible
 
-   my $page = $doc->getPage($pagenum);
+   my $page = $self->getPage($pagenum);
 
-   my $stream = $doc->createStreamObject($content, "FlateDecode");
-   if ($page->{Contents} && $page->{Contents}->{type} eq "reference")
+   my $stream = $self->createStreamObject($content, 'FlateDecode');
+   if ($page->{Contents} && $page->{Contents}->{type} eq 'reference')
    {
       my $key = $page->{Contents}->{value};
-      $doc->replaceObject($key, undef, $stream, 0);
+      $self->replaceObject($key, undef, $stream, 0);
    }
    else
    {
-      my ($objnum, $gennum) = $doc->getPageObjnum($pagenum);
-      my $key = $doc->appendObject(undef, $stream, 0);
-      $page->{Contents} = CAM::PDF::Node->new("reference", $key, $objnum, $gennum);
-      $doc->{changes}->{$objnum} = 1;
+      my ($objnum, $gennum) = $self->getPageObjnum($pagenum);
+      my $key = $self->appendObject(undef, $stream, 0);
+      $page->{Contents} = CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
+      $self->{changes}->{$objnum} = 1;
    }
 }
-
-#------------------
 
 =item appendPageContent PAGENUM, CONTENT
 
@@ -2791,37 +2770,35 @@ any newly defined fonts).
 
 sub appendPageContent
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $content = shift;
 
-   my $page = $doc->getPage($pagenum);
+   my $page = $self->getPage($pagenum);
 
-   my ($objnum, $gennum) = $doc->getPageObjnum($pagenum);
-   my $stream = $doc->createStreamObject($content, "FlateDecode");
-   my $key = $doc->appendObject(undef, $stream, 0);
-   my $streamref = CAM::PDF::Node->new("reference", $key, $objnum, $gennum);
+   my ($objnum, $gennum) = $self->getPageObjnum($pagenum);
+   my $stream = $self->createStreamObject($content, 'FlateDecode');
+   my $key = $self->appendObject(undef, $stream, 0);
+   my $streamref = CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
 
    if (!$page->{Contents})
    {
       $page->{Contents} = $streamref;
    }
-   elsif ($page->{Contents}->{type} eq "array")
+   elsif ($page->{Contents}->{type} eq 'array')
    {
       push @{$page->{Contents}->{value}}, $streamref;
    }
-   elsif ($page->{Contents}->{type} eq "reference")
+   elsif ($page->{Contents}->{type} eq 'reference')
    {
-      $page->{Contents} = CAM::PDF::Node->new("array", [ $page->{Contents}, $streamref ], $objnum, $gennum);
+      $page->{Contents} = CAM::PDF::Node->new('array', [ $page->{Contents}, $streamref ], $objnum, $gennum);
    }
    else
    {
-      die "Unsupported Content type \"" . $page->{Contents}->{type} . "\" on page $pagenum\n";
+      die "Unsupported Content type \"$page->{Contents}->{type}\" on page $pagenum\n";
    }
-   $doc->{changes}->{$objnum} = 1;
+   $self->{changes}->{$objnum} = 1;
 }
-
-#------------------
 
 =item extractPages PAGES...
 
@@ -2833,16 +2810,15 @@ lists, ranges (open or closed).
 
 sub extractPages
 {
-   my $doc = shift;
-   my @pages = $doc->rangeToArray(1,$doc->numPages(),@_);
+   my $self = shift;
+   my @pages = $self->rangeToArray(1,$self->numPages(),@_);
 
    my %pages = map {$_,1} @pages; # eliminate duplicates
 
    # make a list that is the complement of the @pages list
-   my @delete = grep {!$pages{$_}} 1..$doc->numPages();
-   return $doc->deletePages(@delete);
+   my @delete = grep {!$pages{$_}} 1..$self->numPages();
+   return $self->deletePages(@delete);
 }
-#------------------
 
 =item deletePages PAGES...
 
@@ -2853,23 +2829,25 @@ arguments, comma separated lists, ranges (open or closed).
 
 sub deletePages
 {
-   my $doc = shift;
-   my @pages = $doc->rangeToArray(1,$doc->numPages(),@_);
+   my $self = shift;
+   my @pages = $self->rangeToArray(1,$self->numPages(),@_);
 
    my %pages = map {$_,1} @pages; # eliminate duplicates
 
    # Pages should be reverse sorted since we need to delete from the
    # end to make the page numbers come out right.
 
-   foreach (sort {$b <=> $a} keys %pages)
+   for (sort {$b <=> $a} keys %pages)
    {
       #print "del $_\n";
-      return undef unless ($doc->deletePage_internal($_));
+      if (!$self->_deletePage($_))
+      {
+         return;
+      }
    }
-   $doc->cleanse();
-   return $doc;
+   $self->cleanse();
+   return $self;
 }
-#------------------
 
 =item deletePage PAGENUM
 
@@ -2880,71 +2858,76 @@ this method will fail.
 
 sub deletePage
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   my $result = $doc->deletePage_internal($pagenum);
-   $doc->cleanse() if ($result);
+   my $result = $self->_deletePage($pagenum);
+   if ($result)
+   {
+      $self->cleanse();
+   }
    return $result;
 }
-#------------------
 
 # Internal method, called by deletePage() or deletePages()
 
-sub deletePage_internal
+sub _deletePage
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
-   if ($doc->numPages() <= 1) # don't delete the last page
+   if ($self->numPages() <= 1) # don't delete the last page
    {
-      return undef;
+      return;
    }
-   my ($objnum, $gennum) = $doc->getPageObjnum($pagenum);
-   return undef if (!defined $objnum);
+   my ($objnum, $gennum) = $self->getPageObjnum($pagenum);
+   if (!defined $objnum)
+   {
+      return;
+   }
 
    # Removing references to the page is hard:
    # (much of this code is lifted from getPage)
    my $parentdict = undef;
-   my $node = $doc->dereference($doc->getRootDict()->{Pages}->{value});
+   my $node = $self->dereference($self->getRootDict()->{Pages}->{value});
    my $nodedict = $node->{value}->{value};
    my $nodestart = 1;
-   while ($node && $nodedict->{Type}->{value} eq "Pages")
+   while ($node && $nodedict->{Type}->{value} eq 'Pages')
    {
       my $count;
-      if ($nodedict->{Count}->{type} eq "reference")
+      if ($nodedict->{Count}->{type} eq 'reference')
       {
-         my $countobj = $doc->dereference($nodedict->{Count}->{value});
+         my $countobj = $self->dereference($nodedict->{Count}->{value});
          $count = $countobj->{value}->{value}--;
-         $doc->{changes}->{$countobj->{objnum}} = 1;
+         $self->{changes}->{$countobj->{objnum}} = 1;
       }
       else
       {
          $count = $nodedict->{Count}->{value}--;
       }
-      $doc->{changes}->{$node->{objnum}} = 1;
+      $self->{changes}->{$node->{objnum}} = 1;
 
       if ($count == 1)
       {
          # only one left, so this is it
          if (!$parentdict)
          {
-            die "Tried to delete the only page";
+            die 'Tried to delete the only page';
          }
-         my $parentkids = $doc->getValue($parentdict->{Kids});
+         my $parentkids = $self->getValue($parentdict->{Kids});
          @$parentkids = grep {$_->{value} != $node->{objnum}} @$parentkids;
-         $doc->{changes}->{$parentdict->{Kids}->{objnum}} = 1;
-         $doc->deleteObject($node->{objnum});
+         $self->{changes}->{$parentdict->{Kids}->{objnum}} = 1;
+         $self->deleteObject($node->{objnum});
          last;
       }
 
-      my $kids = $doc->getValue($nodedict->{Kids});
+      my $kids = $self->getValue($nodedict->{Kids});
       if (@$kids == 1)
       {
          # Count was not 1, so this must not be a leaf node
          # hop down into node's child
 
-         my $sub = $doc->dereference($kids->[0]->{value});
+         my $sub = $self->dereference($kids->[0]->{value});
          my $subdict = $sub->{value}->{value};
          $parentdict = $nodedict;
          $node = $sub;
@@ -2953,12 +2936,12 @@ sub deletePage_internal
       else
       {
          # search through all kids
-         for (my $child=0; $child < @$kids; $child++)
+         for my $child (0 .. $#$kids)
          {
-            my $sub = $doc->dereference($kids->[$child]->{value});
+            my $sub = $self->dereference($kids->[$child]->{value});
             my $subdict = $sub->{value}->{value};
 
-            if ($subdict->{Type}->{value} ne "Pages")
+            if ($subdict->{Type}->{value} ne 'Pages')
             {
                if ($pagenum == $nodestart)
                {
@@ -2975,7 +2958,7 @@ sub deletePage_internal
             }
             else
             {
-               my $count = $doc->getValue($subdict->{Count});
+               my $count = $self->getValue($subdict->{Count});
                if ($nodestart + $count - 1 >= $pagenum)
                {
                   # The page we want is in this kid.  Descend.
@@ -2999,31 +2982,37 @@ sub deletePage_internal
    }
 
    # Removing the page is easy:
-   $doc->deleteObject($objnum);
+   $self->deleteObject($objnum);
 
    # Caches are now bad for all pages from this one
-   $doc->decachePages($pagenum .. $doc->numPages());
+   $self->decachePages($pagenum .. $self->numPages());
 
-   $doc->{PageCount}--;
+   $self->{PageCount}--;
 
-   return $doc;
+   return $self;
 }
+
+=item decachePages PAGENUM, PAGENUM, ...
+
+Clears cached copies of the specified page data structures.  This is
+useful if an operation has been performed that changes a page.
+
+=cut
 
 sub decachePages
 {
-   my $doc = shift;
+   my $self = shift;
    my @pages = @_;
 
    for (@pages)
    {
-      delete $doc->{pagecache}->{$_};
-      delete $doc->{Names}->{$_};
-      delete $doc->{NameObjects}->{$_};
+      delete $self->{pagecache}->{$_};
+      delete $self->{Names}->{$_};
+      delete $self->{NameObjects}->{$_};
    }
-   delete $doc->{Names}->{All};
+   delete $self->{Names}->{All};
 }
 
-#------------------
 
 =item addPageResources PAGENUM, RESOURCEHASH
 
@@ -3035,12 +3024,12 @@ one.  This function avoids duplicating resources where feasible.
 
 sub addPageResources
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
    my $newrsrcs = shift;
 
    return if (!$newrsrcs);
-   my $page = $doc->getPage($pagenum);
+   my $page = $self->getPage($pagenum);
    return if (!$page);
 
    my ($anyobj) = values %$page;
@@ -3050,64 +3039,64 @@ sub addPageResources
    my $pagersrcs;
    if ($page->{Resources})
    {
-      $pagersrcs = $doc->getValue($page->{Resources});
+      $pagersrcs = $self->getValue($page->{Resources});
    }
    else
    {
       $pagersrcs = {};
-      $page->{Resources} = CAM::PDF::Node->new("dictionary", $pagersrcs, $objnum, $gennum);
-      $doc->{changes}->{$objnum} = 1;
+      $page->{Resources} = CAM::PDF::Node->new('dictionary', $pagersrcs, $objnum, $gennum);
+      $self->{changes}->{$objnum} = 1;
    }
-   foreach my $type (keys %$newrsrcs)
+   for my $type (keys %$newrsrcs)
    {
-      my $new_r = $doc->getValue($newrsrcs->{$type});
+      my $new_r = $self->getValue($newrsrcs->{$type});
       my $page_r;
       if ($pagersrcs->{$type})
       {
-         $page_r = $doc->getValue($pagersrcs->{$type});
+         $page_r = $self->getValue($pagersrcs->{$type});
       }
-      if ($type eq "Font")
+      if ($type eq 'Font')
       {
          if (!$page_r)
          {
             $page_r = {};
-            $pagersrcs->{$type} = CAM::PDF::Node->new("dictionary", $page_r, $objnum, $gennum);
-            $doc->{changes}->{$objnum} = 1;
+            $pagersrcs->{$type} = CAM::PDF::Node->new('dictionary', $page_r, $objnum, $gennum);
+            $self->{changes}->{$objnum} = 1;
          }
-         foreach my $font (keys %$new_r)
+         for my $font (keys %$new_r)
          {
             next if (exists $page_r->{$font});
             my $val = $new_r->{$font};
-            if ($val->{type} ne "reference")
+            if ($val->{type} ne 'reference')
             {
-               die "Internal error: font entry is not a reference";
+               die 'Internal error: font entry is not a reference';
             }
-            $page_r->{$font} = CAM::PDF::Node->new("reference", $val->{value}, $objnum, $gennum);
+            $page_r->{$font} = CAM::PDF::Node->new('reference', $val->{value}, $objnum, $gennum);
             #warn "add font $font\n";
-            $doc->{changes}->{$objnum} = 1;
+            $self->{changes}->{$objnum} = 1;
          }
       }
-      elsif ($type eq "ProcSet")
+      elsif ($type eq 'ProcSet')
       {
          if (!$page_r)
          {
             $page_r = [];
-            $pagersrcs->{$type} = CAM::PDF::Node->new("array", $page_r, $objnum, $gennum);
-            $doc->{changes}->{$objnum} = 1;
+            $pagersrcs->{$type} = CAM::PDF::Node->new('array', $page_r, $objnum, $gennum);
+            $self->{changes}->{$objnum} = 1;
          }
-         foreach my $proc (@$new_r)
+         for my $proc (@$new_r)
          {
-            if ($proc->{type} ne "label")
+            if ($proc->{type} ne 'label')
             {
-               die "Internal error: procset entry is not a label";
+               die 'Internal error: procset entry is not a label';
             }
             next if (grep {$_->{value} eq $proc->{value}} @$page_r);
-            push @$page_r, CAM::PDF::Node->new("label", $proc->{value}, $objnum, $gennum);
+            push @$page_r, CAM::PDF::Node->new('label', $proc->{value}, $objnum, $gennum);
             #warn "add procset $$proc{value}\n";
-            $doc->{changes}->{$objnum} = 1;
+            $self->{changes}->{$objnum} = 1;
          }
       }
-      elsif ($type eq "Encoding")
+      elsif ($type eq 'Encoding')
       {
          # TODO: is this a hack or is it right?
          # EXPLICITLY skip /Encoding from form DR entry
@@ -3118,8 +3107,6 @@ sub addPageResources
       }
    }
 }
-
-#------------------
 
 =item appendPDF PDF
 
@@ -3134,41 +3121,41 @@ appendpdf.pl script for a workaround.
 
 sub appendPDF
 {
-   my $doc = shift;
+   my $self = shift;
    my $doc2 = shift;
    my $prepend = shift; # boolean, default false
 
-   my $pageroot = $doc->getPagesDict();
+   my $pageroot = $self->getPagesDict();
    my ($anyobj) = values %$pageroot;
    my $objnum = $anyobj->{objnum};
    my $gennum = $anyobj->{gennum};
 
-   my $root = $doc->getRootDict();
+   my $root = $self->getRootDict();
    my $root2 = $doc2->getRootDict();
    my $pageobj2 = $doc2->dereference($root2->{Pages}->{value});
-   my ($key, %refkeys) = $doc->appendObject($doc2, $pageobj2->{objnum}, 1);
-   my $subpage = $doc->getObjValue($key);
+   my ($key, %refkeys) = $self->appendObject($doc2, $pageobj2->{objnum}, 1);
+   my $subpage = $self->getObjValue($key);
 
    my $newdict = {};
-   my $newpage = CAM::PDF::Node->new("object",
-                                     CAM::PDF::Node->new("dictionary", $newdict));
-   $newdict->{Type} = CAM::PDF::Node->new("label", "Pages");
-   $newdict->{Kids} = CAM::PDF::Node->new("array",
+   my $newpage = CAM::PDF::Node->new('object',
+                                     CAM::PDF::Node->new('dictionary', $newdict));
+   $newdict->{Type} = CAM::PDF::Node->new('label', 'Pages');
+   $newdict->{Kids} = CAM::PDF::Node->new('array',
                                           [
-                                           CAM::PDF::Node->new("reference", $prepend ? $key : $objnum),
-                                           CAM::PDF::Node->new("reference", $prepend ? $objnum : $key),
+                                           CAM::PDF::Node->new('reference', $prepend ? $key : $objnum),
+                                           CAM::PDF::Node->new('reference', $prepend ? $objnum : $key),
                                            ]);
-   $doc->{PageCount} += $doc2->{PageCount};
-   $newdict->{Count} = CAM::PDF::Node->new("number", $doc->{PageCount});
-   my $newpagekey = $doc->appendObject(undef, $newpage, 0);
+   $self->{PageCount} += $doc2->{PageCount};
+   $newdict->{Count} = CAM::PDF::Node->new('number', $self->{PageCount});
+   my $newpagekey = $self->appendObject(undef, $newpage, 0);
    $root->{Pages}->{value} = $newpagekey;
 
-   $pageroot->{Parent} = CAM::PDF::Node->new("reference", $newpagekey, $key, $subpage->{gennum});
-   $subpage->{Parent} = CAM::PDF::Node->new("reference", $newpagekey, $key, $subpage->{gennum});
+   $pageroot->{Parent} = CAM::PDF::Node->new('reference', $newpagekey, $key, $subpage->{gennum});
+   $subpage->{Parent} = CAM::PDF::Node->new('reference', $newpagekey, $key, $subpage->{gennum});
 
-   #my $kidlist = $doc->getValue($pageroot->{Kids});
-   #push @$kidlist, CAM::PDF::Node->new("reference", $key, $objnum, $gennum);
-   #$doc->{changes}->{$objnum} = 1;
+   #my $kidlist = $self->getValue($pageroot->{Kids});
+   #push @$kidlist, CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
+   #$self->{changes}->{$objnum} = 1;
 
    #print STDERR "$newpagekey $objnum $key\n";
 
@@ -3176,25 +3163,23 @@ sub appendPDF
    {
       my $forms = $doc2->getValue($doc2->getValue($root2->{AcroForm})->{Fields});
       my @newforms = ();
-      #require Data::Dumper;
-      #print STDERR Data::Dumper->Dump([$forms],["forms"]);
-      foreach my $reference (@$forms)
+      for my $reference (@$forms)
       {
-         if ($reference->{type} ne "reference")
+         if ($reference->{type} ne 'reference')
          {
-            die "Internal error: expected a reference";
+            die 'Internal error: expected a reference';
          }
          my $newkey = $refkeys{$reference->{value}};
          #print STDERR "old ".$reference->{value}." new $newkey\n";
          if ($newkey)
          {
-            push @newforms, CAM::PDF::Node->new("reference", $newkey);
+            push @newforms, CAM::PDF::Node->new('reference', $newkey);
          }
       }
       if ($root->{AcroForm})
       {
-         my $mainforms = $doc->getValue($doc->getValue($root->{AcroForm})->{Fields});
-         foreach my $reference (@newforms)
+         my $mainforms = $self->getValue($self->getValue($root->{AcroForm})->{Fields});
+         for my $reference (@newforms)
          {
             $reference->{objnum} = $mainforms->[0]->{objnum};
             $reference->{gennum} = $mainforms->[0]->{gennum};
@@ -3203,23 +3188,21 @@ sub appendPDF
       }
       else
       {
-         #my $key = $doc->appendObject($doc2, $pageobj2->{objnum}, 0);
-         die "adding new forms is not implemented";
+         #my $key = $self->appendObject($doc2, $pageobj2->{objnum}, 0);
+         die 'adding new forms is not implemented';
       }
    }
 
    if ($prepend)
    {
       # clear caches
-      $doc->{pagecache} = {};
-      $doc->{Names} = {};
-      $doc->{NameObjects} = {};
+      $self->{pagecache} = {};
+      $self->{Names} = {};
+      $self->{NameObjects} = {};
    }
 
    return $key;
 }
-
-#------------------
 
 =item prependPDF PDF
 
@@ -3230,11 +3213,9 @@ instead of at the end.
 
 sub prependPDF
 {
-   my $doc = shift;
-   return $doc->appendPDF(@_, 1);
+   my $self = shift;
+   return $self->appendPDF(@_, 1);
 }
-
-#------------------
 
 =item duplicatePage PAGENUM
 
@@ -3251,44 +3232,43 @@ setPageContent().
 
 sub duplicatePage
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
-   my $leaveBlank = shift || 0;
+   my $leave_blank = shift || 0;
 
-   my $page = $doc->getPage($pagenum);
-   my $objnum = $doc->getPageObjnum($pagenum);
-   my $newobjnum = $doc->appendObject($doc, $objnum, 0);
-   my $newdict = $doc->getObjValue($newobjnum);
+   my $page = $self->getPage($pagenum);
+   my $objnum = $self->getPageObjnum($pagenum);
+   my $newobjnum = $self->appendObject($self, $objnum, 0);
+   my $newdict = $self->getObjValue($newobjnum);
    delete $newdict->{Contents};
-   my $parent = $doc->getValue($page->{Parent});
-   push @{$doc->getValue($parent->{Kids})}, CAM::PDF::Node->new("reference", $newobjnum);
+   my $parent = $self->getValue($page->{Parent});
+   push @{$self->getValue($parent->{Kids})}, CAM::PDF::Node->new('reference', $newobjnum);
 
    while ($parent)
    {
-      $doc->{changes}->{$parent->{Count}->{objnum}} = 1;
-      if ($parent->{Count}->{type} eq "reference")
+      $self->{changes}->{$parent->{Count}->{objnum}} = 1;
+      if ($parent->{Count}->{type} eq 'reference')
       {
-         my $countobj = $doc->dereference($parent->{Count}->{value});
+         my $countobj = $self->dereference($parent->{Count}->{value});
          $countobj->{value}->{value}++;
-         $doc->{changes}->{$countobj->{objnum}} = 1;
+         $self->{changes}->{$countobj->{objnum}} = 1;
       }
       else
       {
          $parent->{Count}->{value}++;
       }
-      $parent = $doc->getValue($parent->{Parent});
+      $parent = $self->getValue($parent->{Parent});
    }
-   $doc->{PageCount}++;
+   $self->{PageCount}++;
 
-   unless ($leaveBlank)
+   if (!$leave_blank)
    {
-      $doc->setPageContent($pagenum+1, $doc->getPageContent($pagenum));
+      $self->setPageContent($pagenum+1, $self->getPageContent($pagenum));
    }
 
    # Caches are now bad for all pages from this one
-   $doc->decachePages($pagenum + 1 .. $doc->numPages());
+   $self->decachePages($pagenum + 1 .. $self->numPages());
 }
-#------------------
 
 =item createStreamObject CONTENT
 
@@ -3304,28 +3284,26 @@ function.
 
 sub createStreamObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $content = shift;
 
-   my $dict = CAM::PDF::Node->new("dictionary",
+   my $dict = CAM::PDF::Node->new('dictionary',
                                  {
-                                    Length => CAM::PDF::Node->new("number", length($content)),
-                                    StreamData => CAM::PDF::Node->new("stream", $content),
+                                    Length => CAM::PDF::Node->new('number', length $content),
+                                    StreamData => CAM::PDF::Node->new('stream', $content),
                                  },
                                  );
 
-   my $obj = CAM::PDF::Node->new("object", $dict);
+   my $obj = CAM::PDF::Node->new('object', $dict);
 
    while (my $filter = shift)
    {
       #warn "$filter encoding\n";
-      $doc->encodeOne($obj->{value}, $filter);
+      $self->encodeOne($obj->{value}, $filter);
    }
 
    return $obj;
 }
-
-#------------------
 
 =item uninlineImages
 
@@ -3341,25 +3319,27 @@ that uses "BI" and "ID" a lot.
 
 sub uninlineImages
 {
-   my $doc = shift;
+   my $self = shift;
    my $pagenum = shift;
 
    my $changes = 0;
    if (!$pagenum)
    {
-      my $pages = $doc->numPages();
-      for ($pagenum=1; $pagenum <= $pages; $pagenum++)
+      my $pages = $self->numPages();
+      for my $p (1 .. $pages)
       {
-         $changes += $doc->uninlineImages($pagenum);
+         $changes += $self->uninlineImages($p);
       }
    }
    else
    {
-      my $c = $doc->getPageContent($pagenum);
+      my $c = $self->getPageContent($pagenum);
       my $pos = 0;
-      while (($pos = index $c, "BI", $pos) != -1)
+      while (($pos = index $c, 'BI', $pos) != 1)
       {
-         if ($pos == 0 || substr($c,$pos-1,1) =~ /\W/) # manual \bBI check
+         # manual \bBI check
+         # if beginning of string or token
+         if ($pos == 0 || (substr $c, $pos-1, 1) =~ /\W/)
          {
             my $part = substr $c, $pos;
             if ($part =~ /^BI\b(.*?)\bID\b/s)
@@ -3404,36 +3384,38 @@ sub uninlineImages
                # End of heuristics.  This is likely a real embedded image.
                # Now do the replacement.
 
-               my $oldlen = length($part);
-               my $image = $doc->parseInlineImage(\$part, undef);
-               my $newlen = length($part);
-               my $imagelen = $oldlen-$newlen;
+               my $oldlen = length $part;
+               my $image = $self->parseInlineImage(\$part, undef);
+               my $newlen = length $part;
+               my $imagelen = $oldlen - $newlen;
                
                # Construct a new image name like "I3".  Start with
                # "I1" and continue until we get an unused "I<n>"
                # (first, get the list of already-used labels)
-               $doc->buildNameTable($pagenum);
-               my $name;
+               $self->_buildNameTable($pagenum);
                my $i = 1;
-               do {
-                  $name = "Im" . ($i++);
-               } while (exists $doc->{Names}->{$pagenum}->{$name});
+               my $name = 'Im1';
+               while (exists $self->{Names}->{$pagenum}->{$name})
+               {
+                  $name = 'Im' . ++$i;
+               }
                
-               $doc->setName($image, $name);
-               my $key = $doc->appendObject(undef, $image, 0);
-               $doc->pageAddName($pagenum, $name, $key);
+               $self->setName($image, $name);
+               my $key = $self->appendObject(undef, $image, 0);
+               $self->pageAddName($pagenum, $name, $key);
                
-               $c = substr($c, 0, $pos) . "/$name Do" . substr($c, $pos+$imagelen);
+               $c = (substr $c, 0, $pos) . "/$name Do" . (substr $c, $pos+$imagelen);
                $changes++;
             }
          }
       }
-      $doc->setPageContent($pagenum, $c) if ($changes > 0);
+      if ($changes > 0)
+      {
+         $self->setPageContent($pagenum, $c);
+      }
    }
    return $changes;
 }
-
-#------------------
 
 =item appendObject DOC, OBJECTNUM, RECURSE?
 
@@ -3450,17 +3432,17 @@ newly-created block to the PDF.
 
 sub appendObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $doc2 = shift;
    my $key2 = shift;
    my $follow = shift;
 
-   my $objnum = ++$doc->{maxobj};
-   #$doc->{xref}->{$objnum} = undef;
-   #$doc->{endxref}->{$objnum} = undef if (exists $doc->{endxref});
-   $doc->{versions}->{$objnum} = -1;
+   my $objnum = ++$self->{maxobj};
+   #$self->{xref}->{$objnum} = undef;
+   #$self->{endxref}->{$objnum} = undef if (exists $self->{endxref});
+   $self->{versions}->{$objnum} = -1;
 
-   my %refkeys = $doc->replaceObject($objnum, $doc2, $key2, $follow);
+   my %refkeys = $self->replaceObject($objnum, $doc2, $key2, $follow);
    if (wantarray)
    {
       return ($objnum, %refkeys);
@@ -3470,8 +3452,6 @@ sub appendObject
       return $objnum;
    }
 }
-
-#------------------
 
 =item replaceObject OBJECTNUM, DOC, OBJECTNUM, RECURSE?
 
@@ -3489,21 +3469,24 @@ This is useful when you've just created that anonymous object.
 
 sub replaceObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $key = shift;
    my $doc2 = shift;
    my $key2 = shift;
    my $follow = shift;
 
-   # careful! "undef" means something different from "0" here!
-   $follow = 1 if (!defined $follow);
+   # careful! 'undef' means something different from '0' here!
+   if (!defined $follow)
+   {
+      $follow = 1;
+   }
 
    my $obj;
    my $obj2;
    if ($doc2)
    {
       $obj2 = $doc2->dereference($key2);
-      $obj = $doc->copyObject($obj2);
+      $obj = $self->copyObject($obj2);
    }
    else
    {
@@ -3516,44 +3499,42 @@ sub replaceObject
       }
    }
 
-   $doc->setObjNum($obj, $key);
+   $self->setObjNum($obj, $key);
 
    # Preserve the name of the object
-   if ($doc->{xref}->{$key})  # make sure it isn't a brand new object
+   if ($self->{xref}->{$key})  # make sure it isn't a brand new object
    {
-      my $oldname = $doc->getName($doc->dereference($key));
+      my $oldname = $self->getName($self->dereference($key));
       if ($oldname)
       {
-         $doc->setName($obj, $oldname);
+         $self->setName($obj, $oldname);
       }
       else
       {
-         $doc->removeName($obj);
+         $self->removeName($obj);
       }
    }
 
-   $doc->{objcache}->{$key} = $obj;
-   $doc->{changes}->{$key} = 1;
+   $self->{objcache}->{$key} = $obj;
+   $self->{changes}->{$key} = 1;
 
    my %newrefkeys = ($key2, $key);
    if ($follow)
    {
-      foreach my $oldrefkey ($doc2->getRefList($obj2))
+      for my $oldrefkey ($doc2->getRefList($obj2))
       {
          next if ($oldrefkey == $key2);
-         my $newkey = $doc->appendObject($doc2, $oldrefkey, 0);
+         my $newkey = $self->appendObject($doc2, $oldrefkey, 0);
          $newrefkeys{$oldrefkey} = $newkey;
       }
-      $doc->changeRefKeys($obj, \%newrefkeys);
-      foreach my $newkey (values %newrefkeys)
+      $self->changeRefKeys($obj, \%newrefkeys);
+      for my $newkey (values %newrefkeys)
       {
-         $doc->changeRefKeys($doc->dereference($newkey), \%newrefkeys);
+         $self->changeRefKeys($self->dereference($newkey), \%newrefkeys);
       }
    }
    return (%newrefkeys);
 }
-
-#------------------
 
 =item deleteObject OBJECTNUM
 
@@ -3564,17 +3545,15 @@ of dependencies on this object.
 
 sub deleteObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $objnum = shift;
 
-   delete $doc->{versions}->{$objnum};
-   delete $doc->{objcache}->{$objnum};
-   delete $doc->{xref}->{$objnum};
-   delete $doc->{endxref}->{$objnum};
-   delete $doc->{changes}->{$objnum};
+   delete $self->{versions}->{$objnum};
+   delete $self->{objcache}->{$objnum};
+   delete $self->{xref}->{$objnum};
+   delete $self->{endxref}->{$objnum};
+   delete $self->{changes}->{$objnum};
 }
-
-#------------------
 
 =item cleanse
 
@@ -3587,15 +3566,13 @@ definition objects).
 
 sub cleanse
 {
-   my $doc = shift;
+   my $self = shift;
 
-   #die "The cleanse() command causes corrupt PDF docs.  Don't use it.\n";
-   
-   my $base = CAM::PDF::Node->new("dictionary",$doc->{trailer});
-   my @list = sort {$a<=>$b} $doc->getRefList($base);
-   #print join(",", @list), "\n";
+   my $base = CAM::PDF::Node->new('dictionary', $self->{trailer});
+   my @list = sort {$a<=>$b} $self->getRefList($base);
+   #print join(',', @list), "\n";
 
-   for (my $i=1; $i<=$doc->{maxobj}; $i++)
+   for my $i (1 .. $self->{maxobj})
    {
       if (@list > 0 && $list[0] == $i)
       {
@@ -3604,12 +3581,10 @@ sub cleanse
       else
       {
          #warn "delete object $i\n";
-         $doc->deleteObject($i);
+         $self->deleteObject($i);
       }
    }
 }
-
-#------------------
 
 =item createID
 
@@ -3622,42 +3597,39 @@ is a random number.
 
 sub createID
 {
-   my $doc = shift;
+   my $self = shift;
 
    # Warning: this is non-repeatable, and depends on Linux!
 
    my $addbytes;
-   if ($doc->{ID})
+   if ($self->{ID})
    {
       # do not change the first half of an existing ID
-      $doc->{ID} = substr $doc->{ID}, 0, 16;
+      $self->{ID} = substr $self->{ID}, 0, 16;
       $addbytes = 16;
    }
    else
    {
-      $doc->{ID} = "";
+      $self->{ID} = q{};
       $addbytes = 32;
    }
 
-   local *FILE;
-   open(FILE, "/dev/urandom") or return undef;
-   read(FILE, $doc->{ID}, $addbytes, 32-$addbytes);
-   close(FILE);
+   open my $fh, '<', '/dev/urandom' or return;
+   read $fh, $self->{ID}, $addbytes, 32-$addbytes;
+   close $fh;
 
-   if ($doc->{trailer})
+   if ($self->{trailer})
    {
-      $doc->{trailer}->{ID} = CAM::PDF::Node->new("array",
+      $self->{trailer}->{ID} = CAM::PDF::Node->new('array',
                                [
-                                CAM::PDF::Node->new("hexstring", substr($doc->{ID}, 0, 16)),
-                                CAM::PDF::Node->new("hexstring", substr($doc->{ID}, 16, 16)),
+                                CAM::PDF::Node->new('hexstring', substr $self->{ID}, 0, 16),
+                                CAM::PDF::Node->new('hexstring', substr $self->{ID}, 16, 16),
                                 ],
                                );
    }
 
    return 1;
 }
-
-#------------------
 
 =item fillFormFields NAME => VALUE ...
 
@@ -3666,15 +3638,15 @@ full heirarchical name of the field as output by the
 getFormFieldList() function.  The argument list can be a hash if you
 like.  A simple way to use this function is something like this:
 
-    my %fields = (fname => "John", lname => "Smith", state => "WI");
+    my %fields = (fname => 'John', lname => 'Smith', state => 'WI');
     $field{zip} = 53703;
-    $doc->fillFormFields(%fields);
+    $self->fillFormFields(%fields);
 
 =cut
 
 sub fillFormFields
 {
-   my $doc = shift;
+   my $self = shift;
    my @list = (@_);
 
    my $filled = 0;
@@ -3682,65 +3654,68 @@ sub fillFormFields
    {
       my $key = shift @list;
       my $value = shift @list;
-      $value = "" if (!defined $value);
+      if (!defined $value)
+      {
+         $value = q{};
+      }
 
       next if (!$key);
       next if (ref $key);
-      my $obj = $doc->getFormField($key);
+      my $obj = $self->getFormField($key);
       next if (!$obj);
 
       my $objnum = $obj->{objnum};
       my $gennum = $obj->{gennum};
 
       # This read-only dict includes inherited properties
-      my $propdict = $doc->getFormFieldDict($obj);
+      my $propdict = $self->getFormFieldDict($obj);
 
       # This read-write dict does not include inherited properties
-      my $dict = $doc->getValue($obj);
-      $dict->{V}  = CAM::PDF::Node->new("string", $value, $objnum, $gennum);
-      #$dict->{DV} = CAM::PDF::Node->new("string", $value, $objnum, $gennum);
+      my $dict = $self->getValue($obj);
+      $dict->{V}  = CAM::PDF::Node->new('string', $value, $objnum, $gennum);
+      #$dict->{DV} = CAM::PDF::Node->new('string', $value, $objnum, $gennum);
 
-      if ($propdict->{FT} && $doc->getValue($propdict->{FT}) eq "Tx")  # Is it a text field?
+      if ($propdict->{FT} && $self->getValue($propdict->{FT}) eq 'Tx')  # Is it a text field?
       {
          # Set up display of form value
          if (!$dict->{AP})
          {
-            $dict->{AP} = CAM::PDF::Node->new("dictionary", {}, $objnum, $gennum);
+            $dict->{AP} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
          }
          if (!$dict->{AP}->{value}->{N})
          {
-            my $newobj = CAM::PDF::Node->new("object", 
-                                            CAM::PDF::Node->new("dictionary",{}),
+            my $newobj = CAM::PDF::Node->new('object', 
+                                            CAM::PDF::Node->new('dictionary',{}),
                                             );
-            my $num = $doc->appendObject(undef, $newobj, 0);
-            $dict->{AP}->{value}->{N} = CAM::PDF::Node->new("reference", $num, $objnum, $gennum);
+            my $num = $self->appendObject(undef, $newobj, 0);
+            $dict->{AP}->{value}->{N} = CAM::PDF::Node->new('reference', $num, $objnum, $gennum);
          }
-         my $formobj = $doc->dereference($dict->{AP}->{value}->{N}->{value});
+         my $formobj = $self->dereference($dict->{AP}->{value}->{N}->{value});
          my $formonum = $formobj->{objnum};
          my $formgnum = $formobj->{gennum};
-         my $formdict = $doc->getValue($formobj);
+         my $formdict = $self->getValue($formobj);
          if (!$formdict->{Subtype})
          {
-            $formdict->{Subtype} = CAM::PDF::Node->new("label", "Form", $formonum, $formgnum);
+            $formdict->{Subtype} = CAM::PDF::Node->new('label', 'Form', $formonum, $formgnum);
          }
          my @rect = (0,0,0,0);
          if ($dict->{Rect})
          {
-            my $r = $doc->getValue($dict->{Rect});
+            my $r = $self->getValue($dict->{Rect});
             my ($x1, $y1, $x2, $y2) = @$r;
-            @rect = ($doc->getValue($x1), $doc->getValue($y1),
-                     $doc->getValue($x2), $doc->getValue($y2));
+            @rect = ($self->getValue($x1), $self->getValue($y1),
+                     $self->getValue($x2), $self->getValue($y2));
          }
          my $dx = $rect[2]-$rect[0];
          my $dy = $rect[3]-$rect[1];
          if (!$formdict->{BBox})
          {
-            $formdict->{BBox} = CAM::PDF::Node->new("array",
+            $formdict->{BBox} = CAM::PDF::Node->new('array',
                                                    [
-                                                    CAM::PDF::Node->new("number", 0, $formonum, $formgnum),
-                                                    CAM::PDF::Node->new("number", 0, $formonum, $formgnum),
-                                                    CAM::PDF::Node->new("number", $dx, $formonum, $formgnum),
-                                                    CAM::PDF::Node->new("number", $dy, $formonum, $formgnum),
+                                                    CAM::PDF::Node->new('number', 0, $formonum, $formgnum),
+                                                    CAM::PDF::Node->new('number', 0, $formonum, $formgnum),
+                                                    CAM::PDF::Node->new('number', $dx, $formonum, $formgnum),
+                                                    CAM::PDF::Node->new('number', $dy, $formonum, $formgnum),
                                                     ],
                                                    $formonum,
                                                    $formgnum);
@@ -3749,18 +3724,18 @@ sub fillFormFields
          $text =~ s/\r\n?/\n/gs;
          $text =~ s/\n+$//s;
 
-         my @rsrcs = ();
+         my @rsrcs;
          my $fontmetrics = 0;
-         my $fontname = "";
-         my $fontsize = 0;
-         my $da = "";
-         my $tl = "";
-         my $border = 2;
-         my $tx = $border;
-         my $ty = $border + 2;
+         my $fontname    = q{};
+         my $fontsize    = 0;
+         my $da          = q{};
+         my $tl          = q{};
+         my $border      = 2;
+         my $tx          = $border;
+         my $ty          = $border + 2;
          my $stringwidth;
          if ($propdict->{DA}) {
-            $da = $doc->getValue($propdict->{DA});
+            $da = $self->getValue($propdict->{DA});
 
             # Try to pull out all of the resources used in the text object
             @rsrcs = ($da =~ /\/([^\s<>\/\[\]\(\)]+)/g);
@@ -3776,23 +3751,23 @@ sub fillFormFields
                {
                   if ($propdict->{DR})
                   {
-                     my $dr = $doc->getValue($propdict->{DR});
-                     $fontmetrics = $doc->getFontMetrics($dr, $fontname);
+                     my $dr = $self->getValue($propdict->{DR});
+                     $fontmetrics = $self->getFontMetrics($dr, $fontname);
                   }
-                  #print STDERR "Didn't get font\n" unless($fontmetrics);
+                  #print STDERR "Didn't get font\n" if (!$fontmetrics);
                }
             }
          }
 
          my %flags = (
-                      Justify => "left",
+                      Justify => 'left',
                       );
          if ($propdict->{Ff})
          {
             # Just decode the ones we actually care about
             # PDF ref, 3rd ed pp 532,543
-            my $ff = $doc->getValue($propdict->{Ff});
-            my @flags = split //, unpack("b*", pack("V", $ff));
+            my $ff = $self->getValue($propdict->{Ff});
+            my @flags = split //, unpack 'b*', pack 'V', $ff;
             $flags{ReadOnly}        = $flags[0];
             $flags{Required}        = $flags[1];
             $flags{NoExport}        = $flags[2];
@@ -3804,8 +3779,8 @@ sub fillFormFields
          }
          if ($propdict->{Q})
          {
-            my $q = $doc->getValue($propdict->{Q}) || 0;
-            $flags{Justify} = $q==2 ? "right" : ($q==1 ? "center" : "left");
+            my $q = $self->getValue($propdict->{Q}) || 0;
+            $flags{Justify} = $q==2 ? 'right' : ($q==1 ? 'center' : 'left');
          }
 
          # The order of the following sections is important!
@@ -3819,11 +3794,14 @@ sub fillFormFields
             # Fix autoscale fonts
             $stringwidth = 0;
             my $lines = 0;
-            foreach my $line (split /\n/, $text)
+            for my $line (split /\n/, $text)
             {
                $lines++;
-               my $w = $doc->getStringWidth($fontmetrics, $line);
-               $stringwidth = $w if ($w && $w > $stringwidth);
+               my $w = $self->getStringWidth($fontmetrics, $line);
+               if ($w && $w > $stringwidth)
+               {
+                  $stringwidth = $w;
+               }
             }
             $lines ||= 1;
             # Initial guess
@@ -3844,7 +3822,7 @@ sub fillFormFields
 
 
          # escape characters
-         $text = $doc->writeString($text);
+         $text = $self->writeString($text);
 
          if ($flags{Multiline})
          {
@@ -3860,25 +3838,25 @@ sub fillFormFields
             # Top aligned
             $ty = $dy - $border - $tl;
 
-            if ($flags{Justify} ne "left")
+            if ($flags{Justify} ne 'left')
             {
-               warn "Justified text not supported for multiline fields";
+               warn 'Justified text not supported for multiline fields';
             }
 
-            $tl .= " TL";
+            $tl .= ' TL';
          }
          else
          {
-            if ($flags{Justify} ne "left" && $fontmetrics)
+            if ($flags{Justify} ne 'left' && $fontmetrics)
             {
-               my $width = $stringwidth || $doc->getStringWidth($fontmetrics, $text);
+               my $width = $stringwidth || $self->getStringWidth($fontmetrics, $text);
                my $diff = $dx - $width*$fontsize;
 
-               if ($flags{Justify} eq "center")
+               if ($flags{Justify} eq 'center')
                {
                   $text = ($diff/2)." 0 Td $text";
                }
-               elsif ($flags{Justify} eq "right")
+               elsif ($flags{Justify} eq 'right')
                {
                   $text = "$diff 0 Td $text";
                }
@@ -3889,43 +3867,44 @@ sub fillFormFields
          my $tm = "1 0 0 1 $tx $ty Tm ";
 
          $text =  "$tl $da $tm $text Tj";
-         $text = "1 g 0 0 $dx $dy re f /Tx BMC q 1 1 ".($dx-$border)." ".($dy-$border)." re W n BT $text ET Q EMC";
-         $formdict->{Length} = CAM::PDF::Node->new("number", length($text), $formonum, $formgnum);
-         $formdict->{StreamData} = CAM::PDF::Node->new("stream", $text, $formonum, $formgnum);
+         $text = "1 g 0 0 $dx $dy re f /Tx BMC q 1 1 ".($dx-$border).q{ }.($dy-$border)." re W n BT $text ET Q EMC";
+         my $len = length $text;
+         $formdict->{Length} = CAM::PDF::Node->new('number', $len, $formonum, $formgnum);
+         $formdict->{StreamData} = CAM::PDF::Node->new('stream', $text, $formonum, $formgnum);
 
          if (@rsrcs > 0) {
             if (!$formdict->{Resources})
             {
-               $formdict->{Resources} = CAM::PDF::Node->new("dictionary", {}, $formonum, $formgnum);
+               $formdict->{Resources} = CAM::PDF::Node->new('dictionary', {}, $formonum, $formgnum);
             }
-            my $rdict = $doc->getValue($formdict->{Resources});
+            my $rdict = $self->getValue($formdict->{Resources});
             if (!$rdict->{ProcSet})
             {
-               $rdict->{ProcSet} = CAM::PDF::Node->new("array",
+               $rdict->{ProcSet} = CAM::PDF::Node->new('array',
                                                       [
-                                                       CAM::PDF::Node->new("label", "PDF", $formonum, $formgnum),
-                                                       CAM::PDF::Node->new("label", "Text", $formonum, $formgnum),
+                                                       CAM::PDF::Node->new('label', 'PDF', $formonum, $formgnum),
+                                                       CAM::PDF::Node->new('label', 'Text', $formonum, $formgnum),
                                                        ],
                                                       $formonum,
                                                       $formgnum);
             }
             if (!$rdict->{Font})
             {
-               $rdict->{Font} = CAM::PDF::Node->new("dictionary", {}, $formonum, $formgnum);
+               $rdict->{Font} = CAM::PDF::Node->new('dictionary', {}, $formonum, $formgnum);
             }
-            my $fdict = $doc->getValue($rdict->{Font});
+            my $fdict = $self->getValue($rdict->{Font});
 
             # Search out font resources.  This is a total kluge.
             # TODO: the right way to do this is to look for the DR
             # attribute in the form element or it's ancestors.
-            foreach my $font (@rsrcs)
+            for my $font (@rsrcs)
             {
-               my $fobj = $doc->dereference("/$font", "All");
+               my $fobj = $self->dereference("/$font", 'All');
                if (!$fobj)
                {
                   die "Could not find resource /$font while preparing form field $key\n";
                }
-               $fdict->{$font} = CAM::PDF::Node->new("reference", $fobj->{objnum}, $formonum, $formgnum);
+               $fdict->{$font} = CAM::PDF::Node->new('reference', $fobj->{objnum}, $formonum, $formgnum);
             }
          }
       }
@@ -3934,8 +3913,6 @@ sub fillFormFields
    return $filled;
 }
 
-
-#------------------
 
 =item clearFormFieldTriggers NAME, NAME, ...
 
@@ -3949,24 +3926,25 @@ happen.
 
 sub clearFormFieldTriggers
 {
-   my $doc = shift;
+   my $self = shift;
 
-   foreach my $fieldname (@_)
+   for my $fieldname (@_)
    {
-      my $obj = $doc->getFormField($fieldname);
+      my $obj = $self->getFormField($fieldname);
       if ($obj)
       {
          if (exists $obj->{value}->{value}->{AA})
          {
             delete $obj->{value}->{value}->{AA};
             my $objnum = $obj->{objnum};
-            $doc->{changes}->{$objnum} = 1 if ($objnum);
+            if ($objnum)
+            {
+               $self->{changes}->{$objnum} = 1;
+            }
          }
       }
    }
 }
-
-#------------------
 
 =item clearAnnotations
 
@@ -3977,76 +3955,73 @@ encountered, their text is added to the appropriate page.
 
 sub clearAnnotations
 {
-   my $doc = shift;
+   my $self = shift;
 
    my $formrsrcs;
-   my $root = $doc->getRootDict();
+   my $root = $self->getRootDict();
    if ($root->{AcroForm})
    {
-      my $acroform = $doc->getValue($root->{AcroForm});
+      my $acroform = $self->getValue($root->{AcroForm});
       # Get the form resources
       if ($acroform->{DR})
       {
-         $formrsrcs = $doc->getValue($acroform->{DR});
+         $formrsrcs = $self->getValue($acroform->{DR});
       }
 
       # Kill off the forms
-      $doc->deleteObject($root->{AcroForm}->{value});
+      $self->deleteObject($root->{AcroForm}->{value});
       delete $root->{AcroForm};
    }
 
    # Iterate through the pages, deleting annotations
 
-   my $pages = $doc->numPages();
-   foreach my $p (1..$pages)
+   my $pages = $self->numPages();
+   for my $p (1..$pages)
    {
-      my $page = $doc->getPage($p);
+      my $page = $self->getPage($p);
       if ($page->{Annots}) {
-         $doc->addPageResources($p, $formrsrcs);
-         my $annotsarray = $doc->getValue($page->{Annots});
+         $self->addPageResources($p, $formrsrcs);
+         my $annotsarray = $self->getValue($page->{Annots});
          delete $page->{Annots};
-         foreach my $annotref (@$annotsarray)
+         for my $annotref (@$annotsarray)
          {
-            my $annot = $doc->getValue($annotref);
-            if (ref($annot) ne "HASH")
+            my $annot = $self->getValue($annotref);
+            if ((ref $annot) ne 'HASH')
             {
-               die "Internal error: annotation is not a dictionary";
+               die 'Internal error: annotation is not a dictionary';
             }
             # Copy all text field values into the page, if present
             if ($annot->{Subtype} && 
-                $annot->{Subtype}->{value} eq "Widget" &&
+                $annot->{Subtype}->{value} eq 'Widget' &&
                 $annot->{FT} &&
-                $annot->{FT}->{value} eq "Tx" &&
+                $annot->{FT}->{value} eq 'Tx' &&
                 $annot->{AP})
             {
-               my $ap = $doc->getValue($annot->{AP});
-               my $rect = $doc->getValue($annot->{Rect});
-               my $x = $doc->getValue($rect->[0]);
-               my $y = $doc->getValue($rect->[1]);
+               my $ap = $self->getValue($annot->{AP});
+               my $rect = $self->getValue($annot->{Rect});
+               my $x = $self->getValue($rect->[0]);
+               my $y = $self->getValue($rect->[1]);
                if ($ap->{N})
                {
-                  my $n = $doc->dereference($ap->{N}->{value})->{value};
-                  my $content = $doc->decodeOne($n, 0);
+                  my $n = $self->dereference($ap->{N}->{value})->{value};
+                  my $content = $self->decodeOne($n, 0);
                   if (!$content)
                   {
-                     die "Internal error: expected a content stream from the form copy";
+                     die 'Internal error: expected a content stream from the form copy';
                   }
-                  #require Data::Dumper;                  
-                  #print Data::Dumper->Dump([$n], ["n"]);
-                  #warn "Add to page $p: \n$content\n";
                   $content =~ s/\bre(\s+)f\b/re$1n/gs;
                   $content = "q 1 0 0 1 $x $y cm\n$content Q\n";
-                  $doc->appendPageContent($p, $content);
-                  $doc->addPageResources($p, $doc->getValue($n->{value}->{Resources}));
+                  $self->appendPageContent($p, $content);
+                  $self->addPageResources($p, $self->getValue($n->{value}->{Resources}));
                }
             }
-            $doc->deleteObject($annotref->{value});
+            $self->deleteObject($annotref->{value});
          }
       }
    }
 
    # kill off the annotation dependencies
-   $doc->cleanse();
+   $self->cleanse();
 }
 
 
@@ -4056,12 +4031,7 @@ sub clearAnnotations
 
 =head2 Document Writing
 
-=over 4
-
-=cut
-
-
-#------------------
+=over
 
 =item preserveOrder
 
@@ -4075,14 +4045,12 @@ sub preserveOrder
 {
    # Call this to record the order of the objects in the original file
    # If called, then any new file will try to preserve the original order
-   my $doc = shift;
+   my $self = shift;
 
-   my %positions = reverse %{$doc->{xref}};
-   $doc->{order} = [map {($positions{$_})} sort {$a<=>$b} keys %positions];
-   #print "Wrote order " . join(",",@{$doc->{order}}) . "\n";
+   my %positions = reverse %{$self->{xref}};
+   $self->{order} = [map {($positions{$_})} sort {$a<=>$b} keys %positions];
+   #print 'Wrote order ' . join(q{,},@{$self->{order}}) . "\n";
 }
-
-#------------------
 
 =item isLinearized
 
@@ -4093,32 +4061,31 @@ Returns a boolean indicating whether this PDF is linearized (aka
 
 sub isLinearized
 {
-   my $doc = shift;
+   my $self = shift;
 
    my $first;
-   if (exists $doc->{order})
+   if (exists $self->{order})
    {
-      $first = $doc->{order}->[0];
+      $first = $self->{order}->[0];
    }
    else
    {
-      my %revxref = reverse %{$doc->{xref}};
+      my %revxref = reverse %{$self->{xref}};
       ($first) = sort {$a <=> $b} keys %revxref;
       $first = $revxref{$first};
    }
 
    my $linearized = undef; # false
-   my $obj = $doc->dereference($first);
-   if ($obj && $obj->{value}->{type} eq "dictionary")
+   my $obj = $self->dereference($first);
+   if ($obj && $obj->{value}->{type} eq 'dictionary')
    {
       if (exists $obj->{value}->{value}->{Linearized})
       {
-         $linearized = $doc; # true
+         $linearized = $self; # true
       }
    }
    return $linearized;
 }
-#------------------
 
 =item delinearize
 
@@ -4132,37 +4099,35 @@ does not yet support linearized documents.
 
 sub delinearize
 {
-   my $doc = shift;
+   my $self = shift;
 
-   return if ($doc->{delinearized});
+   return if ($self->{delinearized});
 
    # Turn off Linearization, if set
    my $first;
-   if (exists $doc->{order})
+   if (exists $self->{order})
    {
-      $first = $doc->{order}->[0];
+      $first = $self->{order}->[0];
    }
    else
    {
       # Sort by doc byte offset, select smallest
-      my %revxref = reverse %{$doc->{xref}};
+      my %revxref = reverse %{$self->{xref}};
       ($first) = sort {$a <=> $b} keys %revxref;
       $first = $revxref{$first};
    }
 
-   my $obj = $doc->dereference($first);
-   if ($obj->{value}->{type} eq "dictionary")
+   my $obj = $self->dereference($first);
+   if ($obj->{value}->{type} eq 'dictionary')
    {
       if (exists $obj->{value}->{value}->{Linearized})
       {
-         $doc->deleteObject($first);
+         $self->deleteObject($first);
       }
    }
 
-   $doc->{delinearized} = 1;
+   $self->{delinearized} = 1;
 }
-
-#------------------
 
 =item clean
 
@@ -4175,35 +4140,34 @@ cleanoutput.
 
 sub clean
 {
-   my $doc = shift;
+   my $self = shift;
 
    # Make sure to extract everything before we wipe the old version
-   $doc->cacheObjects();
+   $self->cacheObjects();
 
-   $doc->delinearize();
+   $self->delinearize();
 
-   #delete $doc->{ID};
+   #delete $self->{ID};
 
    # Mark everything changed
-   %{$doc->{changes}} = (
-                         %{$doc->{changes}},
-                         map {($_,1)} keys %{$doc->{xref}},
+   %{$self->{changes}} = (
+                         %{$self->{changes}},
+                         map { $_ => 1 } keys %{$self->{xref}},
                          );
 
    # Mark everything new
-   %{$doc->{versions}} = (
-                          %{$doc->{versions}},
-                          map {($_,-1)} keys %{$doc->{xref}},
+   %{$self->{versions}} = (
+                          %{$self->{versions}},
+                          map { $_ => -1 } keys %{$self->{xref}},
                           );
 
-   $doc->{xref} = {};
-   delete $doc->{endxref};
-   $doc->{startxref} = 0;
-   $doc->{content} = "";
-   $doc->{contentlength} = 0;
-   delete $doc->{trailer}->{Prev};
+   $self->{xref} = {};
+   delete $self->{endxref};
+   $self->{startxref} = 0;
+   $self->{content} = q{};
+   $self->{contentlength} = 0;
+   delete $self->{trailer}->{Prev};
 }
-#------------------
 
 =item needsSave
 
@@ -4216,11 +4180,10 @@ the document has been serialized.
 
 sub needsSave
 {
-   my $doc = shift;
+   my $self = shift;
 
-   return (keys(%{$doc->{changes}}) != 0);
+   return 0 != keys %{$self->{changes}};
 }
-#------------------
 
 =item save
 
@@ -4235,124 +4198,128 @@ document to a file.  See the output() function for that.
 
 sub save
 {
-   my $doc = shift;
+   my $self = shift;
 
-   if (!$doc->needsSave())
+   if (!$self->needsSave())
    {
       return;
    }
 
-   $doc->delinearize();
+   $self->delinearize();
 
-   delete $doc->{endxref};
+   delete $self->{endxref};
 
-   if (!$doc->{content})
+   if (!$self->{content})
    {
-      $doc->{content} = "%PDF-" . $doc->{pdfversion} . "\n%\217\n";
+      $self->{content} = '%PDF-' . $self->{pdfversion} . "\n%\217\n";
    }
 
-   my %allobjs = (%{$doc->{changes}}, %{$doc->{xref}});
+   my %allobjs = (%{$self->{changes}}, %{$self->{xref}});
    my @objects = sort {$a<=>$b} keys %allobjs;
-   if ($doc->{order}) {
+   if ($self->{order}) {
 
-      # Sort in the order in $doc->{order} array, with the rest later
+      # Sort in the order in $self->{order} array, with the rest later
       # in objnum order
       my %o = ();
-      my $n = @{$doc->{order}};
-      foreach my $i (0 .. $n-1)
+      my $n = @{$self->{order}};
+      for my $i (0 .. $n-1)
       {
-         $o{$doc->{order}->[$i]} = $i;
+         $o{$self->{order}->[$i]} = $i;
       }
       @objects = sort {($o{$a}||$a+$n) <=> ($o{$b}||$b+$n)} @objects;
    }
-   delete $doc->{order};
+   delete $self->{order};
 
    my %newxref = ();
-   foreach my $key (@objects)
+   for my $key (@objects)
    {
-      next if (!$doc->{changes}->{$key});
-      $newxref{$key} = length($doc->{content});
+      next if (!$self->{changes}->{$key});
+      $newxref{$key} = length $self->{content};
 
       #print "Writing object $key\n";
-      $doc->{content} .= $doc->writeObject($key);
+      $self->{content} .= $self->writeObject($key);
 
-      $doc->{xref}->{$key} = $newxref{$key};
-      $doc->{versions}->{$key}++;
-      delete $doc->{changes}->{$key};
+      $self->{xref}->{$key} = $newxref{$key};
+      $self->{versions}->{$key}++;
+      delete $self->{changes}->{$key};
    }
 
-   $doc->{content} .= "\n" if ($doc->{content} !~ /[\r\n]$/s);
+   if ($self->{content} !~ /[\r\n]$/s)
+   {
+      $self->{content} .= "\n";
+   }
 
-   my $startxref = length($doc->{content});
+   my $startxref = length $self->{content};
 
    # Append the new xref
-   $doc->{content} .= "xref\n";
+   $self->{content} .= "xref\n";
    my %blocks = (
                  0 => "0000000000 65535 f \n",
                  );
-   foreach my $key (keys(%newxref))
+   for my $key (keys %newxref)
    {
-      $blocks{$key} = sprintf "%010d %05d n \n", $newxref{$key}, $doc->{versions}->{$key};
+      $blocks{$key} = sprintf "%010d %05d n \n", $newxref{$key}, $self->{versions}->{$key};
    }
 
    # If there is only one version of the document, there must be no
    # holes in the xref.  Test for versions by checking the Prev record
    # in the trailer
-   if (!$doc->{trailer}->{Prev})
+   if (!$self->{trailer}->{Prev})
    {
       # Fill in holes
       my $prevfreeblock = 0;
-      for (my $key = $doc->{maxobj}-1; $key >= 0; $key--)
+      for my $key (reverse 0 .. $self->{maxobj}-1)
       {
          if (!exists $blocks{$key})
          {
             # Add an entry to the free list
             # On $key == 0, this blows away the above definition of
             # the head of the free block list, but that's no big deal.
-            $blocks{$key} = sprintf("%010d %05d f \n", 
-                                    $prevfreeblock, ($key == 0 ? 65535 : 1));
+            $blocks{$key} = sprintf "%010d %05d f \n", 
+                                    $prevfreeblock, ($key == 0 ? 65_535 : 1);
             $prevfreeblock = $key;
          }
       }
    }
    
-   my $currblock = "";
-   my $currnum = 0;
+   my $currblock = q{};
+   my $currnum   = 0;
    my $currstart = 0;
    my @blockkeys = sort {$a<=>$b} keys %blocks;
-   for (my $i = 0; $i < @blockkeys; $i++)
+   for my $i (0 .. $#blockkeys)
    {
       my $key = $blockkeys[$i];
       $currblock .= $blocks{$key};
       $currnum++;
       if ($i == $#blockkeys || $key+1 < $blockkeys[$i+1])
       {
-         $doc->{content} .= "$currstart $currnum\n$currblock";
+         $self->{content} .= "$currstart $currnum\n$currblock";
          if ($i < $#blockkeys)
          {
-            $currblock = "";
-            $currnum = 0;
+            $currblock = q{};
+            $currnum   = 0;
             $currstart = $blockkeys[$i+1];
          }
       }
    }
 
    #   Append the new trailer
-   $doc->{trailer}->{Size} = CAM::PDF::Node->new("number", $doc->{maxobj} + 1);
-   $doc->{trailer}->{Prev} = CAM::PDF::Node->new("number", $doc->{startxref}) if ($doc->{startxref});
-   $doc->{content} .= "trailer\n" . $doc->writeAny(CAM::PDF::Node->new("dictionary", $doc->{trailer})) . "\n";
+   $self->{trailer}->{Size} = CAM::PDF::Node->new('number', $self->{maxobj} + 1);
+   if ($self->{startxref})
+   {
+      $self->{trailer}->{Prev} = CAM::PDF::Node->new('number', $self->{startxref});
+   }
+   $self->{content} .= "trailer\n" . $self->writeAny(CAM::PDF::Node->new('dictionary', $self->{trailer})) . "\n";
 
    # Append the new startxref
-   $doc->{content} .= "startxref\n$startxref\n";
-   $doc->{startxref} = $startxref;
+   $self->{content} .= "startxref\n$startxref\n";
+   $self->{startxref} = $startxref;
 
    # Append EOF
-   $doc->{content} .= "%%EOF\n";
+   $self->{content} .= "%%EOF\n";
 
-   $doc->{contentlength} = length($doc->{content});
+   $self->{contentlength} = length $self->{content};
 }
-
-#------------------
 
 =item cleansave
 
@@ -4362,13 +4329,11 @@ Call the clean() function, then call the save() function.
 
 sub cleansave
 {
-   my $doc = shift;
+   my $self = shift;
 
-   $doc->clean();
-   $doc->save();
+   $self->clean();
+   $self->save();
 }
-
-#------------------
 
 =item output FILENAME
 
@@ -4382,8 +4347,8 @@ Note: it is the responsibility of the application to ensure that the
 PDF document has either the Modify or Add permission.  You can do this
 like the following:
 
-   if ($doc->canModify()) {
-      $doc->output($outfile);
+   if ($self->canModify()) {
+      $self->output($outfile);
    } else {
       die "The PDF file denies permission to make modifications\n";
    }
@@ -4392,29 +4357,29 @@ like the following:
 
 sub output
 {
-   my $doc = shift;
+   my $self = shift;
    my $file = shift;
-   $file = "-" if (!defined $file);
+   if (!defined $file)
+   {
+      $file = q{-};
+   }
 
-   $doc->save();
+   $self->save();
 
-   if ($file eq "-")
+   if ($file eq q{-})
    {
       binmode STDOUT;
-      print $doc->{content};
+      print $self->{content};
    }
    else
    {
-      local *OUT;
-      open OUT, ">$file" or die "Failed to write file $file\n";
-      binmode OUT;
-      print OUT $doc->{content};
-      close OUT;
+      open my $fh, '>', $file or die "Failed to write file $file\n";
+      binmode $fh;
+      print {$fh} $self->{content};
+      close $fh;
    }
-   return $doc;
+   return $self;
 }
-
-#------------------
 
 =item cleanoutput FILE
 
@@ -4427,26 +4392,34 @@ fresh copy of the document to a file.
 
 sub cleanoutput
 {
-   my $doc = shift;
+   my $self = shift;
    my $file = shift;
 
-   $doc->clean();
-   $doc->output($file);
+   $self->clean();
+   $self->output($file);
 }
 
-#------------------
-# PRIVATE FUNTION
+=item writeObject OBJNUM
+
+Return the serialization of the specified object.
+
+=cut
 
 sub writeObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $objnum = shift;
 
-   return "$objnum 0 " . $doc->writeAny($doc->dereference($objnum));
+   return "$objnum 0 " . $self->writeAny($self->dereference($objnum));
 }
 
-#------------------
-# PRIVATE FUNTION
+=item writeString STRING
+
+Return the serialization of the specified string.  Works on normal or
+hex strings.  If encryption is desired, the string should be encrypted
+before being passed here.
+
+=cut
 
 sub writeString
 {
@@ -4465,9 +4438,9 @@ sub writeString
    # artifact of this usage of split returns empty strings between
    # the fragments, so grep them out
 
-   my $maxstr = ref($pkg_or_doc) ? $pkg_or_doc->{maxstr} : $CAM::PDF::MAX_STRING;
-   my @strs = grep {$_ ne ""} split /(.{$maxstr}})/, $string;
-   foreach (@strs)
+   my $maxstr = (ref $pkg_or_doc) ? $pkg_or_doc->{maxstr} : $CAM::PDF::MAX_STRING;
+   my @strs = grep {$_ ne q{}} split /(.{$maxstr}})/, $string;
+   for (@strs)
    {
       s/\\/\\\\/g;       # escape escapes -- this line must come first!
       s/([\(\)])/\\$1/g; # escape parens
@@ -4478,177 +4451,180 @@ sub writeString
       # TODO: handle backspace char
       #s/???/\\b/g;
    }
-   return "(" . join("\\\n", @strs) . ")";
+   return '(' . (join "\\\n", @strs) . ')';
 }
 
-#------------------
-# PRIVATE FUNTION
+=item writeAny NODE
+
+Returns the serialization of the specified node.  This handles all
+Node types, including object Nodes.
+
+=cut
 
 sub writeAny
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   die "Not a ref! " if (! ref $obj);
+   if (! ref $obj)
+   {
+      die 'Not a ref';
+   }
 
    my $key = $obj->{type};
    my $val = $obj->{value};
    my $objnum = $obj->{objnum};
    my $gennum = $obj->{gennum};
 
-   if ($key eq "string")
-   {
-      $val = $doc->{crypt}->encrypt($doc, $val, $objnum, $gennum);
+   return $key eq 'string'     ? $self->writeString($self->{crypt}->encrypt($self, $val, $objnum, $gennum))
+        : $key eq 'hexstring'  ? '<' . (unpack 'H*', $self->{crypt}->encrypt($self, $val, $objnum, $gennum)) . '>'
+        : $key eq 'number'     ? "$val"
+        : $key eq 'reference'  ? "$val 0 R" # TODO: lookup the gennum and use it instead of 0 (?)
+        : $key eq 'boolean'    ? $val
+        : $key eq 'null'       ? 'null'
+        : $key eq 'label'      ? "/$val"
+        : $key eq 'array'      ? $self->_writeArray($obj)
+        : $key eq 'dictionary' ? $self->_writeDictionary($obj)
+        : $key eq 'object'     ? $self->_writeObject($obj)
 
-      return $doc->writeString($val);
-   }
-   elsif ($key eq "hexstring")
+        : die "Unknown key '$key' in writeAny (objnum ".($objnum||'<none>').")\n";
+}
+
+sub _writeArray
+{
+   my $self = shift;
+   my $obj = shift;
+
+   my $val = $obj->{value};
+   if (@$val == 0)
    {
-      $val = $doc->{crypt}->encrypt($doc, $val, $objnum, $gennum);
-      return "<" . unpack("H*", $val) . ">";
+      return '[ ]';
    }
-   elsif ($key eq "number")
+   my $str = q{};
+   my @strs;
+   for (@$val)
    {
-      return "$val";
-   }
-   elsif ($key eq "reference")
-   {
-      return "$val 0 R"; # TODO: lookup the gennum and use it instead of 0 (?)
-   }
-   elsif ($key eq "boolean")
-   {
-      return $val;
-   }
-   elsif ($key eq "null")
-   {
-      return "null";
-   }
-   elsif ($key eq "label")
-   {
-      return "/$val";
-   }
-   elsif ($key eq "array")
-   {
-      if (@$val == 0)
+      my $newstr = $self->writeAny($_);
+      if ($str ne q{})
       {
-         return "[ ]";
-      }
-      my $str = "";
-      my @strs = ();
-      foreach (@$val)
-      {
-         my $newstr = $doc->writeAny($_);
-         if ($str ne "")
+         if ($self->{maxstr} < length $str . $newstr)
          {
-            #$str .= (length($str) > $doc->{maxstr} ? "\n" : " ");
-            #$str .= "\n";
-            if (length($str . $newstr) > $doc->{maxstr})
-            {
-               push @strs, $str;
-               $str = "";
-            }
-            else
-            {
-               $str .= " ";
-            }
+            push @strs, $str;
+            $str = q{};
          }
-         $str .= $newstr;
-      }
-      $str = join("\n", @strs, $str) if (@strs > 0);
-      return "[ " . $str . " ]";
-   }
-   elsif ($key eq "dictionary")
-   {
-      my $str = "";
-      my @strs = ();
-      if (exists $val->{Type})
-      {
-         $str .= ($str ? " " : "") . "/Type " . $doc->writeAny($val->{Type});
-      }
-      if (exists $val->{Subtype})
-      {
-         $str .= ($str ? " " : "") . "/Subtype " . $doc->writeAny($val->{Subtype});
-      }
-      foreach my $dictkey (sort keys %$val)
-      {
-         next if ($dictkey eq "Type");
-         next if ($dictkey eq "Subtype");
-         next if ($dictkey eq "StreamDataDone");
-         if ($dictkey eq "StreamData")
+         else
          {
-            if (exists $val->{StreamDataDone})
-            {
-               delete $val->{StreamDataDone};
-               next;
-            }
-            # This is a stream way down deep in the data...  Probably due to a solidifyObject
+            $str .= q{ };
+         }
+      }
+      $str .= $newstr;
+   }
+   if (@strs > 0)
+   {
+      $str = join "\n", @strs, $str;
+   }
+   return '[ ' . $str . ' ]';
+}
 
-            # First, try to handle the easy case:
-            if (scalar keys(%$val) == 2 && (exists $val->{Length} || exists $val->{L}))
-            {
-               my $str = $val->{$dictkey}->{value};
-               return $doc->writeAny(CAM::PDF::Node->new("hexstring", unpack("H".length($str)*2, $str), $objnum, $gennum));
-            }
+sub _writeDictionary
+{
+   my $self = shift;
+   my $obj = shift;
 
-            # TODO: Handle more complex streams ...
-            die "This stream is too complex for me to write... Giving up\n";
-            #require Data::Dumper;
-            #warn Data::Dumper->Dump([$val->{$dictkey}], [qw(streamdata)]);
-
+   my $val = $obj->{value};
+   my $str = q{};
+   my @strs;
+   if (exists $val->{Type})
+   {
+      $str .= ($str ? q{ } : q{}) . '/Type ' . $self->writeAny($val->{Type});
+   }
+   if (exists $val->{Subtype})
+   {
+      $str .= ($str ? q{ } : q{}) . '/Subtype ' . $self->writeAny($val->{Subtype});
+   }
+   for my $dictkey (sort keys %$val)
+   {
+      next if ($dictkey eq 'Type');
+      next if ($dictkey eq 'Subtype');
+      next if ($dictkey eq 'StreamDataDone');
+      if ($dictkey eq 'StreamData')
+      {
+         if (exists $val->{StreamDataDone})
+         {
+            delete $val->{StreamDataDone};
             next;
          }
-
-         my $newstr = "/$dictkey " . $doc->writeAny($val->{$dictkey});
-         if ($str ne "")
+         # This is a stream way down deep in the data...  Probably due to a solidifyObject
+         
+         # First, try to handle the easy case:
+         if (2 == scalar keys %$val && (exists $val->{Length} || exists $val->{L}))
          {
-            #$str .= (length($str) > $doc->{maxstr} ? "\n" : " ");
-            #$str .= "\n";
-            if (length($str . $newstr) > $doc->{maxstr})
-            {
-               push @strs, $str;
-               $str = "";
-            }
-            else
-            {
-               $str .= " ";
-            }
+            my $str = $val->{$dictkey}->{value};
+            my $len = length $str;
+            my $unpacked = unpack 'H' . $len*2, $str;
+            return $self->writeAny(CAM::PDF::Node->new('hexstring', $unpacked, $obj->{objnum}, $obj->{gennum}));
          }
-         $str .= $newstr;
+         
+         # TODO: Handle more complex streams ...
+         die "This stream is too complex for me to write... Giving up\n";
+         
+         next;
       }
-      $str = join("\n", @strs, $str) if (@strs > 0);
-      return "<< " . $str . " >>";
-   }
-   elsif ($key eq "object")
-   {
-      die "Obj data is not a ref! ($val)"  if (! ref $val);
-      my $stream;
-      if ($val->{type} eq "dictionary" && exists $val->{value}->{StreamData})
+      
+      my $newstr = "/$dictkey " . $self->writeAny($val->{$dictkey});
+      if ($str ne q{})
       {
-         $stream = $val->{value}->{StreamData}->{value};
-         my $length = length($stream);
-
-         my $l = $val->{value}->{Length} || $val->{value}->{L};
-         my $oldlength = $doc->getValue($l);
-         if ($length != $oldlength)
+         if ($self->{maxstr} < length $str . $newstr)
          {
-            $val->{value}->{Length} = CAM::PDF::Node->new("number", $length, $objnum, $gennum);
-            delete $val->{value}->{L};
+            push @strs, $str;
+            $str = q{};
          }
-         $val->{value}->{StreamDataDone} = 1;
+         else
+         {
+            $str .= q{ };
+         }
       }
-      my $str = $doc->writeAny($val);
-      if ($stream)
-      {
-         $stream = $doc->{crypt}->encrypt($doc, $stream, $objnum, $gennum);
-         $str .= "\nstream\n" . $stream . "endstream";
-      }
-      return "obj\n$str\nendobj\n";
+      $str .= $newstr;
    }
-   else
+   if (@strs > 0)
    {
-      $objnum ||= "<none>";
-      die "Unknown key '$key' in writeAny (objnum $objnum)\n";
+      $str = join "\n", @strs, $str;
    }
+   return '<< ' . $str . ' >>';
+}
+
+sub _writeObject
+{
+   my $self = shift;
+   my $obj = shift;
+
+   my $val = $obj->{value};
+   if (! ref $val)
+   {
+      die "Obj data is not a ref! ($val)";
+   }
+   my $stream;
+   if ($val->{type} eq 'dictionary' && exists $val->{value}->{StreamData})
+   {
+      $stream = $val->{value}->{StreamData}->{value};
+      my $length = length $stream;
+      
+      my $l = $val->{value}->{Length} || $val->{value}->{L};
+      my $oldlength = $self->getValue($l);
+      if ($length != $oldlength)
+      {
+         $val->{value}->{Length} = CAM::PDF::Node->new('number', $length, $obj->{objnum}, $obj->{gennum});
+         delete $val->{value}->{L};
+      }
+      $val->{value}->{StreamDataDone} = 1;
+   }
+   my $str = $self->writeAny($val);
+   if ($stream)
+   {
+      $stream = $self->{crypt}->encrypt($self, $stream, $obj->{objnum}, $obj->{gennum});
+      $str .= "\nstream\n" . $stream . 'endstream';
+   }
+   return "obj\n$str\nendobj\n";
 }
 
 ######################################################################
@@ -4657,27 +4633,23 @@ sub writeAny
 
 =head2 Document Traversing
 
-=over 4
+=over
+
+=item traverse DEREFERENCE_FLAG, NODE, CALLBACKFUNC, CALLBACKDATA
+
+Recursive traversal of a PDF data structure.
+
+In many cases, it's useful to apply one action to every node in an
+object tree.  The routines below all use this traverse() function.
+One of the most important parameters is the first: $deref=(1|0) If
+true, the traversal follows reference Nodes.  If false, it does not
+descend into refererence Nodes.
 
 =cut
 
-
-########
-# traversing
-#
-# In many cases, it's useful to apply one action to every node in an
-# object tree.  The routines below all use the &traverse() function.
-# One of the most important parameters is the first: $deref=(1|0) If
-# true, the traversal follows "reference" nodes.  If false, it does
-# descend into "refererence" nodes.
-########
-
-#------------------
-# PRIVATE FUNCTION
-
 sub traverse
 {
-   my $doc = shift;
+   my $self = shift;
    my $deref = shift;
    my $obj = shift;
    my $func = shift;
@@ -4685,43 +4657,40 @@ sub traverse
    my $traversed = shift || {};
    my $desc = shift || 0;
 
-   my $debug = 0;
-
-   print(("  " x $desc) . "traversing " . $obj->{type} . "\n") if ($debug);
-
-   $doc->$func($obj, $funcdata);
+   $self->$func($obj, $funcdata);
 
    my $key = $obj->{type};
    my $val = $obj->{value};
 
-   if ($key eq "dictionary")
+   if ($key eq 'dictionary')  ## no critic for if-elsif chain
    {
-      foreach my $dictkey (keys %$val)
+      for my $dictkey (keys %$val)
       {
-         $doc->traverse($deref, $val->{$dictkey}, $func, $funcdata, $traversed, $desc+1);
+         $self->traverse($deref, $val->{$dictkey}, $func, $funcdata, $traversed, $desc+1);
       }
    }
-   elsif ($key eq "array")
+   elsif ($key eq 'array')
    {
-      foreach my $arrindex (0 .. $#$val)
+      for my $arrindex (0 .. $#$val)
       {
-         $doc->traverse($deref, $val->[$arrindex], $func, $funcdata, $traversed, $desc+1);
+         $self->traverse($deref, $val->[$arrindex], $func, $funcdata, $traversed, $desc+1);
       }
    }
-   elsif ($key eq "object")
+   elsif ($key eq 'object')
    {
-      $traversed->{$obj->{objnum}} = 1 if ($obj->{objnum});
-      $doc->traverse($deref, $val, $func, $funcdata, $traversed, $desc+1);
-   }
-   elsif ($key eq "reference")
-   {
-      if ($deref && (!exists $traversed->{$val}))
+      if ($obj->{objnum})
       {
-         $doc->traverse($deref, $doc->dereference($val), $func, $funcdata, $traversed, $desc+1);
+         $traversed->{$obj->{objnum}} = 1;
+      }
+      $self->traverse($deref, $val, $func, $funcdata, $traversed, $desc+1);
+   }
+   elsif ($key eq 'reference')
+   {
+      if ($deref && !exists $traversed->{$val})
+      {
+         $self->traverse($deref, $self->dereference($val), $func, $funcdata, $traversed, $desc+1);
       }
    }
-
-   print(("  " x $desc) . "returning $key\n") if ($debug);
 }
 
 # decodeObject and decodeAll differ from each other like this:
@@ -4731,8 +4700,6 @@ sub traverse
 #
 #  decodeAll descends through a whole object tree (following
 #  references) decoding everything it can find
-
-#------------------
 
 =item decodeObject OBJECTNUM
 
@@ -4745,15 +4712,13 @@ indicated by the object number.
 
 sub decodeObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $objnum = shift;
 
-   my $obj = $doc->dereference($objnum);
+   my $obj = $self->dereference($objnum);
 
-   $doc->decodeOne($obj->{value}, 1);
+   $self->decodeOne($obj->{value}, 1);
 }
-
-#------------------
 
 =item decodeAll OBJECT
 
@@ -4766,13 +4731,11 @@ referenced by it.
 
 sub decodeAll
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   $doc->traverse(1, $obj, \&decodeOne, 1);
+   $self->traverse(1, $obj, \&decodeOne, 1);
 }
-
-#------------------
 
 =item decodeOne OBJECT
 
@@ -4789,19 +4752,19 @@ false, the function returns the defiltered content.
 
 sub decodeOne
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $save = shift || 0;
 
    my $changed = 0;
-   my $data = "";
+   my $data = q{};
 
-   if ($obj->{type} eq "dictionary")
+   if ($obj->{type} eq 'dictionary')
    {
       my $dict = $obj->{value};
 
       $data = $dict->{StreamData}->{value};
-      #warn "decoding thing " . ($dict->{StreamData}->{objnum} || "(unknown)") . "\n";
+      #warn 'decoding thing ' . ($dict->{StreamData}->{objnum} || '(unknown)') . "\n";
 
       # Don't work on {F} since that's too common a word
       #my $filtobj = $dict->{Filter} || $dict->{F};
@@ -4810,7 +4773,7 @@ sub decodeOne
       if (defined $filtobj)
       {
          my @filters;
-         if ($filtobj->{type} eq "array")
+         if ($filtobj->{type} eq 'array')
          {
             @filters = @{$filtobj->{value}};
          }
@@ -4824,7 +4787,7 @@ sub decodeOne
          {
             @parms = ();
          }
-         elsif ($parmobj->{type} eq "array")
+         elsif ($parmobj->{type} eq 'array')
          {
             @parms = @{$parmobj->{value}};
          }
@@ -4833,48 +4796,52 @@ sub decodeOne
             @parms = ($parmobj);
          }
 
-         foreach my $filter (@filters)
+         for my $filter (@filters)
          {
-            if ($filter->{type} ne "label")
+            if ($filter->{type} ne 'label')
             {
-               warn("All filter names must be labels\n");
+               warn "All filter names must be labels\n";
                require Data::Dumper;
-               warn Data::Dumper->Dump([$filter], ["Filter"]);
+               warn Data::Dumper->Dump([$filter], ['Filter']);
                next;
             }
             my $filtername = $filter->{value};
 
             # Make sure this is not an encrypt dict
-            next if ($filtername eq "Standard");
+            next if ($filtername eq 'Standard');
 
-            #if ($filtername eq "LZWDecode" || $filtername eq "LZW")
+            #if ($filtername eq 'LZWDecode' || $filtername eq 'LZW')
             #{
-            #   warn("$filtername filter not supported\n");
+            #   warn "$filtername filter not supported\n";
             #   next;
             #}
 
             my $filt;
             eval {
-               #no strict qw(vars);
                require Text::PDF::Filter;
-               my $package = "Text::PDF::" . ($filterabbrevs{$filtername} || $filtername);
+               my $package = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
                $filt = $package->new;
-               die if (!$filt);
+               if (!$filt)
+               {
+                  die;
+               }
             };
-            if ($@)
+            if ($EVAL_ERROR)
             {
-               warn("Failed to open filter $filtername (Text::PDF::$filtername)\n");
+               warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
                last;
             }
 
-            my $oldlength = length($data);
+            my $oldlength = length$data;
+
             {
                # Hack to turn off warnings in Filter library
-               local $^W = 0;
+               no warnings;
                $data = $filt->infilt($data, 1);
             }
-            $doc->fixDecode(\$data, $filtername, shift @parms);
-            my $length = length($data);
+
+            $self->fixDecode(\$data, $filtername, shift @parms);
+            my $length = length $data;
 
             #warn "decoded length: $oldlength -> $length\n";
 
@@ -4882,12 +4849,15 @@ sub decodeOne
             {
                my $objnum = $dict->{StreamData}->{objnum};
                my $gennum = $dict->{StreamData}->{gennum};
-               $doc->{changes}->{$objnum} = 1 if ($objnum);
+               if ($objnum)
+               {
+                  $self->{changes}->{$objnum} = 1;
+               }
                $changed = 1;
                $dict->{StreamData}->{value} = $data;
                if ($length != $oldlength)
                {
-                  $dict->{Length} = CAM::PDF::Node->new("number", $length, $objnum, $gennum);
+                  $dict->{Length} = CAM::PDF::Node->new('number', $length, $objnum, $gennum);
                   delete $dict->{L};
                }
                
@@ -4912,38 +4882,44 @@ sub decodeOne
    }
 }
 
-#------------------
-# PRIVATE FUNCTION
-#  fixDecode - do any tweaking after removing the filter from a data stream
+=item fixDecode DATA, FILTER, PARAMS
+
+This is a utility method to do any tweaking after removing the filter
+from a data stream.
+
+=cut
 
 sub fixDecode
 {
-   my $doc = shift;
+   my $self = shift;
    my $data = shift;
    my $filter = shift;
    my $parms = shift;
 
-   return if (!$parms);
-   my $d = $doc->getValue($parms);
-   if ((!$d) || ref $d ne "HASH")
+   if (!$parms)
+   {
+      return;
+   }
+   my $d = $self->getValue($parms);
+   if (!$d || (ref $d) ne 'HASH')
    {
       die "DecodeParms must be a dictionary.\n";
    }
-   if ($filter eq "FlateDecode" || $filter eq "Fl" || 
-       $filter eq "LZWDecode" || $filter eq "LZW")
+   if ($filter eq 'FlateDecode' || $filter eq 'Fl' || 
+       $filter eq 'LZWDecode' || $filter eq 'LZW')
    {
       if (exists $d->{Predictor})
       {
-         my $p = $doc->getValue($d->{Predictor});
+         my $p = $self->getValue($d->{Predictor});
          if ($p >= 10 && $p <= 15)
          {
             #warn "Fix PNG\n";
             if (exists $d->{Columns})
             {
-               my $c = $doc->getValue($d->{Columns});
-               my $l = length($$data);
-               my $newdata = "";
-               for (my $i=1; $i < $l; $i += $c+1)
+               my $c = $self->getValue($d->{Columns});
+               my $l = length $$data;
+               my $newdata = q{};
+               for (my $i=1; $i < $l; $i += $c+1)  ## no critic for C-style for
                {
                   $newdata .= substr $$data, $i, $c;
                }
@@ -4954,8 +4930,6 @@ sub fixDecode
    }
 }
 
-#------------------
-
 =item encodeObject OBJECTNUM, FILTER
 
 Apply the specified filter to the object.
@@ -4964,16 +4938,14 @@ Apply the specified filter to the object.
 
 sub encodeObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $objnum = shift;
    my $filtername = shift;
 
-   my $obj = $doc->dereference($objnum);
+   my $obj = $self->dereference($objnum);
 
-   $doc->encodeOne($obj->{value}, $filtername);
+   $self->encodeOne($obj->{value}, $filtername);
 }
-
-#------------------
 
 =item encodeOne OBJECT, FILTER
 
@@ -4983,13 +4955,13 @@ Apply the specified filter to the object.
 
 sub encodeOne
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $filtername = shift;
 
    my $changed = 0;
 
-   if ($obj->{type} eq "dictionary")
+   if ($obj->{type} eq 'dictionary')
    {
       my $dict = $obj->{value};
       my $objnum = $obj->{objnum};
@@ -5001,77 +4973,79 @@ sub encodeOne
          return 0;
       }
 
-      if ($filtername eq "LZWDecode" || $filtername eq "LZW")
+      if ($filtername eq 'LZWDecode' || $filtername eq 'LZW')
       {
-         $filtername = "FlateDecode";
-         warn("LZWDecode filter not supported for encoding.  Using $filtername instead\n");
+         $filtername = 'FlateDecode';
+         warn "LZWDecode filter not supported for encoding.  Using $filtername instead\n";
       }
       my $filt;
       eval {
-         #no strict qw(vars);
-         require "Text/PDF/Filter.pm";
+         require Text::PDF::Filter;
          my $package = "Text::PDF::$filtername";
          $filt = $package->new;
-         die if (!$filt);
+         if (!$filt)
+         {
+            die;
+         }
       };
-      if ($@)
+      if ($EVAL_ERROR)
       {
-         warn("Failed to open filter $filtername (Text::PDF::$filtername)\n");
+         warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
          return 0;
       }
 
       my $l = $dict->{Length} || $dict->{L};
-      my $oldlength = $doc->getValue($l);
+      my $oldlength = $self->getValue($l);
       $dict->{StreamData}->{value} = $filt->outfilt($dict->{StreamData}->{value}, 1);
-      my $length = length($dict->{StreamData}->{value});
+      my $length = length $dict->{StreamData}->{value};
 
-      if ((! defined $oldlength) || $length != $oldlength)
+      if (! defined $oldlength || $length != $oldlength)
       {
-         if (defined $l && $l->{type} eq "reference")
+         if (defined $l && $l->{type} eq 'reference')
          {
-            my $lenobj = $doc->dereference($l->{value})->{value};
-            if ($lenobj->{type} ne "number")
+            my $lenobj = $self->dereference($l->{value})->{value};
+            if ($lenobj->{type} ne 'number')
             {
                die "Expected length to be a reference to an object containing a number while encoding\n";
             }
             $lenobj->{value} = $length;
          }
-         elsif ((!defined $l) || $l->{type} eq "number")
+         elsif (!defined $l || $l->{type} eq 'number')
          {
-            $dict->{Length} = CAM::PDF::Node->new("number", $length, $objnum, $gennum);
+            $dict->{Length} = CAM::PDF::Node->new('number', $length, $objnum, $gennum);
             delete $dict->{L};
          }
          else
          {
-            die "Unexpected type \"" . $l->{type} . "\" for Length while encoding.\n" .
+            die "Unexpected type \"$l->{type}\" for Length while encoding.\n" .
                 "(expected \"number\" or \"reference\")\n";
          }
       }
 
       # Record the filter
-      my $newfilt = CAM::PDF::Node->new("label", $filtername, $objnum, $gennum);
+      my $newfilt = CAM::PDF::Node->new('label', $filtername, $objnum, $gennum);
       my $f = $dict->{Filter} || $dict->{F};
       if (!defined $f)
       {
          $dict->{Filter} = $newfilt;
          delete $dict->{F};
       }
-      elsif ($f->{type} eq "label")
+      elsif ($f->{type} eq 'label')
       {
-         $dict->{Filter} = CAM::PDF::Node->new("array", [
+         $dict->{Filter} = CAM::PDF::Node->new('array', [
                                                          $newfilt,
                                                          $f,
                                                          ],
                                                $objnum, $gennum);
          delete $dict->{F};
       }
-      elsif ($f->{type} eq "array")
+      elsif ($f->{type} eq 'array')
       {
          unshift @{$f->{value}}, $newfilt;
       }
       else
       {
-         die "Confused: Filter type is \"" . $f->{type} . "\", not the\n" .
+         die "Confused: Filter type is \"$f->{type}\", not the\n" .
              "expected \"array\" or \"label\"\n";
       }
 
@@ -5080,14 +5054,15 @@ sub encodeOne
          die "Insertion of DecodeParms not yet supported...\n";
       }
 
-      $doc->{changes}->{$objnum} = 1 if ($objnum);
+      if ($objnum)
+      {
+         $self->{changes}->{$objnum} = 1;
+      }
       $changed = 1;
    }
    return $changed;
 }
 
-
-#------------------
 
 =item setObjNum OBJECT, OBJECTNUM
 
@@ -5099,26 +5074,23 @@ accounting.
 
 sub setObjNum
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $objnum = shift;
    
-   $doc->traverse(0, $obj, \&setObjNumCB, $objnum);
+   $self->traverse(0, $obj, \&_setObjNumCB, $objnum);
 }
 
-#------------------
 # PRIVATE FUNCTION
 
-sub setObjNumCB
+sub _setObjNumCB
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $objnum = shift;
    
    $obj->{objnum} = $objnum;
 }
-
-#------------------
 
 =item getRefList OBJECT
 
@@ -5130,31 +5102,28 @@ Return an array all of objects referred to in this object.
 
 sub getRefList
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    
    my $list = {};
-   $doc->traverse(1, $obj, \&getRefListCB, $list);
+   $self->traverse(1, $obj, \&_getRefListCB, $list);
 
    return (sort keys %$list);
 }
 
-#------------------
 # PRIVATE FUNCTION
 
-sub getRefListCB
+sub _getRefListCB
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $list = shift;
    
-   if ($obj->{type} eq "reference")
+   if ($obj->{type} eq 'reference')
    {
       $list->{$obj->{value}} = 1;
    }
 }
-
-#------------------
 
 =item changeRefKeys OBJECT, HASHREF
 
@@ -5166,31 +5135,31 @@ Renumber all references in an object.
 
 sub changeRefKeys
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $newrefkeys = shift;
 
    my $follow = shift || 0;   # almost always false
 
-   $doc->traverse($follow, $obj, \&changeRefKeysCB, $newrefkeys);
+   $self->traverse($follow, $obj, \&_changeRefKeysCB, $newrefkeys);
 }
 
-#------------------
 # PRIVATE FUNCTION
 
-sub changeRefKeysCB
+sub _changeRefKeysCB
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $newrefkeys = shift;
    
-   if ($obj->{type} eq "reference")
+   if ($obj->{type} eq 'reference')
    {
-      $obj->{value} = $newrefkeys->{$obj->{value}} if (exists $newrefkeys->{$obj->{value}});
+      if (exists $newrefkeys->{$obj->{value}})
+      {
+         $obj->{value} = $newrefkeys->{$obj->{value}};
+      }
    }
 }
-
-#------------------
 
 =item abbrevInlineImage OBJECT
 
@@ -5200,13 +5169,11 @@ Contract all image keywords to inline abbreviations.
 
 sub abbrevInlineImage
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   $doc->traverse(0, $obj, \&abbrevInlineImageCB, {reverse %inlineabbrevs});
+   $self->traverse(0, $obj, \&_abbrevInlineImageCB, {reverse %inlineabbrevs});
 }
-
-#------------------
 
 =item unabbrevInlineImage OBJECT
 
@@ -5216,30 +5183,32 @@ Expand all inline image abbreviations.
 
 sub unabbrevInlineImage
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
-   $doc->traverse(0, $obj, \&abbrevInlineImageCB, \%inlineabbrevs);
+   $self->traverse(0, $obj, \&_abbrevInlineImageCB, \%inlineabbrevs);
 }
 
-#------------------
 # PRIVATE FUNCTION
 
-sub abbrevInlineImageCB
+sub _abbrevInlineImageCB
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $convert = shift;
 
-   if ($obj->{type} eq "label")
+   if ($obj->{type} eq 'label')
    {
       my $new = $convert->{$obj->{value}};
-      $obj->{value} = $new if (defined $new);
+      if (defined $new)
+      {
+         $obj->{value} = $new;
+      }
    }
-   elsif ($obj->{type} eq "dictionary")
+   elsif ($obj->{type} eq 'dictionary')
    {
       my $dict = $obj->{value};
-      foreach my $key (keys %$dict)
+      for my $key (keys %$dict)
       {
          my $new = $convert->{$key};
          if (defined $new && $new ne $key)
@@ -5250,8 +5219,6 @@ sub abbrevInlineImageCB
       }
    }
 }
-
-#------------------
 
 =item changeString OBJECT, HASHREF
 
@@ -5264,45 +5231,46 @@ Otherwise the search-and-replace is literal.
 
 sub changeString
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $changelist = shift;
 
-   $doc->traverse(0, $obj, \&changeStringCB, $changelist);
+   $self->traverse(0, $obj, \&_changeStringCB, $changelist);
 }
 
-#------------------
 # PRIVATE FUNCTION
 
-sub changeStringCB
+sub _changeStringCB
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
    my $changelist = shift;
 
-   if ($obj->{type} eq "string")
+   if ($obj->{type} eq 'string')
    {
-      foreach my $key (keys %$changelist)
+      for my $key (keys %$changelist)
       {
          if ($key =~ /^regex\((.*)\)$/)
          {
             my $regex = $1;
             my $res;
-            eval "\$res = (\$obj->{value} =~ s/$regex/$$changelist{$key}/gs);";
-            if ($@)
+            eval {
+               $res = ($obj->{value} =~ s/$regex/$$changelist{$key}/gs);
+            };
+            if ($EVAL_ERROR)
             {
-               die "Failed regex search/replace: $@\n";
+               die "Failed regex search/replace: $EVAL_ERROR\n";
             }
-            if ($res)
+            if ($res && $obj->{objnum})
             {
-               $doc->{changes}->{$obj->{objnum}} = 1 if ($obj->{objnum});
+               $self->{changes}->{$obj->{objnum}} = 1;
             }
          }
          else
          {
-            if ($obj->{value} =~ s/$key/$$changelist{$key}/gs)
+            if ($obj->{value} =~ s/$key/$$changelist{$key}/gs && $obj->{objnum})
             {
-               $doc->{changes}->{$obj->{objnum}} = 1 if ($obj->{objnum});
+               $self->{changes}->{$obj->{objnum}} = 1;
             }
          }
       }
@@ -5315,25 +5283,30 @@ sub changeStringCB
 
 =head2 Utility functions
 
-(these are for internal use only)
+=over
 
-=over 4
+=item rangeToArray MIN, MAX, LIST...
+
+Converts string lists of numbers to an array.  For example,
+
+    CAM::PDF->rangeToArray(1, 15, '1,3-5,12,9', '14-', '8 - 6, -2');
+
+becomes
+
+    (1,3,4,5,12,9,14,15,8,7,6,1,2)
 
 =cut
-
-#------------------
-# PRIVATE FUNCTION
 
 sub rangeToArray
 {
    my $pkg_or_doc = shift;
    my $min = shift;
    my $max = shift;
-   my @array1 = @_;
+   my @array1 = grep {defined $_} @_;
 
    @array1 = map { 
-      s/[^\d\-,]//g if (defined $_);  # clean
-      defined $_ ? /([\d\-]+)/g : ()
+      s/[^\d\-,]//g;  # clean
+      /([\d\-]+)/g;   # split on numbers and ranges
    } @array1;
 
    my @array2;
@@ -5343,23 +5316,41 @@ sub rangeToArray
    }
    else
    {
-      foreach (@array1)
+      for (@array1)
       {
          if (/(\d*)-(\d*)/)
          {
             my $a = $1;
             my $b = $2;
-            $a = $min-1 if ($a eq "");
-            $b = $max+1 if ($b eq "");
+            if ($a eq q{})
+            {
+               $a = $min-1;
+            }
+            if ($b eq q{})
+            {
+               $b = $max+1;
+            }
             
             # Check if these are possible
             next if ($a < $min && $b < $min);
             next if ($a > $max && $b > $max);
             
-            $a = $min if ($a < $min);
-            $b = $min if ($b < $min);
-            $a = $max if ($a > $max);
-            $b = $max if ($b > $max);
+            if ($a < $min)
+            {
+               $a = $min;
+            }
+            if ($b < $min)
+            {
+               $b = $min;
+            }
+            if ($a > $max)
+            {
+               $a = $max;
+            }
+            if ($b > $max)
+            {
+               $b = $max;
+            }
             
             if ($a > $b)
             {
@@ -5370,71 +5361,93 @@ sub rangeToArray
                push @array2, $a .. $b;
             }
          }
-         else
+         elsif ($_ >= $min && $_ <= $max)
          {
-            push @array2, $_ if ($_ >= $min && $_ <= $max);
+            push @array2, $_;
          }
       }
    }
    return @array2;
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item trimstr STRING
+
+Used solely for debugging.  Trims a string to a max of 40 characters,
+handling nulls and non-unix line endings.
 
 sub trimstr
 {
    my $pkg_or_doc = shift;
    my $s = $_[0];
 
-   if (!defined $s || $s eq "")
+   if (!defined $s || $s eq q{})
    {
-      $s = "(empty)";
+      $s = '(empty)';
    }
    elsif (length $s > 40)
    {
-      $s = substr($s, pos($_[0])||0, 40) . "...";
+      $s = substr($s, pos($_[0])||0, 40) . '...';
    }
    $s =~ s/\r/^M/gs;
-   return pos($_[0])." ".$s."\n";
+   return pos($_[0]).q{ }.$s."\n";
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item copyObject NODE
+
+Clones a node via Data::Dumper and eval().
+
+=cut
 
 sub copyObject
 {
-   my $doc = shift;
+   my $self = shift;
    my $obj = shift;
 
    # replace $obj with a copy of itself
    require Data::Dumper;
-   my $d = Data::Dumper->new([$obj],["obj"]);
+   my $d = Data::Dumper->new([$obj],['obj']);
    $d->Purity(1)->Indent(0);
-   eval $d->Dump();
+   eval $d->Dump();   ## no critic for string eval
 
    return $obj;
 }   
 
 
-#------------------
-# PRIVATE FUNCTION
+=item cacheObjects
+
+Parses all object Nodes and stores them in the cache.  This is useful
+for cases where you intend to do some global manipulation and want all
+of the data conveniently in RAM.
+
+=cut
 
 sub cacheObjects
 {
-   my $doc = shift;
+   my $self = shift;
 
-   foreach my $key (keys %{$doc->{xref}})
+   for my $key (keys %{$self->{xref}})
    {
-      if (!exists $doc->{objcache}->{$key})
+      if (!exists $self->{objcache}->{$key})
       {
-         $doc->{objcache}->{$key} = $doc->dereference($key);
+         $self->{objcache}->{$key} = $self->dereference($key);
       }
    }
 }
 
-#------------------
-# PRIVATE FUNCTION
+=item asciify STRING
+
+Helper class/instance method to massage a string, cleaning up some
+non-ASCII problems.  This is a very ad-hoc list.  Specifically:
+
+=over
+
+=item f-i ligatures
+
+=item (R) symbol
+
+=back
+
+=cut
 
 sub asciify
 {
@@ -5447,27 +5460,6 @@ sub asciify
    # Registered symbol
    $$R_string =~ s/\xae/(R)/g;
    return $pkg_or_doc;
-}
-
-######################################################################
-
-package CAM::PDF::Node;
-
-sub new
-{
-   my $pkg = shift;
-
-   my $self = {
-      type => shift,
-      value => shift,
-   };
-
-   my $objnum = shift;
-   my $gennum = shift;
-   $self->{objnum} = $objnum if (defined $objnum);
-   $self->{gennum} = $gennum if (defined $gennum);
-
-   return bless($self, $pkg);
 }
 
 1;

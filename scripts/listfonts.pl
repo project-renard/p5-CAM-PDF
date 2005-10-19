@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -12,14 +13,21 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("s|sort"     => \$opts{sort},
-           "v|verbose"  => \$opts{verbose},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('s|sort'     => \$opts{sort},
+           'v|verbose'  => \$opts{verbose},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
@@ -28,13 +36,15 @@ if (@ARGV < 1)
 
 my $infile = shift;
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my %fonts = ();
-for (my $p=1; $p<=$doc->numPages(); $p++)
+for my $p (1 .. $doc->numPages())
 {
-   print "Page $p:\n" unless ($opts{sort});
+   if (!$opts{sort})
+   {
+      print "Page $p:\n";
+   }
 
    # Retrieve an examine all page properties to find the fonts
    foreach my $fontname (sort $doc->getFontNames($p))
@@ -60,13 +70,13 @@ for (my $p=1; $p<=$doc->numPages(); $p++)
       
       # Font subtype (required)
       delete $fields{Subtype};
-      $desc .= "    Type: ".$doc->getValue($font->{Subtype})."\n";
+      $desc .= '    Type: '.$doc->getValue($font->{Subtype})."\n";
       
       # Base font
       if ($font->{BaseFont})
       {
          delete $fields{BaseFont};
-         $desc .= "    BaseFont: ".$doc->getValue($font->{BaseFont})."\n";
+         $desc .= '    BaseFont: '.$doc->getValue($font->{BaseFont})."\n";
       }
       
       # Font encoding
@@ -74,7 +84,7 @@ for (my $p=1; $p<=$doc->numPages(); $p++)
       if ($font->{Encoding})
       {
          # complex or simple encoding?
-         if ($font->{Encoding}->{type} eq "reference")  # Complex
+         if ($font->{Encoding}->{type} eq 'reference')  # Complex
          {
             # Handle encoding here.  If it's not an encoding, no big deal
             $desc .= "    Encoding:\n";
@@ -84,46 +94,48 @@ for (my $p=1; $p<=$doc->numPages(); $p++)
             if ($ref->{BaseEncoding})
             {
                delete $efields{BaseEncoding};
-               $desc .= "      BaseEncoding: ".$doc->getValue($ref->{BaseEncoding})."\n";
+               $desc .= '      BaseEncoding: '.$doc->getValue($ref->{BaseEncoding})."\n";
             }
             if ($ref->{Differences})
             {
                delete $efields{Differences};
                my @diffs = @{$doc->getValue($ref->{Differences})};
-               my @chars = grep {$_->{type} eq "label"} @diffs;
-               $desc .= "      Differences: ".scalar(@chars)."\n";
+               my @chars = grep {$_->{type} eq 'label'} @diffs;
+               $desc .= '      Differences: ' . @chars . "\n";
             }
             my @others = sort keys %efields;
             if (@others > 0)
             {
-               $desc .= "      Other fields: ".join(", ",@others)."\n";
+               my $other = join ', ', @others;
+               $desc .= "      Other fields: $other\n";
             }
          }
          else   # Simple encoding
          {
-            $desc .= "    Encoding: ".$doc->getValue($font->{Encoding})."\n";
+            $desc .= '    Encoding: '.$doc->getValue($font->{Encoding})."\n";
          }
       }
       
       # Font widths
       delete $fields{Widths};
-      $desc .= "    Widths: ". ($font->{Widths} ? "yes" : "no") . "\n";
+      $desc .= '    Widths: '. ($font->{Widths} ? 'yes' : 'no') . "\n";
       if ($font->{Widths})
       {
          delete $fields{FirstChar};
          delete $fields{LastChar};
-         $desc .= "      Characters: ".$doc->getValue($font->{FirstChar})."-".$doc->getValue($font->{LastChar}) . "\n";
+         $desc .= '      Characters: '.$doc->getValue($font->{FirstChar}) . q{-} . $doc->getValue($font->{LastChar}) . "\n";
       }
       
       # Embedding info
       delete $fields{FontDescriptor};
-      $desc .= "    Embedded: ". ($font->{FontDescriptor} ? "yes" : "no") . "\n";
+      $desc .= '    Embedded: '. ($font->{FontDescriptor} ? 'yes' : 'no') . "\n";
       
       # Remaining fields
       my @others = sort keys %fields;
       if (@others > 0)
       {
-         $desc .= "    Other fields: ".join(", ",@others)."\n";
+         my $other = join ', ', @others;
+         $desc .= "    Other fields: $other\n";
       }
       
       # Output, or defer until the end of all PDF pages

@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -13,15 +14,22 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("t|triggerclear"  => \$opts{triggerclear},
-           "v|verbose"  => \$opts{verbose},
-           "o|order"    => \$opts{order},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('t|triggerclear'  => \$opts{triggerclear},
+           'v|verbose'  => \$opts{verbose},
+           'o|order'    => \$opts{order},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 3)
 {
@@ -31,21 +39,28 @@ if (@ARGV < 3)
 my $infile = shift;
 my $outfile = shift;
 
-my $doc = CAM::PDF->new($infile);
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my @list = (@ARGV);
 $doc->fillFormFields(@list);
 if ($opts{triggerclear})
 {
-   for (my $i=0; $i < @list; $i+=2)
+   # get even-numbered-index elemented (i.e. fieldnames)
+   my @names = map {$_ % 2 ? $list[$_] : ()} 0 .. $#list;
+   for my $name (@names)
    {
-      my $obj = $doc->getFormField($list[$i]);
-      delete $obj->{value}->{value}->{AA} if ($obj);
+      my $obj = $doc->getFormField($name);
+      if ($obj)
+      {
+         delete $obj->{value}->{value}->{AA};
+      }
    }
 }
 
-$doc->preserveOrder() if ($opts{order});
+if ($opts{order})
+{
+   $doc->preserveOrder();
+}
 if (!$doc->canModify())
 {
    die "This PDF forbids modification\n";

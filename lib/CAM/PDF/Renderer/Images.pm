@@ -1,5 +1,11 @@
 package CAM::PDF::Renderer::Images;
 
+use 5.006;
+use warnings;
+use strict;
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::Renderer::Images - Find all of the images in a page
@@ -20,18 +26,9 @@ See CAM::PDF.
 
 This class is used to identify all image nodes in a page content tree.
 
-=cut
-
-#----------------
-
-use strict;
-use warnings;
-
-#----------------
-
 =head1 FUNCTIONS
 
-=over 4
+=over
 
 =item new
 
@@ -42,9 +39,8 @@ Creates a new renderer.
 sub new
 {
    my $pkg = shift;
-   return bless({},$pkg);
+   return bless {}, $pkg;
 }
-#----------------
 
 =item clone
 
@@ -55,10 +51,11 @@ Duplicates an instance.
 sub clone
 {
    my $obj = shift;
-   my $self = ref($obj)->new();
+
+   my $pkg = ref $obj;
+   my $self = $pkg->new();
    $self->{images} = $obj->{images};
 }
-#----------------
 
 =item Do DATA...
 
@@ -73,11 +70,10 @@ sub Do
 
    $self->{images} ||= [];
    push @{$self->{images}}, {
-      type => "Do",
+      type => 'Do',
       value => $value,
    };
 }
-#----------------
 
 =item BI DATA...
 
@@ -92,11 +88,10 @@ sub BI
 
    $self->{images} ||= [];
    push @{$self->{images}}, {
-      type => "BI",
+      type => 'BI',
       value => $value,
    };
 }
-#----------------
 
 1;
 __END__

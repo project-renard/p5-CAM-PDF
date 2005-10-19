@@ -1,5 +1,12 @@
 package CAM::PDF::Renderer::Dump;
 
+use 5.006;
+use warnings;
+use strict;
+use base qw(CAM::PDF::GS);
+
+our $VERSION = '1.02_02';
+
 =head1 NAME
 
 CAM::PDF::Renderer::Dump - Print the graphic state of each node
@@ -21,22 +28,9 @@ This class is used to print to STDOUT the coordinates of each node of
 a page layout.  It is written both for debugging and as a minimal
 example of a renderer.
 
-=cut
-
-#----------------
-
-use strict;
-use warnings;
-use CAM::PDF::GS;
-
-use vars qw(@ISA);
-@ISA = qw(CAM::PDF::GS);
-
-#----------------
-
 =head1 FUNCTIONS
 
-=over 4
+=over
 
 =item renderText STRING
 

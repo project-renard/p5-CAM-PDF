@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use Getopt::Long;
 use Pod::Usage;
@@ -11,14 +12,22 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("c|count"      => \$opts{count},
-           "v|verbose"    => \$opts{verbose},
-           "h|help"       => \$opts{help},
-           "V|version"    => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('c|count'      => \$opts{count},
+           'v|verbose'    => \$opts{verbose},
+           'h|help'       => \$opts{help},
+           'V|version'    => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-require("CAM::PDF"),print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   require CAM::PDF;
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
@@ -26,14 +35,12 @@ if (@ARGV < 1)
 }
 
 my $infile = shift;
-my $outfile = shift || "-";
+my $outfile = shift || q{-};
 
-local *IN;
-local *OUT;
-
-open(IN, $infile) or die "Failed to read file $infile\n";
-my $content = join("", <IN>);
-close(IN);
+open my $in_fh, '<', $infile
+    or die "Failed to read file $infile\n";
+my $content = join q{}, <$in_fh>;
+close $in_fh;
 
 my @matches = ($content =~ /[\r\n]%%EOF *[\r\n]/sg);
 my $revs = @matches;
@@ -52,23 +59,26 @@ elsif ($revs == 1)
 }
 else
 {
-   if ($outfile eq "-")
+   # Figure out line end character
+   $content =~ /(.)%%EOF.*?$/s
+       or die "Cannot find the end-of-file marker\n";
+   my $lineend = $1;
+   my $eof = $lineend.'%%EOF';
+
+   my $i = rindex $content, $eof;
+   my $j = rindex $content, $eof, $i-1;
+   $content = (substr $content, 0, $j) . $eof . $lineend;
+
+   if ($outfile eq q{-})
    {
-      *OUT = *STDOUT;
+      print STDOUT $content;
    }
    else
    {
-      open(OUT, ">$outfile") or die "Cannot write to $outfile\n";
+      open my $fh, '>', $outfile or die "Cannot write to $outfile\n";
+      print {$fh} $content;
+      close $fh;
    }
-
-   # Figure out line end character
-   $content =~ /(.)%%EOF.*?$/s;
-   my $lineend = $1;
-   
-   my $i = rindex($content, "$lineend%%EOF");
-   my $j = rindex($content, "$lineend%%EOF", $i-1);
-   print OUT substr($content, 0, $j);
-   print OUT $lineend . "%%EOF" . $lineend;
 }
 
 

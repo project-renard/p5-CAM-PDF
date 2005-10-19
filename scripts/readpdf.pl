@@ -1,5 +1,6 @@
 #!/usr/bin/perl -w
 
+use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
@@ -13,24 +14,32 @@ my %opts = (
             version    => 0,
             );
 
-Getopt::Long::Configure("bundling");
-GetOptions("v|verbose"  => \$opts{verbose},
-           "d|decode"   => \$opts{decode},
-           "p|pass"     => \$opts{askforpass},
-           "h|help"     => \$opts{help},
-           "V|version"  => \$opts{version},
+Getopt::Long::Configure('bundling');
+GetOptions('v|verbose'  => \$opts{verbose},
+           'd|decode'   => \$opts{decode},
+           'p|pass'     => \$opts{askforpass},
+           'h|help'     => \$opts{help},
+           'V|version'  => \$opts{version},
            ) or pod2usage(1);
-pod2usage(-exitstatus => 0, -verbose => 2) if ($opts{help});
-print("CAM::PDF v$CAM::PDF::VERSION\n"),exit(0) if ($opts{version});
+if ($opts{help})
+{
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version})
+{
+   print "CAM::PDF v$CAM::PDF::VERSION\n";
+   exit 0;
+}
 
 if (@ARGV < 1)
 {
    pod2usage(1);
 }
 
-my $file = shift || "-";
-my $doc = CAM::PDF->new($file, "", "", $opts{askforpass});
-die "$CAM::PDF::errstr\n" if (!$doc);
+my $file = shift || q{-};
+my $doc = CAM::PDF->new($file, q{}, q{},
+                        { prompt_for_password => $opts{askforpass} })
+    || die "$CAM::PDF::errstr\n";
 
 if ($opts{decode})
 {
