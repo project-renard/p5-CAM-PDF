@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.02_02';
+our $VERSION = '1.03';
 
 =head1 NAME
 
@@ -39,12 +39,15 @@ Creates a new renderer.
 sub new
 {
    my $pkg = shift;
-   return bless {}, $pkg;
+   return bless {
+      images => [],
+   }, $pkg;
 }
 
 =item clone
 
-Duplicates an instance.
+Duplicates an instance.  The new instance deliberately shares its
+C<images> property with the original instance.
 
 =cut
 
@@ -55,6 +58,7 @@ sub clone
    my $pkg = ref $obj;
    my $self = $pkg->new();
    $self->{images} = $obj->{images};
+   return $self;
 }
 
 =item Do DATA...
@@ -68,7 +72,6 @@ sub Do
    my $self = shift;
    my $value = [@_];
 
-   $self->{images} ||= [];
    push @{$self->{images}}, {
       type => 'Do',
       value => $value,
@@ -86,7 +89,6 @@ sub BI
    my $self = shift;
    my $value = [@_];
 
-   $self->{images} ||= [];
    push @{$self->{images}}, {
       type => 'BI',
       value => $value,

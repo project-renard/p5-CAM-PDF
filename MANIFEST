@@ -44,7 +44,10 @@ scripts/rewritepdf.pl
 scripts/setpdfpage.pl
 scripts/stamppdf.pl
 scripts/uninlinepdfimages.pl
+t/basic.t
 t/inlineimage.pdf
 t/pdf.t
 t/pod-coverage.t
 t/pod.t
+t/resume.pdf
+t/sample1.pdf

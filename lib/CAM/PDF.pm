@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.02_02';
+our $VERSION = '1.03';
 
 =head1 NAME
 
@@ -25,7 +25,7 @@ under the same terms as Perl itself.
 
     use CAM::PDF;
     
-    my $pdf = new CAM::PDF('test1.pdf');
+    my $pdf = CAM::PDF->new('test1.pdf');
     
     my $page1 = $pdf->getPageContent(1);
     [ ... mess with page ... ]
@@ -33,20 +33,25 @@ under the same terms as Perl itself.
     [ ... create some new content ... ]
     $pdf->appendPageContent(1, $newcontent);
     
+    my $anotherpdf = CAM::PDF->new('test2.pdf');
+    $pdf->appendPDF($anotherpdf);
+    
     my @prefs = $pdf->getPrefs();
     $prefs[$CAM::PDF::PREF_OPASS] = 'mypassword';
     $pdf->setPrefs(@prefs);
     
     $pdf->cleanoutput('out1.pdf');
+    print $pdf->toPDF();
 
-Many example scripts are included in this distribution to do basic
-tasks.
+Many example scripts are included in this distribution to do useful
+tasks.  See the C<script> subdirectory.
 
 =head1 DESCRIPTION
 
 This package reads and writes any document that conforms to the PDF
-specification generously provided by Adobe at (as of Oct 2005)
+specification generously provided by Adobe at
 L<http://partners.adobe.com/public/developer/pdf/index_reference.html>
+(link last checked Oct 2005).
 
 The file format is well-supported, with the exception of the
 "linearized" or "optimized" output format, which this module can read
@@ -69,21 +74,6 @@ to this library.  In particular, files which have had line endings
 converted to or from DOS/Windows style (i.e. CR-NL) may be rendered
 unusable even though Acrobat does not complain.  Future library
 versions may relax the parser, but not yet.
-
-=head1 COMPATIBILITY
-
-This library was primarily developed against the 3rd edition of the
-reference (PDF v1.4) with a few updates from 4th edition.  This
-library focuses on PDF v1.2 features.  It should be forward and
-backward compatible in the majority of cases.
-
-=head1 PERFORMANCE
-
-This module is written with good speed and flexibility in mind, often at the
-expense of memory consumption.  Entire PDF documents are typically
-slurped into RAM.  As an example, simply calling C<new()> the 14 MB
-Adobe PDF Reference V1.5 document pushes Perl to consume 84 MB of RAM
-on my development machine.
 
 =cut
 
@@ -316,8 +306,8 @@ sub new
          }
          else
          {
-            open my $fh, '<', $file;
-            if (!$fh)
+            my $fh;
+            if (!open $fh, '<', $file)
             {
                $CAM::PDF::errstr = "Failed to open $file: $!\n";
                return;
@@ -421,9 +411,10 @@ Implemented via Data::Dumper.
 sub toString
 {
    my $self = shift;
+   my @skip = @_ == 0 ? qw(content) : @_;
 
    my %hold = ();
-   for my $key (qw(content crypt))
+   for my $key (@skip)
    {
       $hold{$key} = delete $self->{$key};
    }
@@ -1089,42 +1080,41 @@ sub parseString
    my $gennum = shift;
 
    my $value = q{};
-   if ($$c =~ /\G\(/)
+   if ($$c =~ /\G\(/scg)
    {
-      while ($$c =~ /\G\(/scg)
+      # TODO: use Text::Balanced or Regexp::Common from CPAN??
+
+      my $depth = 1;
+      while ($depth > 0)
       {
-         my $depth = 1;
-         while ($depth > 0)
+         if ($$c =~ /\G([^\(\)]*)([\(\)])/scg)
          {
-            if ($$c =~ /\G([^\(\)]*)([\(\)])/scg)
+            my $string = $1;
+            my $delim = $2;
+            $value .= $string;
+            
+            # Make sure this is not an escaped paren, OR an real paren
+            # preceded by an escaped backslash!
+            if ($string =~ /(\\+)$/ && 1 == (length $1) % 2)
             {
-               my $string = $1;
-               my $delim = $2;
-               $value .= $string;
-               
-               # Make sure this is not an escaped paren, OR an real paren
-               # preceded by an escaped backslash!
-               if ($string =~ /(\\+)$/ && 1 == (length $1) % 2)
-               {
-                  $value .= $delim;
-               }
-               elsif ($delim eq '(')
-               {
-                  $value .= $delim;
-                  $depth++;
-               }
-               elsif(--$depth > 0)
-               {
-                  $value .= $delim;
-               }
+               $value .= $delim;
             }
-            else
+            elsif ($delim eq '(')
             {
-               die "Expected string closing\n" . $pkg_or_doc->trimstr($$c);
+               $value .= $delim;
+               $depth++;
+            }
+            elsif(--$depth > 0)
+            {
+               $value .= $delim;
             }
          }
-         $$c =~ /\G\s*/scg;
+         else
+         {
+            die "Expected string closing\n" . $pkg_or_doc->trimstr($$c);
+         }
       }
+      $$c =~ /\G\s*/scg;
    }
    else
    {
@@ -1132,7 +1122,7 @@ sub parseString
    }
 
    # Unescape slash-escaped characters.  Treat \\ specially.
-   my @parts = split /\\\\/s, $value;
+   my @parts = split /\\\\/s, $value, -1;
    for (@parts)
    {
       # concatenate continued lines
@@ -1879,6 +1869,7 @@ sub wrapString
    }
 
    $string =~ s/\r\n/\n/gs;
+   # no split limit, so trailing null strings are omitted
    my @strings = split /[\r\n]/, $string;
    my @out;
    $width /= $size;
@@ -2130,7 +2121,7 @@ sub getPage
          if (! ref $node)
          {
             require Data::Dumper;
-            Carp::cluck(Data::Dumper::Dumper($node));
+            cluck Data::Dumper::Dumper($node);
          }
       }
       
@@ -2616,6 +2607,12 @@ parameters must be done respecting the intellectual property of the
 original document.  See Adobe's statement in the introduction of the
 reference manual.
 
+Note: any omitted booleans default to false.  So, these two are
+equivalent:
+
+    $pdf->setPrefs('password', 'password');
+    $pdf->setPrefs('password', 'password', 0, 0, 0, 0);
+
 =cut
 
 sub setPrefs
@@ -2811,13 +2808,21 @@ lists, ranges (open or closed).
 sub extractPages
 {
    my $self = shift;
+   return $self if (@_ == 0); # no-work shortcut
    my @pages = $self->rangeToArray(1,$self->numPages(),@_);
+
+   if (@pages == 0)
+   {
+      croak 'Tried to delete all the pages';
+   }
 
    my %pages = map {$_,1} @pages; # eliminate duplicates
 
    # make a list that is the complement of the @pages list
    my @delete = grep {!$pages{$_}} 1..$self->numPages();
-   return $self->deletePages(@delete);
+
+   return $self if (@delete == 0); # no-work shortcut
+   return $self->_deletePages(@delete);
 }
 
 =item deletePages PAGES...
@@ -2830,21 +2835,39 @@ arguments, comma separated lists, ranges (open or closed).
 sub deletePages
 {
    my $self = shift;
+   return $self if (@_ == 0); # no-work shortcut
    my @pages = $self->rangeToArray(1,$self->numPages(),@_);
+
+   return $self if (@pages == 0); # no-work shortcut
 
    my %pages = map {$_,1} @pages; # eliminate duplicates
 
+   if ($self->numPages() == scalar keys %pages)
+   {
+      croak 'Tried to delete all the pages';
+   }
+
+   return $self->_deletePages(keys %pages);
+}
+
+sub _deletePages
+{
+   my $self = shift;
+
    # Pages should be reverse sorted since we need to delete from the
    # end to make the page numbers come out right.
-
-   for (sort {$b <=> $a} keys %pages)
+   my @objnums;
+   for (sort {$b <=> $a} @_)
    {
-      #print "del $_\n";
-      if (!$self->_deletePage($_))
+      my $objnum = $self->_deletePage($_);
+      if (!$objnum)
       {
+         $self->_deleteRefsToPages(@objnums);  # emergency cleanup to prevent corruption
          return;
       }
+      push @objnums, $objnum;
    }
+   $self->_deleteRefsToPages(@objnums);
    $self->cleanse();
    return $self;
 }
@@ -2861,15 +2884,17 @@ sub deletePage
    my $self = shift;
    my $pagenum = shift;
 
-   my $result = $self->_deletePage($pagenum);
-   if ($result)
+   my $objnum = $self->_deletePage($pagenum);
+   if ($objnum)
    {
+      $self->_deleteRefsToPages($objnum);
       $self->cleanse();
    }
-   return $result;
+   return $objnum ? $self : ();
 }
 
 # Internal method, called by deletePage() or deletePages()
+# Returns the objnum of the deleted page
 
 sub _deletePage
 {
@@ -2878,12 +2903,12 @@ sub _deletePage
 
    if ($self->numPages() <= 1) # don't delete the last page
    {
-      return;
+      croak 'Tried to delete the only page';
    }
    my ($objnum, $gennum) = $self->getPageObjnum($pagenum);
    if (!defined $objnum)
    {
-      return;
+      croak 'Tried to delete a non-existent page';
    }
 
    # Removing references to the page is hard:
@@ -2912,7 +2937,7 @@ sub _deletePage
          # only one left, so this is it
          if (!$parentdict)
          {
-            die 'Tried to delete the only page';
+            croak 'Tried to delete the only page';
          }
          my $parentkids = $self->getValue($parentdict->{Kids});
          @$parentkids = grep {$_->{value} != $node->{objnum}} @$parentkids;
@@ -2989,7 +3014,282 @@ sub _deletePage
 
    $self->{PageCount}--;
 
-   return $self;
+   return $objnum;
+}
+
+sub _deleteRefsToPages
+{
+   my $self = shift;
+   my %objnums = map {$_,1} @_;
+
+   my $root = $self->getRootDict();
+   if ($root->{Names})
+   {
+      my $names = $self->getValue($root->{Names});
+      if ($names->{Dests})
+      {
+         my $dests = $self->getValue($names->{Dests});
+         if ($self->_deleteDests($dests, \%objnums))
+         {
+            delete $names->{Dests};
+         }
+      }
+
+      if (0 == scalar keys %$names)
+      {
+         my $names_objnum = $root->{Names}->{value};
+         $self->deleteObject($names_objnum);
+         delete $root->{Names};
+      }
+   }
+
+   if ($root->{Outlines})
+   {
+      my $outlines = $self->getValue($root->{Outlines});
+      $self->_deleteOutlines($outlines, \%objnums);
+   }
+}
+
+sub _deleteOutlines
+{
+   my $self = shift;
+   my $outlines = shift;
+   my $objnums = shift;
+
+   my @deletes;
+   my @stack = ($outlines);
+
+   #my $nodes = 0;
+   #my $dests = 0;
+   #my $deleted = 0;
+
+   while (@stack > 0)
+   {
+      my $node = shift @stack;
+
+      #$nodes++;
+
+      # Check for a Destination (aka internal hyperlink)
+      # A is indirect ref, Dest is direct ref; only one can be present
+      my $dest;
+      if ($node->{A})
+      {
+         $dest = $self->getValue($node->{A});
+         $dest = $self->getValue($dest->{D});
+      }
+      elsif ($node->{Dest})
+      {
+         $dest = $self->getValue($node->{Dest});
+      }
+      if ($dest && (ref $dest) && (ref $dest) eq 'ARRAY')
+      {
+         my $ref = $dest->[0];
+         if ($ref && $ref->{type} eq 'reference' && $objnums->{$ref->{value}})
+         {
+            $self->deleteObject($ref->{objnum});
+            # Easier to just delete both, even though only one may exist
+            delete $node->{A};
+            delete $node->{Dest};
+
+            #$deleted++;
+         }
+         #$dests++;
+      }
+
+      if ($node->{Next})
+      {
+         push @stack, $self->getValue($node->{Next});
+      }
+      if ($node->{First})
+      {
+         push @stack, $self->getValue($node->{First});
+      }
+   }
+   #print "nodes: $nodes, dests: $dests, deleted: $deleted\n";
+}
+
+sub _deleteDests
+{
+   my $self = shift;
+   my $dests = shift;
+   my $objnums = shift;
+   
+   ## Accumulate the nodes to delete
+   my @deletes;
+   my @stack = ([$dests]);
+   
+   #my $nodes = 0;
+   #my $Namenodes = 0;
+   #my $Names = 0;
+   #my $kidnodes = 0;
+   #my $kids = 0;
+   #my $leafs = 0;
+   #my $others = 0;
+
+   while (@stack > 0)
+   {
+      #$nodes++;
+
+      my $chain = pop @stack;
+      my $node = $chain->[0];
+      if ($node->{Names})
+      {
+         my $pairs = $self->getValue($node->{Names});
+         for (my $i=1; $i<@$pairs; $i+=2)  ## no critic for C-style for loop
+         {
+            push @stack, [$self->getValue($pairs->[$i]), @$chain];
+         }
+         #$Names += @$pairs/2;
+         #$Namenodes++;
+      }
+      elsif ($node->{Kids})
+      {
+         my $list = $self->getValue($node->{Kids});
+         push @stack, map {[$self->getValue($_), @$chain]} @$list;
+         #$kids += @$list;
+         #$kidnodes++;
+      }
+      elsif ($node->{D})
+      {
+         #$leafs++;
+         my $props = $self->getValue($node->{D});
+         my $ref = $props->[0];
+         if ($ref && $ref->{type} eq 'reference' && $objnums->{$ref->{value}})
+         {
+            push @deletes, $chain;
+         }
+      }
+      #else
+      #{
+      #   $others++;
+      #}
+   }
+
+   #my $deletes = @deletes;
+   #print "nodes: $nodes ($Namenodes/$kidnodes), names: $Names, kids: $kids, leafs: $leafs, others: $others, deletes: $deletes\n";
+   
+   ## Delete the nodes, and their parents if applicable
+   for my $chain (@deletes)
+   {
+      my $obj = shift @$chain;
+      my $objnum = [values %$obj]->[0]->{objnum};
+      if (!$objnum)
+      {
+         die 'Destination object lacks an object number (number '.@$chain.' in the chain)';
+      }
+      $self->deleteObject($objnum);
+      #$nodes--;
+      #$leafs--;
+      #$deletes--;
+
+      # Ascend chain...  $objnum gets overwritten
+      my $child = $obj;
+      
+    CHAIN:
+      for my $node (@$chain)
+      {
+         last if (exists $node->{deleted});  # internal flag
+         
+         my $node_objnum = [values %$node]->[0]->{objnum} || die;
+         
+         if ($node->{Names})
+         {
+            my $pairs = $self->getValue($node->{Names});
+            my $limits = $self->getValue($node->{Limits});
+            my $redo_limits = 0;
+            
+            # Find and remove child reference
+            # iterate over keys of key-value array
+            for (my $i=@$pairs-2; $i>=0; $i-=2)  ## no critic for C-style for loop
+            {
+               if ($pairs->[$i+1]->{value} == $objnum)
+               {
+                  my $name = $pairs->[$i]->{value} || die 'No name in Name tree';
+                  splice @$pairs, $i, 2;
+                  if ($limits->[0]->{value} eq $name || $limits->[1]->{value} eq $name)
+                  {
+                     $redo_limits = 1;
+                  }
+                  #$Names--;
+               }
+            }
+
+            if (@$pairs > 0)
+            {
+               if ($redo_limits)
+               {
+                  my @names;
+                  for (my $i=0; $i<@$pairs; $i+=2)  ## no critic for C-style for loop
+                  {
+                     push @names, $pairs->[$i]->{value};
+                  }
+                  @names = sort @names;
+                  $limits->[0]->{value} = $names[0];
+                  $limits->[1]->{value} = $names[-1];
+               }
+               last CHAIN;
+            }
+            #$Namenodes--;
+         }
+
+         elsif ($node->{Kids})
+         {
+            my $list = $self->getValue($node->{Kids});
+            
+            # Find and remove child reference
+            for my $i (reverse 0 .. $#$list)
+            {
+               if ($list->[$i]->{value} == $objnum)
+               {
+                  splice @$list, $i, 1;
+                  #$kids--;
+               }
+            }
+            
+            if (@$list > 0)
+            {
+               if ($node->{Limits})
+               {
+                  my $limits = $self->getValue($node->{Limits});
+                  if (!$limits || @$limits != 2)
+                  {
+                     die 'Internal error: trouble parsing the Limits array in a name tree';
+                  }
+                  my @names;
+                  for my $i (0..@$list)
+                  {
+                     my $child = $self->getValue($list->[$i]);
+                     my $child_limits = $self->getValue($child->{Limits});
+                     push @names, map {$_->{value}} @$child_limits;
+                  }
+                  @names = sort @names;
+                  $limits->[0]->{value} = $names[0];
+                  $limits->[1]->{value} = $names[-1];
+               }
+               last CHAIN;
+            }
+            #$kidnodes--;
+         }
+         
+         else
+         {
+            die 'Internal error: found a parent node with neither Names nor Kids.  This should be impossible.';
+         }
+         
+         # If we got here, the node is empty, so delete it and move onward
+         $self->deleteObject($node_objnum);
+         $node->{deleted} = undef;  # internal flag
+         #$nodes--;
+         
+         # Prepare for next iteration
+         $child = $node;
+         $objnum = $node_objnum;
+      }
+   }
+
+   #print "nodes: $nodes ($Namenodes/$kidnodes), names: $Names, kids: $kids, leafs: $leafs, others: $others, deletes: $deletes\n";
+
+   return exists $dests->{deleted};
 }
 
 =item decachePages PAGENUM, PAGENUM, ...
@@ -3011,6 +3311,7 @@ sub decachePages
       delete $self->{NameObjects}->{$_};
    }
    delete $self->{Names}->{All};
+   return $self;
 }
 
 
@@ -3268,6 +3569,8 @@ sub duplicatePage
 
    # Caches are now bad for all pages from this one
    $self->decachePages($pagenum + 1 .. $self->numPages());
+
+   return $self;
 }
 
 =item createStreamObject CONTENT
@@ -3499,7 +3802,7 @@ sub replaceObject
       }
    }
 
-   $self->setObjNum($obj, $key);
+   $self->setObjNum($obj, $key, 0);
 
    # Preserve the name of the object
    if ($self->{xref}->{$key})  # make sure it isn't a brand new object
@@ -3614,9 +3917,22 @@ sub createID
       $addbytes = 32;
    }
 
-   open my $fh, '<', '/dev/urandom' or return;
-   read $fh, $self->{ID}, $addbytes, 32-$addbytes;
-   close $fh;
+   # Append $addbytes random bytes
+   # First try the system random number generator
+   if (-f '/dev/urandom')
+   {
+      if (open my $fh, '<', '/dev/urandom')
+      {
+         read $fh, $self->{ID}, $addbytes, 32-$addbytes;
+         close $fh;
+         $addbytes = 0;
+      }
+   }
+   # If that failed, use Perl's random number generator
+   for (1..$addbytes)
+   {
+      $self->{ID} .= pack 'C', int rand 256;
+   }
 
    if ($self->{trailer})
    {
@@ -3794,7 +4110,7 @@ sub fillFormFields
             # Fix autoscale fonts
             $stringwidth = 0;
             my $lines = 0;
-            for my $line (split /\n/, $text)
+            for my $line (split /\n/, $text)  # trailing null strings omitted
             {
                $lines++;
                my $w = $self->getStringWidth($fontmetrics, $line);
@@ -4147,7 +4463,9 @@ sub clean
 
    $self->delinearize();
 
-   #delete $self->{ID};
+   # Update the ID number to make this document distinct from the original.
+   # If there is already an ID, only the second half is changed
+   $self->createID();
 
    # Mark everything changed
    %{$self->{changes}} = (
@@ -4202,7 +4520,7 @@ sub save
 
    if (!$self->needsSave())
    {
-      return;
+      return $self;
    }
 
    $self->delinearize();
@@ -4319,6 +4637,8 @@ sub save
    $self->{content} .= "%%EOF\n";
 
    $self->{contentlength} = length $self->{content};
+
+   return $self;
 }
 
 =item cleansave
@@ -4654,41 +4974,43 @@ sub traverse
    my $obj = shift;
    my $func = shift;
    my $funcdata = shift;
-   my $traversed = shift || {};
-   my $desc = shift || 0;
 
-   $self->$func($obj, $funcdata);
+   my $traversed = {};
+   my @stack = ($obj);
 
-   my $key = $obj->{type};
-   my $val = $obj->{value};
+   my $i = 0;
+   while ($i < @stack)
+   {
+      my $obj = $stack[$i++];
+      $self->$func($obj, $funcdata);
 
-   if ($key eq 'dictionary')  ## no critic for if-elsif chain
-   {
-      for my $dictkey (keys %$val)
+      my $type = $obj->{type};
+      my $val = $obj->{value};
+
+      if ($type eq 'dictionary')  ## no critic for if-elsif chain
       {
-         $self->traverse($deref, $val->{$dictkey}, $func, $funcdata, $traversed, $desc+1);
+         push @stack, values %$val;
       }
-   }
-   elsif ($key eq 'array')
-   {
-      for my $arrindex (0 .. $#$val)
+      elsif ($type eq 'array')
       {
-         $self->traverse($deref, $val->[$arrindex], $func, $funcdata, $traversed, $desc+1);
+         push @stack, @$val;
       }
-   }
-   elsif ($key eq 'object')
-   {
-      if ($obj->{objnum})
+      elsif ($type eq 'object')
       {
-         $traversed->{$obj->{objnum}} = 1;
+         splice @stack, 0, $i;
+         $i = 0;
+         if ($obj->{objnum})
+         {
+            $traversed->{$obj->{objnum}} = 1;
+         }
+         push @stack, $val;
       }
-      $self->traverse($deref, $val, $func, $funcdata, $traversed, $desc+1);
-   }
-   elsif ($key eq 'reference')
-   {
-      if ($deref && !exists $traversed->{$val})
+      elsif ($type eq 'reference')
       {
-         $self->traverse($deref, $self->dereference($val), $func, $funcdata, $traversed, $desc+1);
+         if ($deref && !exists $traversed->{$val})
+         {
+            push @stack, $self->dereference($val);
+         }
       }
    }
 }
@@ -5064,7 +5386,7 @@ sub encodeOne
 }
 
 
-=item setObjNum OBJECT, OBJECTNUM
+=item setObjNum OBJECT, OBJECTNUM, GENNUM
 
 Descend into an object and change all of the INTERNAL object number
 flags to a new number.  This is just for consistency of internal
@@ -5077,8 +5399,9 @@ sub setObjNum
    my $self = shift;
    my $obj = shift;
    my $objnum = shift;
+   my $gennum = shift;
    
-   $self->traverse(0, $obj, \&_setObjNumCB, $objnum);
+   $self->traverse(0, $obj, \&_setObjNumCB, [$objnum, $gennum]);
 }
 
 # PRIVATE FUNCTION
@@ -5087,9 +5410,10 @@ sub _setObjNumCB
 {
    my $self = shift;
    my $obj = shift;
-   my $objnum = shift;
+   my $nums = shift;
    
-   $obj->{objnum} = $objnum;
+   $obj->{objnum} = $nums->[0];
+   $obj->{gennum} = $nums->[1];
 }
 
 =item getRefList OBJECT
@@ -5375,10 +5699,15 @@ sub rangeToArray
 Used solely for debugging.  Trims a string to a max of 40 characters,
 handling nulls and non-unix line endings.
 
+=cut
+
 sub trimstr
 {
    my $pkg_or_doc = shift;
    my $s = $_[0];
+
+   my $pos = pos $_[0];
+   $pos ||= 0;
 
    if (!defined $s || $s eq q{})
    {
@@ -5386,10 +5715,10 @@ sub trimstr
    }
    elsif (length $s > 40)
    {
-      $s = substr($s, pos($_[0])||0, 40) . '...';
+      $s = (substr $s, $pos, 40) . '...';
    }
    $s =~ s/\r/^M/gs;
-   return pos($_[0]).q{ }.$s."\n";
+   return $pos . q{ } . $s . "\n";
 }
 
 =item copyObject NODE
@@ -5466,6 +5795,63 @@ sub asciify
 __END__
 
 =back
+
+=head1 COMPATIBILITY
+
+This library was primarily developed against the 3rd edition of the
+reference (PDF v1.4) with a few updates from 4th edition.  This
+library focuses on PDF v1.2 features.  Nonetheless, it should be
+forward and backward compatible in the majority of cases.
+
+=head1 PERFORMANCE
+
+This module is written with good speed and flexibility in mind, often
+at the expense of memory consumption.  Entire PDF documents are
+typically slurped into RAM.  As an example, simply calling
+C<new('PDFReference15_v15.pdf')> (the 14 MB Adobe PDF Reference V1.5
+document) pushes Perl to consume 84 MB of RAM on my development
+machine.
+
+=head1 SEE ALSO
+
+There are several other PDF modules on CPAN.  Below is a brief
+description of a few of them.
+
+=over
+
+=item PDF::API2
+
+As of v0.46.003, LGPL license.
+
+This is the leading PDF library, in my opinion.
+
+Excellent text and font support.  This is the highest level library of
+the bunch, and is the most complete implementation of the Adobe PDF
+spec.  The author is amazingly responsive and patient.
+
+=item Text::PDF
+
+As of v0.25, Artistic license.
+
+Excellent compression support (CAM::PDF cribs off this Text::PDF
+feature).  This has not been developed since 2003.
+
+=item PDF::Reuse
+
+As of v0.32, Artistic/GPL license, like Perl itself.
+
+This library is not object oriented, so it can only process one PDF at
+a time, while storing all data in global variables.
+
+=back
+
+CAM::PDF is the only one of these that has regression tests.
+Currently, CAM::PDF has test coverage of about 50%, as reported by
+C<Build testcover>.
+
+Additionally, PDFLib is a commercial package not on CPAN
+(L<www.pdflib.com>).  It is a C-based library with a Perl interface.
+It is designed for PDF creation, not for reuse.
 
 =head1 INTERNALS
 

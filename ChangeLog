@@ -1,3 +1,18 @@
+2005-10-24 09:21  chris
+
+	* t/pdf.t: Add an ENV flag to skip some tests
+
+2005-10-20 17:29  chris
+
+	* Build.PL, MANIFEST, MANIFEST.SKIP, lib/CAM/PDF.pm,
+	  lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
+	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
+	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
+	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
+	  t/basic.t, t/pdf.t, t/resume.pdf, t/sample1.pdf: v1.03  *
+	  Regression tests  * Fixes for deletePages with initial support
+	  for Dests and Outlines  * Some code cleanup
+
 2005-10-19 08:05  chris
 
 	* lib/CAM/PDF.pm: Oops

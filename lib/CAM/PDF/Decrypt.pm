@@ -10,7 +10,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.02_02';
+our $VERSION = '1.03';
 
 =head1 NAME
 
@@ -48,28 +48,6 @@ my $padding = pack 'C*',
 =head1 FUNCTIONS
 
 =over
-
-=cut
-
-# Internal function
-#   Safely load libraries needed at runtime
-
-sub _loadlibs
-{
-   local $SIG{__DIE__}  = 'DEFAULT';
-   local $SIG{__WARN__} = 'DEFAULT';
-
-   eval {
-      require Digest::MD5;
-      require Crypt::RC4;
-   };
-   if ($EVAL_ERROR)
-   {
-      $CAM::PDF::errstr = "Failed to load one of Digest::MD5 or Crypt::RC4.  The document cannot be decrypted.\n";
-      return;
-   }
-   return 1;
-}
 
 =item new PDF, OWNERPASS, USERPASS, PROMPT
 
@@ -119,16 +97,14 @@ sub new
          $self->{EncryptBlock} = $doc->{trailer}->{Encrypt}->{value};
       }
    
-      if (! _loadlibs())
-      {
-         return;
-      }
+      require Digest::MD5;
+      require Crypt::RC4;
       
       my $dict = $doc->getValue($doc->{trailer}->{Encrypt});
       
       if ($dict->{Filter}->{value} ne 'Standard' || $dict->{V}->{value} != 1)
       {
-         $CAM::PDF::errstr = "PDF doc encrypted with something other than Version 1 of the Standard filter\n";
+         $CAM::PDF::errstr = "CAM::PDF only supports Version 1 of the Standard encryption filter.  This PDF uses something else.\n";
          return;
       }
       
@@ -145,10 +121,16 @@ sub new
          }
       }
 
+      if (!$doc->{ID})
+      {
+         $CAM::PDF::errstr = "This PDF lacks an ID.  The document cannot be decrypted.\n";
+         return;
+      }
+
       my $success = 0;
       while (!$success)
       {
-         if ($self->_check_pass($doc, $opassword, $upassword))
+         if ($self->_check_pass($doc->{ID}, $opassword, $upassword))
          {
             $success = 1;
          }
@@ -169,8 +151,8 @@ sub new
          }
       }
 
-      $self->{code} = $self->_compute_hash($doc, $opassword);
-   }      
+      $self->{code} = $self->_compute_hash($doc->{ID}, $opassword);
+   }
 
    $self->{opass} = $opassword;
    $self->{upass} = $upassword;
@@ -265,10 +247,8 @@ sub set_passwords
    my $upass = shift;
    my $p = shift || $self->{P} || $self->encode_permissions(1,1,1,1);
 
-   if (! _loadlibs())
-   {
-      die $CAM::PDF::errstr;
-   }
+   require Digest::MD5;
+   require Crypt::RC4;
 
    $doc->clean();  # Mark EVERYTHING changed
 
@@ -309,26 +289,28 @@ sub set_passwords
       $doc->createID();
       #print 'new ID: ' . unpack('h*',$doc->{ID}) . ' (' . length($doc->{ID}) . ")\n";
    }
+   #else { print 'old ID: '.unpack('h*',$doc->{ID}) . ' (' . length($doc->{ID}) . ")\n"; }
 
    #  record data
    $self->{opass} = $opass;
    $self->{upass} = $upass;
    $self->{P} = $p;
 
-   #  set O
+   #  set O  (has to be first because U uses O)
    $self->{O} = $self->_compute_o($opass, $upass);
 
    #  set U
-   $self->{U} = $self->_compute_u($doc, $upass);
+   $self->{U} = $self->_compute_u($doc->{ID}, $upass);
 
    #  save O and U in the Encrypt block
-   $obj = $doc->dereference($objnum);
-   $obj->{value}->{value}->{O}->{value} = $self->{O};
-   $obj->{value}->{value}->{U}->{value} = $self->{U};
+   $dict = $doc->getObjValue($objnum);
+   $dict->{O}->{value} = $self->{O};
+   $dict->{U}->{value} = $self->{U};
 
-   # Create a brand new object
+   # Create a brand new instance
    my $pkg = ref $self;
-   $doc->{crypt} = $pkg->new($doc, $opass, $upass, 0) || die "$CAM::PDF::errstr\n";
+   $doc->{crypt} = $pkg->new($doc, $opass, $upass, 0)
+       || die "$CAM::PDF::errstr\n";
 
    return $doc->{crypt};
 }
@@ -357,7 +339,7 @@ sub decrypt
    return $self->_crypt(@_);
 }
 
-# INTERNAL FUNCTIOn
+# INTERNAL FUNCTION
 # The real work behind encrpyt/decrypt
 
 my %tried;
@@ -392,7 +374,7 @@ sub _crypt
       $gennum = $doc->dereference($objnum)->{gennum};
    }
    
-   return RC4($self->_compute_key($objnum, $gennum), $content);
+   return Crypt::RC4::RC4($self->_compute_key($objnum, $gennum), $content);
 }
 
 sub _compute_key
@@ -420,8 +402,10 @@ sub _compute_key
 sub _compute_hash
 {
    my $self = shift;
-   my $doc  = shift;
+   my $doc_id  = shift;
    my $pass = shift;
+
+   #print "_compute_hash for password $pass, P: $self->{P}, ID: $doc_id, O: $self->{O}\n" if ($pass);
 
    $pass = $self->_format_pass($pass);
 
@@ -429,11 +413,11 @@ sub _compute_hash
    my $b = unpack 'b32', $p;
    if (1 == substr $b, 0, 1)
    {
-      # byte swap
+      # big endian, so byte swap
       $p = (substr $p,3,1).(substr $p,2,1).(substr $p,1,1).(substr $p,0,1);
    }
 
-   my $id = substr $doc->{ID}, 0, 16;
+   my $id = substr $doc_id, 0, 16;
 
    my $input = $pass . $self->{O} . $p . $id;
    return substr Digest::MD5::md5($input), 0, 5;
@@ -442,11 +426,11 @@ sub _compute_hash
 sub _compute_u
 {
    my $self  = shift;
-   my $doc   = shift;
+   my $doc_id   = shift;
    my $upass = shift;
 
-   my $hash = $self->_compute_hash($doc, $upass);
-   return RC4($hash, $padding);
+   my $hash = $self->_compute_hash($doc_id, $upass);
+   return Crypt::RC4::RC4($hash, $padding);
 }
 
 sub _compute_o
@@ -459,30 +443,21 @@ sub _compute_o
    my $u = $self->_format_pass($upass);
 
    my $code = substr Digest::MD5::md5($o), 0, 5;
-   return RC4($code, $u);
+   return Crypt::RC4::RC4($code, $u);
 }
 
 sub _check_pass
 {
    my $self    = shift;
-   my $doc     = shift;
+   my $doc_id  = shift;
    my $opass   = shift;
    my $upass   = shift;
-   my $verbose = shift;
 
    my $crypto = $self->_compute_o($opass, $upass);
+   my $cryptu = $self->_compute_u($doc_id, $upass);
 
-   if ($verbose)
-   {
-      print "O: $opass\n$crypto\n vs.\n$self->{O}\n";
-   }
-
-   my $cryptu = $self->_compute_u($doc, $upass);
-
-   if ($verbose)
-   {
-      print "U: $upass\n$cryptu\n vs.\n$self->{U}\n";
-   }
+   #print 'O: '.(defined $opass ? $opass : '(undef)')."\n$crypto\n vs.\n$self->{O}\n";
+   #print 'U: '.(defined $upass ? $upass : '(undef)')."\n$cryptu\n vs.\n$self->{U}\n";
 
    return $crypto eq $self->{O} && $cryptu eq $self->{U};
 }
@@ -490,7 +465,12 @@ sub _check_pass
 sub _format_pass
 {
    my $self = shift;
-   my $pass = shift || q{};
+   my $pass = shift;
+
+   if (!defined $pass)
+   {
+      $pass = q{};
+   }
 
    return substr $pass.$padding, 0, 32;
 }

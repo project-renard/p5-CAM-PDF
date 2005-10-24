@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.02_02';
+our $VERSION = '1.03';
 
 =head1 NAME
 
@@ -425,7 +425,7 @@ CAM::PDF::GS or CAM::PDF::Renderer::Text for renderer examples.
 Renderers should typically derive from CAM::PDF::GS, but it's not
 essential.  Typically returns an instance of the renderer class.
 
-The rendering class is loaded via C<use> if not already in memory.
+The rendering class is loaded via C<require> if not already in memory.
 
 =cut
 
@@ -502,8 +502,6 @@ sub traverse
       $gs = $renderer->new($self->{refs});
    }
 
-   no strict 'refs';
-
    foreach my $block (@$blocks)
    {
       $block->{gs} = $gs;
@@ -517,7 +515,11 @@ sub traverse
       if ($gs->can($func))
       {
          my $newgs = $gs->clone();
-         $newgs->$func(map {$_->{value}} @{$block->{args}});
+
+         {
+            no strict 'refs';
+            $newgs->$func(map {$_->{value}} @{$block->{args}});
+         }
 
          #use Data::Dumper;
          #use Algorithm::Diff;

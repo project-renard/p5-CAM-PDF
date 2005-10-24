@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.02_02';
+our $VERSION = '1.03';
 
 =head1 NAME
 

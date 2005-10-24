@@ -16,11 +16,17 @@ Module::Build->new(
       'Digest::MD5' => '2.16',
    },
    recommends => {
-      'Getopt::Long' => '2.0',    # needed for scripts
-      'Pod::Usage' => '1.0',    # needed for scripts
+      # Needed for scripts
+      'Getopt::Long' => '2.0',    
+      'Pod::Usage' => '1.0',
+
+      # Optional in tests, skipped if not present
+      'Test::Pod' => 0,
+      'Test::Pod::Coverage' => 0,
+      'Test::Memory::Cycle' => '1.02',
    },
    build_requires => {
-      'Test::More' => 0,
+      'Test::More' => 0,  # needs to be v0.62 for Test::Memory::Cycle v1.02
    },
    script_files => [@exefiles],
    add_to_cleanup => [ 'CAM-PDF-*' ],
