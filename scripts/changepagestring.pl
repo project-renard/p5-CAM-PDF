@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -44,7 +48,7 @@ my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 foreach my $p (1 .. $doc->numPages())
 {
    my $content = $doc->getPageContent($p);
-   if ($content =~ s/$fromstr/$tostr/g)
+   if ($content =~ s/$fromstr/$tostr/gxms)
    {
       $doc->setPageContent($p, $content);
    }
@@ -69,13 +73,15 @@ else
 
 __END__
 
+=for stopwords changepagestring.pl
+
 =head1 NAME
 
 changepagestring.pl - Search and replace in all PDF pages
 
 =head1 SYNOPSIS
 
-changepagestring.pl [options] infile.pdf search-regex replace-str [outfile.pdf]
+ changepagestring.pl [options] infile.pdf search-regex replace-str [outfile.pdf]
 
  Options:
    -o --order          preserve the internal PDF ordering for output
@@ -85,18 +91,20 @@ changepagestring.pl [options] infile.pdf search-regex replace-str [outfile.pdf]
 
 =head1 DESCRIPTION
 
-Searches through all pages of a PDF file for instances of search-regex
-and inserts replace-str.  The regex should be a form that Perl
+Searches through all pages of a PDF file for instances of C<search-regex>
+and inserts C<replace-str>.  The regex should be a form that Perl
 understands.  Note that this does not change the PDF metadata like
 forms and annotation.  To change metadata, use instead
-changepdfstring.pl.
+F<changepdfstring.pl>.
 
 =head1 SEE ALSO
 
 CAM::PDF
 
-changepdfstring.pl
+F<changepdfstring.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

@@ -8,7 +8,9 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
+
+=for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding
 
 =head1 NAME
 
@@ -154,12 +156,12 @@ my %inlineabbrevs = (
    or $self->fillFormFields(%values)
  $self->clearFormFieldTriggers(fieldname, fieldname, ...)
 
-Note: 'clean' as in 'cleansave' and 'cleanobject' means write a fresh
-PDF document.  The alternative (e.g. 'save') reuses the existing doc
+Note: 'clean' as in cleansave() and cleanobject() means write a fresh
+PDF document.  The alternative (e.g. save()) reuses the existing doc
 and just appends to it.  Also note that 'clean' functions sort the
 objects numerically.  If you prefer that the new PDF docs more closely
-resemble the old ones, call 'preserveOrder' before 'cleansave' or
-'cleanobject.'
+resemble the old ones, call preserveOrder() before cleansave() or
+cleanobject().
 
 =head2 Slightly less external, but useful, functions
 
@@ -220,19 +222,19 @@ resemble the old ones, call 'preserveOrder' before 'cleansave' or
 
 =over
 
-=item new PACKAGE, CONTENT
+=item $doc->new($package, $content)
 
-=item new PACKAGE, CONTENT, OWNERPASS, USERPASS
+=item $doc->new($package, $content, $ownerpass, $userpass)
 
-=item new PACKAGE, CONTENT, OWNERPASS, USERPASS, PROMPT?
+=item $doc->new($package, $content, $ownerpass, $userpass, $prompt)
 
-=item new PACKAGE, CONTENT, OWNERPASS, USERPASS, OPTIONS
+=item $doc->new($package, $content, $ownerpass, $userpass, $options)
 
-Instantiate a new CAM::PDF object.  CONTENT can be a ducument in a
+Instantiate a new CAM::PDF object.  C<$content> can be a document in a
 string, a filename, or '-'.  The latter indicates that the document
 should be read from standard input.  If the document is password
 protected, the passwords should be passed as additional arguments.  If
-they are not known, a boolean argument allows the programmer to
+they are not known, a boolean C<$prompt> argument allows the programmer to
 suggest that the constructor prompt the user for a password.  This is
 rudimentary prompting: passwords are in the clear on the console.
 
@@ -242,11 +244,11 @@ parameters:
 
 =over
 
-=item prompt_for_password => BOOLEAN
+=item prompt_for_password => $boolean
 
-This is the same as the C<PROMPT> argument described above.
+This is the same as the C<$prompt> argument described above.
 
-=item fault_tolerant => BOOLEAN
+=item fault_tolerant => $boolean
 
 This flag causes the instance to be more lenient when reading the
 input PDF.  Currently, this only affects PDFs which cannot be
@@ -282,7 +284,7 @@ sub new
 
 
    my $pdfversion = '1.2';
-   if ($content =~ /^%PDF-([\d\.]+)/)
+   if ($content =~ m/ \A%PDF-([\d\.]+) /xms)
    {
       if ($1 && $1 > $pdfversion)
       {
@@ -317,7 +319,7 @@ sub new
             close $fh;
          }
       }
-      if ($content =~ /^%PDF-([\d\.]+)/)
+      if ($content =~ m/ \A%PDF-([\d\.]+) /xms)
       {
          if ($1 && $1 > $pdfversion)
          {
@@ -383,7 +385,7 @@ sub new
    return $self;
 }
 
-=item toPDF
+=item $doc->toPDF()
 
 Serializes the data structure as a PDF document stream and returns as
 in a scalar.
@@ -401,7 +403,7 @@ sub toPDF
    return $self->{content};
 }
 
-=item toString
+=item $doc->toString()
 
 Returns a serialized representation of the data structure.
 Implemented via Data::Dumper.
@@ -452,7 +454,7 @@ sub _startdoc
    ### Parse the document metadata
 
    # Start by parsing out the location of the last xref block
-   if ($self->{content} !~ /startxref\s*(\d+)\s*%%EOF\s*$/s)
+   if ($self->{content} !~ m/ startxref\s*(\d+)\s*%%EOF\s*\z /xms)
    {
       $CAM::PDF::errstr = "Cannot find the index in the PDF content\n";
       return;
@@ -526,14 +528,14 @@ sub _buildxref
 
    my $end = substr $self->{content}, $startxref, $trailerpos-$startxref;
 
-   if ($end !~ s/^xref\s+//s)
+   if ($end !~ s/ \A xref\s+ //xms)
    {
       my $len = length $end;
       $CAM::PDF::errstr = "Could not find PDF cross-ref table at location $startxref/$trailerpos/$len\n" . $self->trimstr($end);
       return;
    }
    my $part = 0;
-   while ($end =~ s/^(\d+)\s+(\d+)\s+//s)
+   while ($end =~ s/ \A (\d+)\s+(\d+)\s+ //xms)
    {
       my $s = $1;
       my $n = $2;
@@ -545,7 +547,7 @@ sub _buildxref
          next if (exists $index->{$objnum});
 
          my $row = substr $end, $i*20, 20;
-         if ($row !~ /^(\d{10}) (\d{5}) (\w)/)
+         if ($row !~ m/ \A (\d{10}) [ ] (\d{5}) [ ] (\w) /xms)
          {
             $CAM::PDF::errstr = "Could not decipher xref row:\n" . $self->trimstr($row);
             return;
@@ -572,7 +574,7 @@ sub _buildxref
    }
    $end = substr $self->{content}, $trailerpos, $sxrefpos-$trailerpos;
 
-   if ($end !~ s/^trailer\s*//s)
+   if ($end !~ s/ \A trailer\s* //xms)
    {
       $CAM::PDF::errstr = "Did not find expected trailer block after xref\n" . $self->trimstr($end);
       return;
@@ -609,6 +611,7 @@ sub _buildendxref
    $r->{$rev{$pos[$#pos]}} = $self->{contentlength};
 
    $self->{endxref} = $r;
+   return;
 }
 
 # PRIVATE FUNTION
@@ -675,9 +678,10 @@ sub _buildNameTable
    }
 
    $self->{Names}->{$pagenum} = {%n};
+   return;
 }
 
-=item getRootDict
+=item $doc->getRootDict()
 
 Returns the Root dictionary for the PDF.
 
@@ -690,7 +694,7 @@ sub getRootDict
    return $self->getValue($self->{trailer}->{Root});
 }
 
-=item getPagesDict
+=item $doc->getPagesDict()
 
 Returns the root Pages dictionary for the PDF.
 
@@ -703,7 +707,7 @@ sub getPagesDict
    return $self->getValue($self->getRootDict()->{Pages});
 }
 
-=item parseObj STRING
+=item $doc->parseObj($string)
 
 Use parseAny() instead of this, if possible.
 
@@ -720,7 +724,7 @@ sub parseObj
    my $objnum = shift; #unused
    my $gennum = shift; #unused
 
-   if ($$c !~ /\G(\d+)\s+(\d+)\s+obj\s*/scg)
+   if ($$c !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms)
    {
       die "Expected object open tag\n" . $self->trimstr($$c);
    }
@@ -728,11 +732,11 @@ sub parseObj
    $gennum = $2;
 
    my $obj;
-   if ($$c =~ /\G(.*?)endobj\s*/scg)
+   if ($$c =~ m/ \G(.*?)endobj\s* /cgxms)
    {
       my $string = $1;
       $obj = $self->parseAny(\$string, $objnum, $gennum);
-      if ($string =~ /\Gstream/)
+      if ($string =~ m/ \Gstream /xms)
       {
          if ($obj->{type} ne 'dictionary')
          {
@@ -749,11 +753,11 @@ sub parseObj
 }
 
 
-=item parseInlineImage STRING
+=item $doc->parseInlineImage($string)
 
-=item parseInlineImage STRING, OBJNUM
+=item $doc->parseInlineImage($string, $objnum)
 
-=item parseInlineImage STRING, OBJNUM, GENNUM
+=item $doc->parseInlineImage($string, $objnum, $gennum)
 
 Given a fragment of PDF page content, parse it and return an object
 Node.  This can be called as a class method in some cases, but
@@ -768,7 +772,7 @@ sub parseInlineImage
    my $objnum = shift;
    my $gennum = shift;
 
-   if ($$c !~ /\GBI\b/s)
+   if ($$c !~ m/ \GBI\b /xms)
    {
       die "Expected inline image open tag\n" . $self->trimstr($$c);
    }
@@ -776,16 +780,17 @@ sub parseInlineImage
    $self->unabbrevInlineImage($dict);
    $dict->{value}->{Type} = CAM::PDF::Node->new('label', 'XObject', $objnum, $gennum);
    $dict->{value}->{Subtype} = CAM::PDF::Node->new('label', 'Image', $objnum, $gennum);
-   $dict->{value}->{StreamData} = $self->parseStream($c, $objnum, $gennum, $dict->{value}, qr/\s*/, qr/\s*EI\b/);
-   $$c =~ /\G\s+/scg;
+   $dict->{value}->{StreamData} = $self->parseStream($c, $objnum, $gennum, $dict->{value},
+                                                     qr/ \s* /xms, qr/ \s*EI\b /xms);
+   $$c =~ m/ \G\s+ /cgxms;
 
    return CAM::PDF::Node->new('object', $dict, $objnum, $gennum);
 }
 
 
-=item writeInlineImage OBJECTNODE
+=item $doc->writeInlineImage($objectnode)
 
-This is the inverse of parseInlineImage, intended for use only in
+This is the inverse of parseInlineImage(), intended for use only in
 the CAM::PDF::Content class.
 
 =cut
@@ -807,13 +812,13 @@ sub writeInlineImage
    #$dict->{L} ||= CAM::PDF::Node->new('number', length($stream));
    
    my $str = $self->writeAny($dictobj);
-   $str =~ s/^<</BI /s;
-   $str =~ s/>>$/ ID/s;
+   $str =~ s/ \A <<    /BI /xms;
+   $str =~ s/    >> \z / ID/xms;
    $str .= "\n" . $stream . "\nEI";
    return $str;
 }
 
-=item parseStream STRING, OBJNUM, GENNUM, DICTNODE
+=item $doc->parseStream($string, $objnum, $gennum, $dictnode)
 
 This should only be used by parseObj(), or other specialized cases.
 
@@ -828,16 +833,16 @@ that precedes this stream.
 
 sub parseStream
 {
-   my $self = shift;
-   my $c = shift;
+   my $self   = shift;
+   my $c      = shift;
    my $objnum = shift;
    my $gennum = shift;
-   my $dict = shift;
+   my $dict   = shift;
 
-   my $begin = shift || qr/stream\r?\n/;
-   my $end = shift || qr/\s*endstream\s*/;
+   my $begin = shift || qr/ stream\r?\n /xms;
+   my $end   = shift || qr/ \s*endstream\s* /xms;
 
-   if ($$c !~ /\G$begin/scg)
+   if ($$c !~ m/ \G$begin /cgxms)
    {
       die "Expected stream open tag\n" . $self->trimstr($$c);
    }
@@ -847,11 +852,11 @@ sub parseStream
    my $l = $dict->{Length} || $dict->{L};
    if (!defined $l)
    {
-      if ($begin =~ /\Gstream/)
+      if ($begin =~ m/ \Gstream /xms)
       {
          die "Missing stream length\n" . $self->trimstr($$c);
       }
-      if ($$c =~ /\G$begin(.*?)$end/scg)
+      if ($$c =~ m/ \G$begin(.*?)$end /cgxms)
       {
          $stream = $1;
          my $len = length $stream;
@@ -868,7 +873,7 @@ sub parseStream
       my $pos = pos $$c;
       $stream = substr $$c, $pos, $length;
       pos($$c) += $length;    ## no critic for builtin with parens
-      if ($$c !~ /\G$end/scg)
+      if ($$c !~ m/ \G$end /cgxms)
       {
          die "Expected endstream\n" . $self->trimstr($$c);
       }
@@ -889,11 +894,11 @@ sub parseStream
    return CAM::PDF::Node->new('stream', $stream, $objnum, $gennum);
 }
 
-=item parseDict STRING
+=item $doc->parseDict($string)
 
-=item parseDict STRING, OBJNUM
+=item $doc->parseDict($string, $objnum)
 
-=item parseDict STRING, OBJNUM, GENNUM
+=item $doc->parseDict($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -914,9 +919,9 @@ sub parseDict
    my $end = shift || '>>\\s*';
 
    my $dict = {};
-   if ($$c =~ /\G$begin/scg)
+   if ($$c =~ m/ \G$begin /cgxms)
    {
-      while ($$c !~ /\G$end/scg)
+      while ($$c !~ m/ \G$end /cgxms)
       {
          #warn "looking for label:\n" . $pkg_or_doc->trimstr($$c);
          my $keyref = $pkg_or_doc->parseLabel($c, $objnum, $gennum);
@@ -930,11 +935,11 @@ sub parseDict
    return CAM::PDF::Node->new('dictionary', $dict, $objnum, $gennum);
 }
 
-=item parseArray STRING
+=item $doc->parseArray($string)
 
-=item parseArray STRING, OBJNUM
+=item $doc->parseArray($string, $objnum)
 
-=item parseArray STRING, OBJNUM, GENNUM
+=item $doc->parseArray($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -951,9 +956,9 @@ sub parseArray
    my $gennum = shift;
 
    my $array = [];
-   if ($$c =~ /\G\[\s*/scg)
+   if ($$c =~ m/ \G\[\s* /cgxms)
    {
-      while ($$c !~ /\G\]\s*/scg)
+      while ($$c !~ m/ \G\]\s* /cgxms)
       {
          #warn "looking for array value:\n" . $pkg_or_doc->trimstr($$c);
          push @$array, $pkg_or_doc->parseAny($c, $objnum, $gennum);
@@ -963,11 +968,11 @@ sub parseArray
    return CAM::PDF::Node->new('array', $array, $objnum, $gennum);
 }
 
-=item parseLabel STRING
+=item $doc->parseLabel($string)
 
-=item parseLabel STRING, OBJNUM
+=item $doc->parseLabel($string, $objnum)
 
-=item parseLabel STRING, OBJNUM, GENNUM
+=item $doc->parseLabel($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -984,7 +989,7 @@ sub parseLabel
    my $gennum = shift;
 
    my $label;
-   if ($$c =~ /\G\/([^\s<>\/\[\]\(\)]+)\s*/scg)
+   if ($$c =~ m/ \G\/([^\s<>\/\[\]\(\)]+)\s* /cgxms)
    {
       $label = $1;
    }
@@ -995,11 +1000,11 @@ sub parseLabel
    return CAM::PDF::Node->new('label', $label, $objnum, $gennum);
 }
 
-=item parseRef STRING
+=item $doc->parseRef($string)
 
-=item parseRef STRING, OBJNUM
+=item $doc->parseRef($string, $objnum)
 
-=item parseRef STRING, OBJNUM, GENNUM
+=item $doc->parseRef($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -1016,7 +1021,7 @@ sub parseRef
    my $gennum = shift;
 
    my $newobjnum;
-   if ($$c =~ /\G(\d+)\s+\d+\s+R\s*/scg)
+   if ($$c =~ m/ \G(\d+)\s+\d+\s+R\s* /cgxms)
    {
       $newobjnum = $1;
    }
@@ -1027,11 +1032,11 @@ sub parseRef
    return CAM::PDF::Node->new('reference', $newobjnum, $objnum, $gennum);
 }
 
-=item parseNum STRING
+=item $doc->parseNum($string)
 
-=item parseNum STRING, OBJNUM
+=item $doc->parseNum($string, $objnum)
 
-=item parseNum STRING, OBJNUM, GENNUM
+=item $doc->parseNum($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -1048,7 +1053,7 @@ sub parseNum
    my $gennum = shift;
 
    my $value;
-   if ($$c =~ /\G([\d\.\-\+]+)\s*/scg)
+   if ($$c =~ m/ \G([\d\.\-\+]+)\s* /cgxms)
    {
       $value = $1;
    }
@@ -1059,11 +1064,11 @@ sub parseNum
    return CAM::PDF::Node->new('number', $value, $objnum, $gennum);
 }
 
-=item parseString STRING
+=item $doc->parseString($string)
 
-=item parseString STRING, OBJNUM
+=item $doc->parseString($string, $objnum)
 
-=item parseString STRING, OBJNUM, GENNUM
+=item $doc->parseString($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -1075,27 +1080,27 @@ Node.  This can be called as a class or instance method.
 sub parseString
 {
    my $pkg_or_doc = shift;
-   my $c = shift;
-   my $objnum = shift;
-   my $gennum = shift;
+   my $c          = shift;
+   my $objnum     = shift;
+   my $gennum     = shift;
 
    my $value = q{};
-   if ($$c =~ /\G\(/scg)
+   if ($$c =~ m/ \G\( /cgxms)
    {
       # TODO: use Text::Balanced or Regexp::Common from CPAN??
 
       my $depth = 1;
       while ($depth > 0)
       {
-         if ($$c =~ /\G([^\(\)]*)([\(\)])/scg)
+         if ($$c =~ m/ \G([^\(\)]*)([\(\)]) /cgxms)
          {
             my $string = $1;
-            my $delim = $2;
+            my $delim  = $2;
             $value .= $string;
             
             # Make sure this is not an escaped paren, OR an real paren
             # preceded by an escaped backslash!
-            if ($string =~ /(\\+)$/ && 1 == (length $1) % 2)
+            if ($string =~ m/ (\\+) \z/xms && 1 == (length $1) % 2)
             {
                $value .= $delim;
             }
@@ -1114,7 +1119,7 @@ sub parseString
             die "Expected string closing\n" . $pkg_or_doc->trimstr($$c);
          }
       }
-      $$c =~ /\G\s*/scg;
+      $$c =~ m/ \G\s* /cgxms;
    }
    else
    {
@@ -1122,26 +1127,26 @@ sub parseString
    }
 
    # Unescape slash-escaped characters.  Treat \\ specially.
-   my @parts = split /\\\\/s, $value, -1;
+   my @parts = split /\\\\/xms, $value, -1;
    for (@parts)
    {
       # concatenate continued lines
-      s/\\\r?\n//sg;
-      s/\\\r//sg;
+      s/ \\\r?\n //gxms;
+      s/ \\\r    //gxms;
 
       # special characters
-      s/\\n/\n/g;
-      s/\\r/\r/g;
-      s/\\t/\t/g;
-      s/\\f/\f/g;
+      s/ \\n /\n/gxms;
+      s/ \\r /\r/gxms;
+      s/ \\t /\t/gxms;
+      s/ \\f /\f/gxms;
       # TODO: handle backspace char
-      #s/\\b/???/g;
+      #s/ \\b /???/gxms;
 
       # octal numbers
-      s/\\(\d{1,3})/chr oct $1/ge;
+      s/ \\(\d{1,3}) /chr oct $1/gexms;
 
       # Ignore all other slashes (i.e. following characters are treated literally)
-      s/\\//g;
+      s/ \\ //gxms;
    }
    $value = join q{\\}, @parts;
 
@@ -1156,15 +1161,15 @@ sub parseString
    return CAM::PDF::Node->new('string', $value, $objnum, $gennum);
 }
 
-=item parseHexString STRING
+=item $doc->parseHexString($string)
 
-=item parseHexString STRING, OBJNUM
+=item $doc->parseHexString($string, $objnum)
 
-=item parseHexString STRING, OBJNUM, GENNUM
+=item $doc->parseHexString($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
-Given a fragment of PDF page content, parse it and return a hexstring
+Given a fragment of PDF page content, parse it and return a hex string
 Node.  This can be called as a class or instance method.
 
 =cut
@@ -1177,7 +1182,7 @@ sub parseHexString
    my $gennum = shift;
 
    my $str = q{};
-   if ($$c =~ /\G<([\da-fA-F]*)>\s*/scg)
+   if ($$c =~ m/ \G<([\da-fA-F]*)>\s* /cgxms)
    {
       $str = $1;
       my $len = length $str;
@@ -1203,11 +1208,11 @@ sub parseHexString
    return CAM::PDF::Node->new('hexstring', $str, $objnum, $gennum);
 }
 
-=item parseBoolean STRING
+=item $doc->parseBoolean($string)
 
-=item parseBoolean STRING, OBJNUM
+=item $doc->parseBoolean($string, $objnum)
 
-=item parseBoolean STRING, OBJNUM, GENNUM
+=item $doc->parseBoolean($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -1224,7 +1229,7 @@ sub parseBoolean
    my $gennum = shift;
 
    my $val = q{};
-   if ($$c =~ /\G(true|false)\s*/scgi)
+   if ($$c =~ m/ \G(true|false)\s* /cgxmsi)
    {
       $val = lc $1;
    }
@@ -1236,11 +1241,11 @@ sub parseBoolean
    return CAM::PDF::Node->new('boolean', $val, $objnum, $gennum);
 }
 
-=item parseNull STRING
+=item $doc->parseNull($string)
 
-=item parseNull STRING, OBJNUM
+=item $doc->parseNull($string, $objnum)
 
-=item parseNull STRING, OBJNUM, GENNUM
+=item $doc->parseNull($string, $objnum, $gennum)
 
 Use parseAny() instead of this, if possible.
 
@@ -1257,7 +1262,7 @@ sub parseNull
    my $gennum = shift;
 
    my $val = q{};
-   if ($$c =~ /\Gnull\s*/scgi)
+   if ($$c =~ m/ \Gnull\s* /cgxmsi)
    {
       $val = undef;
    }
@@ -1269,11 +1274,11 @@ sub parseNull
    return CAM::PDF::Node->new('null', $val, $objnum, $gennum);
 }
 
-=item parseAny STRING
+=item $doc->parseAny($string)
 
-=item parseAny STRING, OBJNUM
+=item $doc->parseAny($string, $objnum)
 
-=item parseAny STRING, OBJNUM, GENNUM
+=item $doc->parseAny($string, $objnum, $gennum)
 
 Given a fragment of PDF page content, parse it and return a Node of
 the appropriate type.  This can be called as a class or instance
@@ -1288,15 +1293,15 @@ sub parseAny
    my $objnum = shift;
    my $gennum = shift;
 
-   return $$c =~ /\G\d+\s+\d+\s+R\b/s ? $p->parseRef(      $c, $objnum, $gennum)
-        : $$c =~ /\G\//               ? $p->parseLabel(    $c, $objnum, $gennum)
-        : $$c =~ /\G<</               ? $p->parseDict(     $c, $objnum, $gennum)
-        : $$c =~ /\G\[/               ? $p->parseArray(    $c, $objnum, $gennum)
-        : $$c =~ /\G\(/               ? $p->parseString(   $c, $objnum, $gennum)
-        : $$c =~ /\G\</               ? $p->parseHexString($c, $objnum, $gennum)
-        : $$c =~ /\G[\d\.\-\+]+/      ? $p->parseNum(      $c, $objnum, $gennum)
-        : $$c =~ /\G(true|false)/i    ? $p->parseBoolean(  $c, $objnum, $gennum)
-        : $$c =~ /\Gnull/i            ? $p->parseNull(     $c, $objnum, $gennum)
+   return $$c =~ m/ \G \d+\s+\d+\s+R\b /xms  ? $p->parseRef(      $c, $objnum, $gennum)
+        : $$c =~ m/ \G \/              /xms  ? $p->parseLabel(    $c, $objnum, $gennum)
+        : $$c =~ m/ \G <<              /xms  ? $p->parseDict(     $c, $objnum, $gennum)
+        : $$c =~ m/ \G \[              /xms  ? $p->parseArray(    $c, $objnum, $gennum)
+        : $$c =~ m/ \G \(              /xms  ? $p->parseString(   $c, $objnum, $gennum)
+        : $$c =~ m/ \G \<              /xms  ? $p->parseHexString($c, $objnum, $gennum)
+        : $$c =~ m/ \G [\d\.\-\+]+     /xms  ? $p->parseNum(      $c, $objnum, $gennum)
+        : $$c =~ m/ \G (true|false)    /ixms ? $p->parseBoolean(  $c, $objnum, $gennum)
+        : $$c =~ m/ \G null            /ixms ? $p->parseNull(     $c, $objnum, $gennum)
         : die "Unrecognized type in parseAny:\n" . $p->trimstr($$c);
 }
 
@@ -1308,7 +1313,7 @@ sub parseAny
 
 =over
 
-=item getValue OBJECT
+=item $doc->getValue($object)
 
 I<For INTERNAL use>
 
@@ -1343,7 +1348,7 @@ sub getValue
    return $obj->{value};
 }
 
-=item getObjValue OBJECTNUM
+=item $doc->getObjValue($objectnum)
 
 I<For INTERNAL use>
 
@@ -1361,9 +1366,9 @@ sub getObjValue
 }
 
 
-=item dereference OBJECTNUM
+=item $doc->dereference($objectnum)
 
-=item dereference NAME, PAGENUM
+=item $doc->dereference($name, $pagenum)
 
 I<For INTERNAL use>
 
@@ -1371,7 +1376,7 @@ Dereference a data object, return a PDF object as an node.  This
 function makes heavy use of the internal object cache.  Most (if not
 all) object requests should go through this function.
 
-NAME should look something like '/R12'.
+C<$name> should look something like '/R12'.
 
 =cut
 
@@ -1381,7 +1386,7 @@ sub dereference
    my $key = shift;
    my $pagenum = shift; # only used if $key is a named resource
 
-   if ($key =~ s/^\///)  # strip off the leading slash while testing
+   if ($key =~ s/ \A\/ //xms)  # strip off the leading slash while testing
    {
       # This is a request for a named object
       $self->_buildNameTable($pagenum);
@@ -1437,9 +1442,9 @@ sub dereference
 }
 
 
-=item getPropertyNames PAGENUM
+=item $doc->getPropertyNames($pagenum)
 
-=item getProperty PAGENUM, PROPERTYNAME
+=item $doc->getProperty($pagenum, $propertyname)
 
 Each PDF page contains a list of resources that it uses (images,
 fonts, etc).  getPropertyNames() returns an array of the names of
@@ -1471,7 +1476,7 @@ sub getProperty
    return $props->{$name};
 }
 
-=item getFont PAGENUM, FONTNAME
+=item $doc->getFont($pagenum, $fontname)
 
 I<For INTERNAL use>
 
@@ -1486,7 +1491,7 @@ sub getFont
    my $pagenum = shift;
    my $fontname = shift;
 
-   $fontname =~ s|^/?|/|; # add leading slash if needed
+   $fontname =~ s/ \A\/? /\//xms; # add leading slash if needed
    my $obj = $self->dereference($fontname, $pagenum);
    return if (!$obj);
 
@@ -1501,7 +1506,7 @@ sub getFont
    }
 }
 
-=item getFontNames PAGENUM
+=item $doc->getFontNames($pagenum)
 
 I<For INTERNAL use>
 
@@ -1532,7 +1537,7 @@ sub getFontNames
 }
 
 
-=item getFonts PAGENUM
+=item $doc->getFonts($pagenum)
 
 I<For INTERNAL use>
 
@@ -1562,7 +1567,7 @@ sub getFonts
    return @fonts;
 }
 
-=item getFontByBaseName PAGENUM, FONTNAME
+=item $doc->getFontByBaseName($pagenum, $fontname)
 
 I<For INTERNAL use>
 
@@ -1594,7 +1599,7 @@ sub getFontByBaseName
    return;
 }
 
-=item getFontMetrics PROPERTIES FONTNAME
+=item $doc->getFontMetrics($properties $fontname)
 
 I<For INTERNAL use>
 
@@ -1610,7 +1615,7 @@ Alternatively, if you know the page number, it might be easier to do:
   my $font = $self->dereference($fontlabel, $pagenum);
   my $fontmetrics = $font->{value}->{value};
 
-where the fontlabel is something like '/Helv'.  The getFontMetrics
+where the C<$fontlabel> is something like '/Helv'.  The getFontMetrics()
 method is useful in the cases where you've forgotten which page number
 you are working on (e.g. in CAM::PDF::GS), or if your property list
 isn't part of any page (e.g. working with form field annotation
@@ -1656,19 +1661,19 @@ sub getFontMetrics
    return $fontmetrics;
 }
 
-=item addFont PAGENUM, FONTNAME, FONTLABEL
+=item $doc->addFont($pagenum, $fontname, $fontlabel)
 
-=item addFont PAGENUM, FONTNAME, FONTLABEL, FONTMETRICS
+=item $doc->addFont($pagenum, $fontname, $fontlabel, $fontmetrics)
 
 Adds a reference to the specified font to the page.
 
-If a fontmetrics hash is supplied (it is required for a font other
+If a font metrics hash is supplied (it is required for a font other
 than the 14 core fonts), then it is cloned and inserted into the new
-font structure.  Note that if those fontmetrics contain references
-(e.g. to the FontDescriptor), the referred objects are not copied --
+font structure.  Note that if those font metrics contain references
+(e.g. to the C<FontDescriptor>), the referred objects are not copied --
 you must do that part yourself.
 
-For Type1 fonts, the fontmetrics must minimally contain the following
+For Type1 fonts, the font metrics must minimally contain the following
 fields: C<Subtype>, C<FirstChar>, C<LastChar>, C<Widths>,
 C<FontDescriptor>.
 
@@ -1744,20 +1749,20 @@ sub addFont
    return $self;
 }
 
-=item deEmbedFont PAGENUM, FONTNAME
+=item $doc->deEmbedFont($pagenum, $fontname)
 
-=item deEmbedFont PAGENUM, FONTNAME, BASEFONT
+=item $doc->deEmbedFont($pagenum, $fontname, $basefont)
 
 Removes embedded font data, leaving font reference intact.  Returns
 true if the font exists and 1) font is not embedded or 2) embedded
 data was successfully discarded.  Returns false if the font does not
 exist, or the embedded data could not be discarded.
 
-The optional basefont parameter allows you to change the font.  This
+The optional C<$basefont> parameter allows you to change the font.  This
 is useful when some applications embed a standard font (see below) and
-give it a funny name, like 'SYLXNP+Helvetica'.  In this example, it's
-important to change the basename back to the standard 'Helvetica' when
-dembedding.
+give it a funny name, like C<SYLXNP+Helvetica>.  In this example, it's
+important to change the basename back to the standard C<Helvetica> when
+de-embedding.
 
 De-embedding the font does NOT remove it from the PDF document, it
 just removes references to it.  To get a size reduction by throwing
@@ -1766,9 +1771,9 @@ after this method.
 
   $self->cleanse();
 
-For reference, the standard fonts are Times-Roman, Helvetica, and
-Courier (and their bold, italic and bold-italic forms) plus Symbol and
-Zapfdingbats. (Adobe PDF Reference v1.4, p.319)
+For reference, the standard fonts are C<Times-Roman>, C<Helvetica>, and
+C<Courier> (and their bold, italic and bold-italic forms) plus C<Symbol> and
+C<Zapfdingbats>. (Adobe PDF Reference v1.4, p.319)
 
 =cut
 
@@ -1793,9 +1798,9 @@ sub deEmbedFont
    return $success;
 }
 
-=item deEmbedFontByBaseName PAGENUM, FONTNAME
+=item $doc->deEmbedFontByBaseName($pagenum, $fontname)
 
-=item deEmbedFontByBaseName PAGENUM, FONTNAME, BASEFONT
+=item $doc->deEmbedFontByBaseName($pagenum, $fontname, $basefont)
 
 Just like deEmbedFont(), except that the font name parameter refers to
 the name of the current base font instead of the PDF label for the
@@ -1839,11 +1844,12 @@ sub _deEmbedFontObj
    delete $font->{FirstChar};
    delete $font->{LastChar};
    $self->{changes}->{$font->{Type}->{objnum}} = 1;
+   return;
 }
 
-=item wrapString STRING, WIDTH, FONTSIZE, FONTMETRICS
+=item $doc->wrapString($string, $width, $fontsize, $fontmetrics)
 
-=item wrapString STRING, WIDTH, FONTSIZE, PAGENUM, FONTLABEL
+=item $doc->wrapString($string, $width, $fontsize, $pagenum, $fontlabel)
 
 Returns an array of strings wrapped to the specified width.
 
@@ -1868,15 +1874,15 @@ sub wrapString
       $fm = $self->getFont($pagenum, $fontlabel);
    }
 
-   $string =~ s/\r\n/\n/gs;
+   $string =~ s/ \r\n /\n/gxms;
    # no split limit, so trailing null strings are omitted
-   my @strings = split /[\r\n]/, $string;
+   my @strings = split /[\r\n]/xms, $string;
    my @out;
    $width /= $size;
    #print STDERR 'wrapping '.join('|',@strings)."\n";
    for my $s (@strings)
    {
-      $s =~ s/\s+$//;
+      $s =~ s/ \s+\z //xms;
       my $w = $self->getStringWidth($fm, $s);
       if ($w <= $width)
       {
@@ -1884,12 +1890,12 @@ sub wrapString
       }
       else
       {
-         $s =~ s/^(\s*)//;
+         $s =~ s/ \A(\s*) //xms;
          my $cur = $1;
          my $curw = $cur eq q{} ? 0 : $self->getStringWidth($fm, $cur);
          while ($s)
          {
-            $s =~ s/^(\s*)(\S*)//;
+            $s =~ s/ \A(\s*)(\S*) //xms;
             my $sp = $1;
             my $wd = $2;
             my $wwd = $wd eq q{} ? 0 : $self->getStringWidth($fm, $wd);
@@ -1924,7 +1930,7 @@ sub wrapString
    return @out;
 }
 
-=item getStringWidth FONTMETRICS, STRING
+=item $doc->getStringWidth($fontmetrics, $string)
 
 I<For INTERNAL use>
 
@@ -1948,16 +1954,16 @@ sub getStringWidth
    {
       if ($fontmetrics->{Widths})
       {
-         my $first  = $self->getValue($fontmetrics->{FirstChar});
-         my $last   = $self->getValue($fontmetrics->{LastChar});
-         my $widths = $self->getValue($fontmetrics->{Widths});
+         my $firstc  = $self->getValue($fontmetrics->{FirstChar});
+         my $lastc   = $self->getValue($fontmetrics->{LastChar});
+         my $widths  = $self->getValue($fontmetrics->{Widths});
          my $missing_width;
          my $fd;
          for my $char (unpack 'C*', $string)
          {
-            if ($char >= $first && $char <= $last)
+            if ($char >= $firstc && $char <= $lastc)
             {
-               $width += $widths->[$char - $first]->{value};
+               $width += $widths->[$char - $firstc]->{value};
             }
             else
             {
@@ -2016,7 +2022,7 @@ sub getStringWidth
    return $width;
 }
 
-=item numPages
+=item $doc->numPages()
 
 Returns the number of pages in the PDF document.
 
@@ -2028,7 +2034,7 @@ sub numPages
    return $self->{PageCount};
 }
 
-=item getPage PAGENUM
+=item $doc->getPage($pagenum)
 
 I<For INTERNAL use>
 
@@ -2134,7 +2140,7 @@ sub getPage
    return $self->{pagecache}->{$pagenum};
 }
 
-=item getPageObjnum PAGENUM
+=item $doc->getPageObjnum($pagenum)
 
 I<For INTERNAL use>
 
@@ -2164,7 +2170,7 @@ sub getPageObjnum
    }
 }   
 
-=item getPageText PAGENUM
+=item $doc->getPageText($pagenum)
 
 Extracts the text from a PDF page as a string.
 
@@ -2186,7 +2192,7 @@ sub getPageText
    return CAM::PDF::PageText->render($pagetree, $verbose);
 }
 
-=item getPageContentTree PAGENUM
+=item $doc->getPageContentTree($pagenum)
 
 Retrieves a parsed page content data structure, or undef if there is a
 syntax error or if the page does not exist.
@@ -2225,7 +2231,7 @@ sub getPageContentTree
    return $tree;
 }
 
-=item getPageContent PAGENUM
+=item $doc->getPageContent($pagenum)
 
 Return a string with the layout contents of one page.
 
@@ -2277,10 +2283,11 @@ sub getPageContent
    else
    {
       die "Unexpected content type for page contents\n";
+      return; # should never get here
    }
 }
 
-=item getName OBJECT
+=item $doc->getName($object)
 
 I<For INTERNAL use>
 
@@ -2305,7 +2312,7 @@ sub getName
    return q{};
 }
 
-=item getPrefs
+=item $doc->getPrefs()
 
 Return an array of security information for the document:
 
@@ -2346,7 +2353,7 @@ sub getPrefs
    return($self->{crypt}->{opass}, $self->{crypt}->{upass}, @p);
 }
 
-=item canPrint
+=item $doc->canPrint()
 
 Return a boolean indicating whether the Print permission is enabled
 on the PDF.
@@ -2359,7 +2366,7 @@ sub canPrint
    return ($self->getPrefs())[$PREF_PRINT];
 }
 
-=item canModify
+=item $doc->canModify()
 
 Return a boolean indicating whether the Modify permission is enabled
 on the PDF.
@@ -2372,7 +2379,7 @@ sub canModify
    return ($self->getPrefs())[$PREF_MODIFY];
 }
 
-=item canCopy
+=item $doc->canCopy()
 
 Return a boolean indicating whether the Copy permission is enabled
 on the PDF.
@@ -2385,7 +2392,7 @@ sub canCopy
    return ($self->getPrefs())[$PREF_COPY];
 }
 
-=item canAdd
+=item $doc->canAdd()
 
 Return a boolean indicating whether the Add permission is enabled
 on the PDF.
@@ -2398,10 +2405,10 @@ sub canAdd
    return ($self->getPrefs())[$PREF_ADD];
 }
 
-=item getFormFieldList
+=item $doc->getFormFieldList()
 
 Return an array of the names of all of the PDF form fields.  The names
-are the full heirarchical names constructed as explained in the PDF
+are the full hierarchical names constructed as explained in the PDF
 reference manual.  These names are useful for the fillFormFields()
 function.
 
@@ -2464,12 +2471,12 @@ sub getFormFieldList
    return @list;
 }
 
-=item getFormField NAME
+=item $doc->getFormField($name)
 
 I<For INTERNAL use>
 
 Return the object containing the form field definition for the
-specified field name.  NAME can be either the full name or the
+specified field name.  C<$name> can be either the full name or the
 "short/alternate" name.
 
 =cut
@@ -2485,9 +2492,9 @@ sub getFormField
    {
       my $kidlist;
       my $parent;
-      if ($fieldname =~ /\./)
+      if ($fieldname =~ m/ \. /xms)
       {
-         $fieldname =~ s/^(.*)\.([\.]+)$/$2/;
+         $fieldname =~ s/ \A(.*)\.([\.]+)\z /$2/xms;
          my $parentname = $1;
          $parent = $self->getFormField($parentname);
          return if (!$parent);
@@ -2526,12 +2533,12 @@ sub getFormField
    return $self->{formcache}->{$fieldname};
 }
 
-=item getFormFieldDict FORMFIELDOBJECT
+=item $doc->getFormFieldDict($formfieldobject)
 
 I<For INTERNAL use>
 
-Return a hashreference representing the accumulated property list for
-a formfield, including all of it's inherited properties.  This should
+Return a hash reference representing the accumulated property list for
+a form field, including all of it's inherited properties.  This should
 be treated as a read-only hash!  It ONLY retrieves the properties it
 knows about.
 
@@ -2600,7 +2607,7 @@ sub getFormFieldDict
 
 =over
 
-=item setPrefs OWNERPASS, USERPASS, PRINT?, MODIFY?, COPY?, ADD?
+=item $doc->setPrefs($ownerpass, $userpass, $print?, $modify?, $copy?, $add?)
 
 Alter the document's security information.  Note that modifying these
 parameters must be done respecting the intellectual property of the
@@ -2622,9 +2629,10 @@ sub setPrefs
 
    my $p = $self->{crypt}->encode_permissions(@prefs[2..5]);
    $self->{crypt}->set_passwords($self, @prefs[0..1], $p);
+   return;
 }
 
-=item setName OBJECT, NAME
+=item $doc->setName($object, $name)
 
 I<For INTERNAL use>
 
@@ -2650,7 +2658,7 @@ sub setName
    return;
 }
 
-=item removeName OBJECT
+=item $doc->removeName($object)
 
 I<For INTERNAL use>
 
@@ -2676,7 +2684,7 @@ sub removeName
 }
 
 
-=item pageAddName PAGENUM, NAME, OBJECTNUM
+=item $doc->pageAddName($pagenum, $name, $objectnum)
 
 I<For INTERNAL use>
 
@@ -2718,9 +2726,10 @@ sub pageAddName
    {
       $self->{changes}->{$objnum} = 1;
    }
+   return;
 }
 
-=item setPageContent PAGENUM, CONTENT
+=item $doc->setPageContent($pagenum, $content)
 
 Replace the content of the specified page with a new version.  This
 function is often used after the getPageContent() function and some
@@ -2755,9 +2764,10 @@ sub setPageContent
       $page->{Contents} = CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
       $self->{changes}->{$objnum} = 1;
    }
+   return;
 }
 
-=item appendPageContent PAGENUM, CONTENT
+=item $doc->appendPageContent($pagenum, $content)
 
 Add more content to the specified page.  Note that this function does
 NOT do any page metadata work for you (like creating font objects for
@@ -2795,9 +2805,10 @@ sub appendPageContent
       die "Unsupported Content type \"$page->{Contents}->{type}\" on page $pagenum\n";
    }
    $self->{changes}->{$objnum} = 1;
+   return;
 }
 
-=item extractPages PAGES...
+=item $doc->extractPages($pages...)
 
 Remove all pages from the PDF except the specified ones.  Like
 deletePages(), the pages can be multiple arguments, comma separated
@@ -2825,7 +2836,7 @@ sub extractPages
    return $self->_deletePages(@delete);
 }
 
-=item deletePages PAGES...
+=item $doc->deletePages($pages...)
 
 Remove the specified pages from the PDF.  The pages can be multiple
 arguments, comma separated lists, ranges (open or closed).
@@ -2872,7 +2883,7 @@ sub _deletePages
    return $self;
 }
 
-=item deletePage PAGENUM
+=item $doc->deletePage($pagenum)
 
 Remove the specified page from the PDF.  If the PDF has only one page,
 this method will fail.
@@ -3048,6 +3059,7 @@ sub _deleteRefsToPages
       my $outlines = $self->getValue($root->{Outlines});
       $self->_deleteOutlines($outlines, \%objnums);
    }
+   return;
 }
 
 sub _deleteOutlines
@@ -3106,6 +3118,7 @@ sub _deleteOutlines
       }
    }
    #print "nodes: $nodes, dests: $dests, deleted: $deleted\n";
+   return;
 }
 
 sub _deleteDests
@@ -3292,7 +3305,7 @@ sub _deleteDests
    return exists $dests->{deleted};
 }
 
-=item decachePages PAGENUM, PAGENUM, ...
+=item $doc->decachePages($pagenum, $pagenum, ...)
 
 Clears cached copies of the specified page data structures.  This is
 useful if an operation has been performed that changes a page.
@@ -3315,7 +3328,7 @@ sub decachePages
 }
 
 
-=item addPageResources PAGENUM, RESOURCEHASH
+=item $doc->addPageResources($pagenum, $resourcehash)
 
 Add the resources from the given object to the page resource
 dictionary.  If the page does not have a resource dictionary, create
@@ -3407,16 +3420,17 @@ sub addPageResources
          warn "Internal error: unsupported resource type '$type'";
       }
    }
+   return;
 }
 
-=item appendPDF PDF
+=item $doc->appendPDF($pdf)
 
 Append pages from another PDF document to this one.  No optimization
 is done -- the pieces are just appended and the internal table of
 contents is updated.
 
 Note that this can break documents with annotations.  See the
-appendpdf.pl script for a workaround.
+F<appendpdf.pl> script for a workaround.
 
 =cut
 
@@ -3505,7 +3519,7 @@ sub appendPDF
    return $key;
 }
 
-=item prependPDF PDF
+=item $doc->prependPDF($pdf)
 
 Just like appendPDF() except the new document is inserted on page 1
 instead of at the end.
@@ -3518,14 +3532,14 @@ sub prependPDF
    return $self->appendPDF(@_, 1);
 }
 
-=item duplicatePage PAGENUM
+=item $doc->duplicatePage($pagenum)
 
-=item duplicatePage PAGENUM, LEAVEBLANK
+=item $doc->duplicatePage($pagenum, $leaveblank)
 
 Inserts an identical copy of the specified page into the document.
-The new page's number will be C<pagenum + 1>.
+The new page's number will be C<$pagenum + 1>.
 
-If C<leaveblank> is true, the new page does not get any content.
+If C<$leaveblank> is true, the new page does not get any content.
 Thus, the document is broken until you subsequently call
 setPageContent().
 
@@ -3573,9 +3587,9 @@ sub duplicatePage
    return $self;
 }
 
-=item createStreamObject CONTENT
+=item $doc->createStreamObject($content)
 
-=item createStreamObject CONTENT, FILTER ...
+=item $doc->createStreamObject($content, $filter ...)
 
 I<For INTERNAL use>
 
@@ -3608,15 +3622,15 @@ sub createStreamObject
    return $obj;
 }
 
-=item uninlineImages
+=item $doc->uninlineImages()
 
-=item uninlineImages PAGENUM
+=item $doc->uninlineImages($pagenum)
 
 Search the content of the specified page (or all pages if the
 page number is omitted) for embedded images.  If there are any, replace
 them with indirect objects.  This procedure uses heuristics to detect
-inline images, and is subject to confusion in extremely rare cases of text
-that uses "BI" and "ID" a lot.
+in-line images, and is subject to confusion in extremely rare cases of text
+that uses C<BI> and C<ID> a lot.
 
 =cut
 
@@ -3642,10 +3656,10 @@ sub uninlineImages
       {
          # manual \bBI check
          # if beginning of string or token
-         if ($pos == 0 || (substr $c, $pos-1, 1) =~ /\W/)
+         if ($pos == 0 || (substr $c, $pos-1, 1) =~ m/ \W /xms)
          {
             my $part = substr $c, $pos;
-            if ($part =~ /^BI\b(.*?)\bID\b/s)
+            if ($part =~ m/ \A BI\b(.*?)\bID\b /xms)
             {
                my $im = $1;
 
@@ -3653,14 +3667,14 @@ sub uninlineImages
                ## image and not just coincidental text
 
                # Fix easy cases of "BI text) BI ... ID"
-               $im =~ s/^.*\bBI\b//; 
+               $im =~ s/ \A .*\bBI\b //xms; 
                # There should never be an EI inside of a BI ... ID
-               next if ($im =~ /\bEI\b/);
+               next if ($im =~ m/ \bEI\b /xms);
                
                # Easy tests: is this the beginning or end of a string?
                # (these aren't really good tests...)
-               next if ($im =~ /^\)/);
-               next if ($im =~ /\($/);
+               next if ($im =~ m/ \A \)    /xms);
+               next if ($im =~ m/    \( \z /xms);
                
                # this is the most complex heuristic:
                # make sure that there is an open paren before every close
@@ -3668,15 +3682,15 @@ sub uninlineImages
                my $test = $im;  # make a copy we can scribble on
                my $failed = 0;
                # get rid of escaped parens for the test
-               $test =~ s/\\[\(\)]//gs; 
+               $test =~ s/ \\[\(\)] //gxms; 
                # Look for closing parens
-               while ($test =~ s/^(.*?)\)//s)
+               while ($test =~ s/ \A(.*?)\) //xms)
                {
                   # If there is NOT an opening paren before the
                   # closing paren we detected above, then the start of
                   # our string is INSIDE a paren pair, thus a failure.
                   my $bit = $1;
-                  if ($bit !~ /\(/)
+                  if ($bit !~ m/ \( /xms)
                   {
                      $failed = 1;
                      last;
@@ -3720,9 +3734,9 @@ sub uninlineImages
    return $changes;
 }
 
-=item appendObject DOC, OBJECTNUM, RECURSE?
+=item $doc->appendObject($doc, $objectnum, $recurse?)
 
-=item appendObject undef, OBJECT, RECURSE?
+=item $doc->appendObject($undef, $object, $recurse?)
 
 Duplicate an object from another PDF document and add it to this
 document, optionally descending into the object and copying any other
@@ -3756,9 +3770,9 @@ sub appendObject
    }
 }
 
-=item replaceObject OBJECTNUM, DOC, OBJECTNUM, RECURSE?
+=item $doc->replaceObject($objectnum, $doc, $objectnum, $recurse?)
 
-=item replaceObject OBJECTNUM, undef, OBJECT
+=item $doc->replaceObject($objectnum, $undef, $object)
 
 Duplicate an object from another PDF document and insert it into this
 document, replacing an existing object.  Optionally descend into the
@@ -3839,7 +3853,7 @@ sub replaceObject
    return (%newrefkeys);
 }
 
-=item deleteObject OBJECTNUM
+=item $doc->deleteObject($objectnum)
 
 Remove an object from the document.  This function does NOT take care
 of dependencies on this object.
@@ -3856,13 +3870,14 @@ sub deleteObject
    delete $self->{xref}->{$objnum};
    delete $self->{endxref}->{$objnum};
    delete $self->{changes}->{$objnum};
+   return;
 }
 
-=item cleanse
+=item $doc->cleanse()
 
 Remove unused objects.  I<WARNING:> this function breaks some PDF
 documents because it removes objects that are strictly part of the
-page model heirarchy, but which are required anyway (like some font
+page model hierarchy, but which are required anyway (like some font
 definition objects).
 
 =cut
@@ -3887,9 +3902,10 @@ sub cleanse
          $self->deleteObject($i);
       }
    }
+   return;
 }
 
-=item createID
+=item $doc->createID()
 
 I<For INTERNAL use>
 
@@ -3947,10 +3963,10 @@ sub createID
    return 1;
 }
 
-=item fillFormFields NAME => VALUE ...
+=item $doc->fillFormFields($name => $value, ...)
 
 Set the default values of PDF form fields.  The name should be the
-full heirarchical name of the field as output by the
+full hierarchical name of the field as output by the
 getFormFieldList() function.  The argument list can be a hash if you
 like.  A simple way to use this function is something like this:
 
@@ -4019,8 +4035,12 @@ sub fillFormFields
          {
             my $r = $self->getValue($dict->{Rect});
             my ($x1, $y1, $x2, $y2) = @$r;
-            @rect = ($self->getValue($x1), $self->getValue($y1),
-                     $self->getValue($x2), $self->getValue($y2));
+            @rect = (
+               $self->getValue($x1),
+               $self->getValue($y1),
+               $self->getValue($x2),
+               $self->getValue($y2),
+            );
          }
          my $dx = $rect[2]-$rect[0];
          my $dy = $rect[3]-$rect[1];
@@ -4037,8 +4057,8 @@ sub fillFormFields
                                                    $formgnum);
          }
          my $text = $value;
-         $text =~ s/\r\n?/\n/gs;
-         $text =~ s/\n+$//s;
+         $text =~ s/ \r\n? /\n/gxms;
+         $text =~ s/ \n+\z //xms;
 
          my @rsrcs;
          my $fontmetrics = 0;
@@ -4054,12 +4074,12 @@ sub fillFormFields
             $da = $self->getValue($propdict->{DA});
 
             # Try to pull out all of the resources used in the text object
-            @rsrcs = ($da =~ /\/([^\s<>\/\[\]\(\)]+)/g);
+            @rsrcs = ($da =~ m/ \/([^\s<>\/\[\]\(\)]+) /gxms);
 
             # Try to pull out the font size, if any.  If more than
             # one, pick the last one.  Font commands look like:
             # "/<fontname> <size> Tf"
-            if ($da =~ /\s*\/(\w+)\s+(\d+)\s+Tf.*?$/)
+            if ($da =~ m/ \s*\/(\w+)\s+(\d+)\s+Tf.*? \z /xms)
             {
                $fontname = $1;
                $fontsize = $2;
@@ -4083,7 +4103,7 @@ sub fillFormFields
             # Just decode the ones we actually care about
             # PDF ref, 3rd ed pp 532,543
             my $ff = $self->getValue($propdict->{Ff});
-            my @flags = split //, unpack 'b*', pack 'V', $ff;
+            my @flags = split //xms, unpack 'b*', pack 'V', $ff;
             $flags{ReadOnly}        = $flags[0];
             $flags{Required}        = $flags[1];
             $flags{NoExport}        = $flags[2];
@@ -4102,7 +4122,7 @@ sub fillFormFields
          # The order of the following sections is important!
          if ($flags{Password})
          {
-            $text =~ s/[^\n]/*/g;  # Asterisks for password characters
+            $text =~ s/ [^\n] /*/gxms;  # Asterisks for password characters
          }
 
          if ($fontmetrics && (!$fontsize))
@@ -4110,7 +4130,7 @@ sub fillFormFields
             # Fix autoscale fonts
             $stringwidth = 0;
             my $lines = 0;
-            for my $line (split /\n/, $text)  # trailing null strings omitted
+            for my $line (split /\n/xms, $text)  # trailing null strings omitted
             {
                $lines++;
                my $w = $self->getStringWidth($fontmetrics, $line);
@@ -4128,7 +4148,7 @@ sub fillFormFields
             {
                $fontsize *= $maxwidth/$fontwidth;
             }
-            $da =~ s/\/$fontname\s+0\s+Tf\b/\/$fontname $fontsize Tf/g;
+            $da =~ s/ \/$fontname\s+0\s+Tf\b /\/$fontname $fontsize Tf/gxms;
          }
          if ($fontsize)
          {
@@ -4142,7 +4162,10 @@ sub fillFormFields
 
          if ($flags{Multiline})
          {
-            my $linebreaks = $text =~ s/\\n/\) Tj T* \(/g;
+            # TODO: wrap the field with wrapString()??
+            # Shawn Dawson of Silent Solutions pointed out that this does not auto-wrap the input text
+
+            my $linebreaks = $text =~ s/ \\n /\) Tj T* \(/gxms;
 
             # Total guess work:
             # line height is either 150% of fontsize or thrice
@@ -4230,11 +4253,11 @@ sub fillFormFields
 }
 
 
-=item clearFormFieldTriggers NAME, NAME, ...
+=item $doc->clearFormFieldTriggers($name, $name, ...)
 
 Disable any triggers set on data entry for the specified form field
 names.  This is useful in the case where, for example, the data entry
-javascript forbids punctuation and you want to prefill with a
+Javascript forbids punctuation and you want to prefill with a
 hyphenated word.  If you don't clear the trigger, the prefill may not
 happen.
 
@@ -4260,9 +4283,10 @@ sub clearFormFieldTriggers
          }
       }
    }
+   return;
 }
 
-=item clearAnnotations
+=item $doc->clearAnnotations()
 
 Remove all annotations from the document.  If form fields are
 encountered, their text is added to the appropriate page.
@@ -4325,7 +4349,7 @@ sub clearAnnotations
                   {
                      die 'Internal error: expected a content stream from the form copy';
                   }
-                  $content =~ s/\bre(\s+)f\b/re$1n/gs;
+                  $content =~ s/ \bre(\s+)f\b /re$1n/gxms;
                   $content = "q 1 0 0 1 $x $y cm\n$content Q\n";
                   $self->appendPageContent($p, $content);
                   $self->addPageResources($p, $self->getValue($n->{value}->{Resources}));
@@ -4338,6 +4362,7 @@ sub clearAnnotations
 
    # kill off the annotation dependencies
    $self->cleanse();
+   return;
 }
 
 
@@ -4349,7 +4374,7 @@ sub clearAnnotations
 
 =over
 
-=item preserveOrder
+=item $doc->preserveOrder()
 
 Try to recreate the original document as much as possible.  This may
 help in recreating documents which use undocumented tricks of saving
@@ -4366,9 +4391,10 @@ sub preserveOrder
    my %positions = reverse %{$self->{xref}};
    $self->{order} = [map {($positions{$_})} sort {$a<=>$b} keys %positions];
    #print 'Wrote order ' . join(q{,},@{$self->{order}}) . "\n";
+   return;
 }
 
-=item isLinearized
+=item $doc->isLinearized()
 
 Returns a boolean indicating whether this PDF is linearized (aka
 "optimized").
@@ -4403,7 +4429,7 @@ sub isLinearized
    return $linearized;
 }
 
-=item delinearize
+=item $doc->delinearize()
 
 I<For INTERNAL use>
 
@@ -4443,14 +4469,15 @@ sub delinearize
    }
 
    $self->{delinearized} = 1;
+   return;
 }
 
-=item clean
+=item $doc->clean()
 
 Cache all parts of the document and throw away it's old structure.
 This is useful for writing PDFs anew, instead of simply appending
-changes to the existing documents.  This is called by cleansave and
-cleanoutput.
+changes to the existing documents.  This is called by cleansave() and
+cleanoutput().
 
 =cut
 
@@ -4485,9 +4512,10 @@ sub clean
    $self->{content} = q{};
    $self->{contentlength} = 0;
    delete $self->{trailer}->{Prev};
+   return;
 }
 
-=item needsSave
+=item $doc->needsSave()
 
 Returns a boolean indicating whether the save() method needs to be
 called.  Like save(), this has nothing to do with whether the document
@@ -4503,7 +4531,7 @@ sub needsSave
    return 0 != keys %{$self->{changes}};
 }
 
-=item save
+=item $doc->save()
 
 Serialize the document into a single string.  All changed document
 elements are normalized, and a new index and an updated trailer are
@@ -4562,7 +4590,7 @@ sub save
       delete $self->{changes}->{$key};
    }
 
-   if ($self->{content} !~ /[\r\n]$/s)
+   if ($self->{content} !~ m/ [\r\n] \z /xms)
    {
       $self->{content} .= "\n";
    }
@@ -4641,7 +4669,7 @@ sub save
    return $self;
 }
 
-=item cleansave
+=item $doc->cleansave()
 
 Call the clean() function, then call the save() function.
 
@@ -4652,12 +4680,12 @@ sub cleansave
    my $self = shift;
 
    $self->clean();
-   $self->save();
+   return $self->save();
 }
 
-=item output FILENAME
+=item $doc->output($filename)
 
-=item output
+=item $doc->output()
 
 Save the document to a file.  The save() function is called first to
 serialize the data structure.  If no filename is specified, or if the
@@ -4701,9 +4729,9 @@ sub output
    return $self;
 }
 
-=item cleanoutput FILE
+=item $doc->cleanoutput($file)
 
-=item cleanoutput
+=item $doc->cleanoutput()
 
 Call the clean() function, then call the output() function to write a
 fresh copy of the document to a file.
@@ -4716,10 +4744,10 @@ sub cleanoutput
    my $file = shift;
 
    $self->clean();
-   $self->output($file);
+   return $self->output($file);
 }
 
-=item writeObject OBJNUM
+=item $doc->writeObject($objnum)
 
 Return the serialization of the specified object.
 
@@ -4733,7 +4761,7 @@ sub writeObject
    return "$objnum 0 " . $self->writeAny($self->dereference($objnum));
 }
 
-=item writeString STRING
+=item $doc->writeString($string)
 
 Return the serialization of the specified string.  Works on normal or
 hex strings.  If encryption is desired, the string should be encrypted
@@ -4759,22 +4787,22 @@ sub writeString
    # the fragments, so grep them out
 
    my $maxstr = (ref $pkg_or_doc) ? $pkg_or_doc->{maxstr} : $CAM::PDF::MAX_STRING;
-   my @strs = grep {$_ ne q{}} split /(.{$maxstr}})/, $string;
+   my @strs = grep {$_ ne q{}} split /(.{$maxstr}})/xms, $string;
    for (@strs)
    {
-      s/\\/\\\\/g;       # escape escapes -- this line must come first!
-      s/([\(\)])/\\$1/g; # escape parens
-      s/\n/\\n/g;
-      s/\r/\\r/g;
-      s/\t/\\t/g;
-      s/\f/\\f/g;
+      s/ \\       /\\\\/gxms;  # escape escapes -- this line must come first!
+      s/ ([\(\)]) /\\$1/gxms;  # escape parens
+      s/ \n       /\\n/gxms;
+      s/ \r       /\\r/gxms;
+      s/ \t       /\\t/gxms;
+      s/ \f       /\\f/gxms;
       # TODO: handle backspace char
-      #s/???/\\b/g;
+      #s/ ???      /\\b/gxms;
    }
    return '(' . (join "\\\n", @strs) . ')';
 }
 
-=item writeAny NODE
+=item $doc->writeAny($node)
 
 Returns the serialization of the specified node.  This handles all
 Node types, including object Nodes.
@@ -4955,15 +4983,15 @@ sub _writeObject
 
 =over
 
-=item traverse DEREFERENCE_FLAG, NODE, CALLBACKFUNC, CALLBACKDATA
+=item $doc->traverse($dereference, $node, $callbackfunc, $callbackdata)
 
 Recursive traversal of a PDF data structure.
 
 In many cases, it's useful to apply one action to every node in an
 object tree.  The routines below all use this traverse() function.
-One of the most important parameters is the first: $deref=(1|0) If
-true, the traversal follows reference Nodes.  If false, it does not
-descend into refererence Nodes.
+One of the most important parameters is the first: the C<$dereference>
+boolean.  If true, the traversal follows reference Nodes.  If false,
+it does not descend into reference Nodes.
 
 =cut
 
@@ -4987,32 +5015,27 @@ sub traverse
       my $type = $obj->{type};
       my $val = $obj->{value};
 
-      if ($type eq 'dictionary')  ## no critic for if-elsif chain
+      if ($type eq 'object')
       {
-         push @stack, values %$val;
-      }
-      elsif ($type eq 'array')
-      {
-         push @stack, @$val;
-      }
-      elsif ($type eq 'object')
-      {
+         # Shrink stack periodically
          splice @stack, 0, $i;
          $i = 0;
+         # Mark object done
          if ($obj->{objnum})
          {
             $traversed->{$obj->{objnum}} = 1;
          }
-         push @stack, $val;
       }
-      elsif ($type eq 'reference')
-      {
-         if ($deref && !exists $traversed->{$val})
-         {
-            push @stack, $self->dereference($val);
-         }
-      }
+
+      push @stack, $type eq 'dictionary'          ? values %$val
+                 : $type eq 'array'               ? @$val
+                 : $type eq 'object'              ? $val
+                 : $type eq 'reference'
+                   && $deref
+                   && !exists $traversed->{$val}  ? $self->dereference($val)
+                 : ();
    }
+   return;
 }
 
 # decodeObject and decodeAll differ from each other like this:
@@ -5023,7 +5046,7 @@ sub traverse
 #  decodeAll descends through a whole object tree (following
 #  references) decoding everything it can find
 
-=item decodeObject OBJECTNUM
+=item $doc->decodeObject($objectnum)
 
 I<For INTERNAL use>
 
@@ -5040,9 +5063,10 @@ sub decodeObject
    my $obj = $self->dereference($objnum);
 
    $self->decodeOne($obj->{value}, 1);
+   return;
 }
 
-=item decodeAll OBJECT
+=item $doc->decodeAll($object)
 
 I<For INTERNAL use>
 
@@ -5057,16 +5081,17 @@ sub decodeAll
    my $obj = shift;
 
    $self->traverse(1, $obj, \&decodeOne, 1);
+   return;
 }
 
-=item decodeOne OBJECT
+=item $doc->decodeOne($object)
 
-=item decodeOne OBJECT, SAVE?
+=item $doc->decodeOne($object, $save?)
 
 I<For INTERNAL use>
 
-Remove any filters from an object.  The boolean flag SAVE (defaults to
-false) indicates whether this defiltering should be permanent or just
+Remove any filters from an object.  The boolean flag C<$save> (defaults to
+false) indicates whether this removal should be permanent or just
 this once.  If true, the function returns success or failure.  If
 false, the function returns the defiltered content.
 
@@ -5204,7 +5229,7 @@ sub decodeOne
    }
 }
 
-=item fixDecode DATA, FILTER, PARAMS
+=item $doc->fixDecode($data, $filter, $params)
 
 This is a utility method to do any tweaking after removing the filter
 from a data stream.
@@ -5238,21 +5263,25 @@ sub fixDecode
             #warn "Fix PNG\n";
             if (exists $d->{Columns})
             {
-               my $c = $self->getValue($d->{Columns});
-               my $l = length $$data;
+               my $c       = $self->getValue($d->{Columns});
+               my $len     = length $$data;
                my $newdata = q{};
-               for (my $i=1; $i < $l; $i += $c+1)  ## no critic for C-style for
+
+               my $i = 1;
+               while ($i < $len)
                {
                   $newdata .= substr $$data, $i, $c;
+                  $i += $c+1;
                }
                $$data = $newdata;
             }
          }
       }
    }
+   return;
 }
 
-=item encodeObject OBJECTNUM, FILTER
+=item $doc->encodeObject($objectnum, $filter)
 
 Apply the specified filter to the object.
 
@@ -5267,9 +5296,10 @@ sub encodeObject
    my $obj = $self->dereference($objnum);
 
    $self->encodeOne($obj->{value}, $filtername);
+   return;
 }
 
-=item encodeOne OBJECT, FILTER
+=item $doc->encodeOne($object, $filter)
 
 Apply the specified filter to the object.
 
@@ -5386,7 +5416,7 @@ sub encodeOne
 }
 
 
-=item setObjNum OBJECT, OBJECTNUM, GENNUM
+=item $doc->setObjNum($object, $objectnum, $gennum)
 
 Descend into an object and change all of the INTERNAL object number
 flags to a new number.  This is just for consistency of internal
@@ -5402,6 +5432,7 @@ sub setObjNum
    my $gennum = shift;
    
    $self->traverse(0, $obj, \&_setObjNumCB, [$objnum, $gennum]);
+   return;
 }
 
 # PRIVATE FUNCTION
@@ -5414,9 +5445,10 @@ sub _setObjNumCB
    
    $obj->{objnum} = $nums->[0];
    $obj->{gennum} = $nums->[1];
+   return;
 }
 
-=item getRefList OBJECT
+=item $doc->getRefList($object)
 
 I<For INTERNAL use>
 
@@ -5447,9 +5479,10 @@ sub _getRefListCB
    {
       $list->{$obj->{value}} = 1;
    }
+   return;
 }
 
-=item changeRefKeys OBJECT, HASHREF
+=item $doc->changeRefKeys($object, $hashref)
 
 I<For INTERNAL use>
 
@@ -5466,6 +5499,7 @@ sub changeRefKeys
    my $follow = shift || 0;   # almost always false
 
    $self->traverse($follow, $obj, \&_changeRefKeysCB, $newrefkeys);
+   return;
 }
 
 # PRIVATE FUNCTION
@@ -5483,9 +5517,10 @@ sub _changeRefKeysCB
          $obj->{value} = $newrefkeys->{$obj->{value}};
       }
    }
+   return;
 }
 
-=item abbrevInlineImage OBJECT
+=item $doc->abbrevInlineImage($object)
 
 Contract all image keywords to inline abbreviations.
 
@@ -5497,9 +5532,10 @@ sub abbrevInlineImage
    my $obj = shift;
 
    $self->traverse(0, $obj, \&_abbrevInlineImageCB, {reverse %inlineabbrevs});
+   return;
 }
 
-=item unabbrevInlineImage OBJECT
+=item $doc->unabbrevInlineImage($object)
 
 Expand all inline image abbreviations.
 
@@ -5511,6 +5547,7 @@ sub unabbrevInlineImage
    my $obj = shift;
 
    $self->traverse(0, $obj, \&_abbrevInlineImageCB, \%inlineabbrevs);
+   return;
 }
 
 # PRIVATE FUNCTION
@@ -5542,13 +5579,14 @@ sub _abbrevInlineImageCB
          }
       }
    }
+   return;
 }
 
-=item changeString OBJECT, HASHREF
+=item $doc->changeString($object, $hashref)
 
 Alter all instances of a given string.  The hashref is a dictionary of
-oldstring and newstring.  If the oldstring looks like 'regex(...)'
-then it is intrepreted as a Perl regular expresssion and is eval'ed.
+from-string and to-string.  If the from-string looks like C<regex(...)>
+then it is interpreted as a Perl regular expression and is eval'ed.
 Otherwise the search-and-replace is literal.
 
 =cut
@@ -5560,6 +5598,7 @@ sub changeString
    my $changelist = shift;
 
    $self->traverse(0, $obj, \&_changeStringCB, $changelist);
+   return;
 }
 
 # PRIVATE FUNCTION
@@ -5574,12 +5613,12 @@ sub _changeStringCB
    {
       for my $key (keys %$changelist)
       {
-         if ($key =~ /^regex\((.*)\)$/)
+         if ($key =~ m/ \A regex\((.*)\) \z /xms)
          {
             my $regex = $1;
             my $res;
             eval {
-               $res = ($obj->{value} =~ s/$regex/$$changelist{$key}/gs);
+               $res = ($obj->{value} =~ s/ $regex /$$changelist{$key}/gxms);
             };
             if ($EVAL_ERROR)
             {
@@ -5592,13 +5631,14 @@ sub _changeStringCB
          }
          else
          {
-            if ($obj->{value} =~ s/$key/$$changelist{$key}/gs && $obj->{objnum})
+            if ($obj->{value} =~ s/ $key /$$changelist{$key}/gxms && $obj->{objnum})
             {
                $self->{changes}->{$obj->{objnum}} = 1;
             }
          }
       }
    }
+   return;
 }
 
 ######################################################################
@@ -5609,7 +5649,7 @@ sub _changeStringCB
 
 =over
 
-=item rangeToArray MIN, MAX, LIST...
+=item $doc->rangeToArray($min, $max, $list...)
 
 Converts string lists of numbers to an array.  For example,
 
@@ -5629,8 +5669,8 @@ sub rangeToArray
    my @array1 = grep {defined $_} @_;
 
    @array1 = map { 
-      s/[^\d\-,]//g;  # clean
-      /([\d\-]+)/g;   # split on numbers and ranges
+      s/ [^\d\-,] //gxms;   # clean
+      m/ ([\d\-]+) /gxms;   # split on numbers and ranges
    } @array1;
 
    my @array2;
@@ -5642,7 +5682,7 @@ sub rangeToArray
    {
       for (@array1)
       {
-         if (/(\d*)-(\d*)/)
+         if (m/ (\d*)-(\d*) /xms)
          {
             my $a = $1;
             my $b = $2;
@@ -5694,10 +5734,10 @@ sub rangeToArray
    return @array2;
 }
 
-=item trimstr STRING
+=item $doc->trimstr($string)
 
 Used solely for debugging.  Trims a string to a max of 40 characters,
-handling nulls and non-unix line endings.
+handling nulls and non-Unix line endings.
 
 =cut
 
@@ -5717,11 +5757,11 @@ sub trimstr
    {
       $s = (substr $s, $pos, 40) . '...';
    }
-   $s =~ s/\r/^M/gs;
+   $s =~ s/ \r /^M/gxms;
    return $pos . q{ } . $s . "\n";
 }
 
-=item copyObject NODE
+=item $doc->copyObject($node)
 
 Clones a node via Data::Dumper and eval().
 
@@ -5742,7 +5782,7 @@ sub copyObject
 }   
 
 
-=item cacheObjects
+=item $doc->cacheObjects()
 
 Parses all object Nodes and stores them in the cache.  This is useful
 for cases where you intend to do some global manipulation and want all
@@ -5761,9 +5801,10 @@ sub cacheObjects
          $self->{objcache}->{$key} = $self->dereference($key);
       }
    }
+   return;
 }
 
-=item asciify STRING
+=item $doc->asciify($string)
 
 Helper class/instance method to massage a string, cleaning up some
 non-ASCII problems.  This is a very ad-hoc list.  Specifically:
@@ -5785,9 +5826,9 @@ sub asciify
 
    ## Heuristics: fix up some odd text characters:
    # f-i ligature
-   $$R_string =~ s/\223/fi/g;
+   $$R_string =~ s/ \223 /fi/gxms;
    # Registered symbol
-   $$R_string =~ s/\xae/(R)/g;
+   $$R_string =~ s/ \xae /(R)/gxms;
    return $pkg_or_doc;
 }
 
@@ -5856,7 +5897,7 @@ It is designed for PDF creation, not for reuse.
 =head1 INTERNALS
 
 The data structure used to represent the PDF document is composed
-primarily of a heirarchy of Node objects.  Every node in the document
+primarily of a hierarchy of Node objects.  Every node in the document
 tree has this structure:
 
     type => <type>
@@ -5890,7 +5931,7 @@ All objects are referenced indirectly by their numbers, as defined in
 the PDF document.  In all cases, the dereference() function should be
 used to deserialize objects into their internal representation.  This
 function is also useful for looking up named objects in the page model
-metadata.  Every node in the heirarchy contains its object and
+metadata.  Every node in the hierarchy contains its object and
 generation number.  You can think of this as a sort of a pointer back
 to the root of each node tree.  This serves in place of a "parent"
 link for every node, which would be harder to maintain.
@@ -5909,3 +5950,5 @@ whole document at read time.
 Clotho Advanced Media Inc., I<cpan@clotho.com>
 
 Primary developer: Chris Dolan
+
+=cut

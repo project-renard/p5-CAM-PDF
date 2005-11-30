@@ -6,7 +6,9 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
+
+=for stopwords renderers
 
 =head1 NAME
 
@@ -129,17 +131,18 @@ sub _buildOpSyntax
       q{'} => ['string'],
       q{"} => ['number','number','string'],
    );
+   return;
 }
 
 =head1 FUNCTIONS
 
 =over
 
-=item new CONTENT
+=item $pkg->new($content)
 
-=item new CONTENT, DATA
+=item $pkg->new($content, $data)
 
-=item new CONTENT, DATA, VERBOSE
+=item $pkg->new($content, $data, $verbose)
 
 Parse a scalar CONTENT containing PDF page layout content.  Returns a parsed,
 but unvalidated, data structure.
@@ -172,7 +175,7 @@ sub new
    return $self->parse(\$content);
 }
 
-=item parse CONTENTREF
+=item $self->parse($contentref)
 
 This is intended to be called by the new() method.  The argument
 should be a reference to the content scalar.  It's passed by reference
@@ -188,7 +191,7 @@ sub parse
 
    $progress = 0;
    pos($$c) = 0;   ## no critic for builtin with parens
-   $$c =~ /^\s+/scg; # prime the regex
+   $$c =~ m/ \A \s+ /cgxms; # prime the regex
    my $result = $self->_parseBlocks($c, $self->{blocks});
    if (!defined $result)
    {
@@ -198,7 +201,7 @@ sub parse
       }
       return;
    }
-   if ($$c =~ /\G\S/scg)
+   if ($$c =~ m/ \G\S /cgxms)
    {
       if ($self->{verbose})
       {
@@ -220,7 +223,7 @@ sub _parseBlocks
    my $end = shift;
 
    my @stack;
-   while ($$c =~ /\G.*\S/)
+   while ($$c =~ m/ \G.*\S /xms)
    {
       my $block = $self->_parseBlock($c, $end);
       if (!defined $block)
@@ -262,7 +265,8 @@ sub _parseBlock
    my $c    = shift;
    my $end  = shift;
 
-   if ($$c =~ /\G($starts)\s*/scgo)   ## no critic for if-elsif chain
+   # Start a new block?
+   if ($$c =~ m/ \G($starts)\s* /ocgxms)
    {
       my $type = $1;
       my $blocks = [];
@@ -275,11 +279,15 @@ sub _parseBlock
          return;
       }
    }
-   elsif (defined $end && $$c =~ /\G$end\s*/scg)
+
+   # Balanced end to open block?
+   if (defined $end && $$c =~ m/ \G$end\s* /cgxms)
    {
       return q{};
    }
-   elsif ($$c =~ /\G($ends)\s*/scgo)
+
+   # Unbalanced end?
+   if ($$c =~ m/ \G($ends)\s* /ocgxms)
    {
       my $op = $1;
       if ($self->{verbose})
@@ -295,7 +303,9 @@ sub _parseBlock
       }
       return;
    }
-   elsif ($$c =~ /\G(BI)\b/)
+
+   # Inline image?
+   if ($$c =~ m/ \G(BI)\b /xms)
    {
       my $op = $1;
       my $img = CAM::PDF->parseInlineImage($c);
@@ -310,21 +320,31 @@ sub _parseBlock
       my $block = _b('op', $op, _b('image', $img->{value}));
       return $block;
    }
-   #elsif ($$c =~ /\G([bBcdfFgGhijJkKlmMnsSvwWy'"]|b\*|B\*|BDC|BI|d[01]|c[sm]|CS|Do|DP|f\*|gs|MP|re|RG|rg|ri|sc|SC|scn|SCN|sh|T[cdDfJjLmrswz\*]|W\*)\b\s*/scg)
-   elsif ($$c =~ /\G([A-Za-z\'\"][\w\*]*)\s*/scg)
+
+   # Non-block operand?
+
+   ## This is the REAL list
+   #if ($$c =~ m/ \G(
+   #                    [bBcdfFgGhijJkKlmMnsSvwWy\'\"]|
+   #                    b\*|B\*|BDC|BI|d[01]|c[sm]|CS|Do|DP|f\*|gs|MP|
+   #                    re|RG|rg|ri|sc|SC|scn|SCN|sh|T[cdDfJjLmrswz\*]|W\*
+   #                   )\b\s*
+   #               /cgxms)
+
+   ## This is a cheat version of the above
+   if ($$c =~ m/ \G([A-Za-z\'\"][\w\*]*)\s* /cgxms)
    {
       my $op = $1;
       return _b('op', $op);
    }
-   else
-   {
-      my $node = CAM::PDF->parseAny($c);
-      return _b($node->{type}, $node->{value});
-   }
-   die 'Content not understood: ' . CAM::PDF->trimstr($$c);
+
+   # If we get here, it's data instead of an operand
+
+   my $node = CAM::PDF->parseAny($c);
+   return _b($node->{type}, $node->{value});
 }
 
-=item validate
+=item $self->validate()
 
 Returns a boolean if the parsed content tree conforms to the PDF
 specification.
@@ -378,11 +398,11 @@ sub validate
                my $arg   = $block->{args}->[$i];
                my $types = $syntax->[$i];
                my $match = 0;
-               foreach my $type (split /\|/, $types)
+               foreach my $type (split /\|/xms, $types)
                {
                   if ($type eq 'integer')
                   {
-                     if ($arg->{type} eq 'number' && $arg->{value} =~ /^\d+$/)
+                     if ($arg->{type} eq 'number' && $arg->{value} =~ m/ \A\d+\z /xms)
                      {
                         $match = 1;
                         last;
@@ -418,7 +438,7 @@ sub validate
    return $self;
 }
 
-=item render RENDERERCLASS
+=item $self->render($rendererclass)
 
 Traverse the content tree using the specified rendering class.  See
 CAM::PDF::GS or CAM::PDF::Renderer::Text for renderer examples.
@@ -446,12 +466,12 @@ sub render
    return $self->traverse($renderer);
 }
 
-=item computeGS
+=item $self->computeGS()
 
-=item computeGS SKIPTEXT
+=item $self->computeGS($skiptext)
 
 Traverses the content tree and computes the coordinates of each
-graphic point along the way.  If the SKIPTEXT boolean is true
+graphic point along the way.  If the C<$skiptext> boolean is true
 (default: false) then text blocks are ignored to save time, since they
 do not change the global graphic state.
 
@@ -468,7 +488,7 @@ sub computeGS
    return $self->render('CAM::PDF::GS' . ($skip_text ? '::NoText' : q{}));
 }
 
-=item findImages
+=item $self->findImages()
 
 Traverse the content tree, accumulating embedded images and image
 references, according to the CAM::PDF::Renderer::Images renderer.
@@ -482,7 +502,7 @@ sub findImages
    return $self->render('CAM::PDF::Renderer::Images');
 }
 
-=item traverse RENDERERCLASS
+=item $self->traverse($rendererclass)
 
 This recursive method is typically called only by wrapper methods,
 like render().  It instantiates renderers as needed and calls methods
@@ -508,9 +528,9 @@ sub traverse
 
       # Enact the GS change performed by this operation
       my $func = $block->{name};
-      $func =~ s/\*/star/g;
-      $func =~ s/\'/quote/g;
-      $func =~ s/\"/doublequote/g;
+      $func =~ s/ \* /star/gxms;
+      $func =~ s/ \' /quote/gxms;
+      $func =~ s/ \" /doublequote/gxms;
 
       if ($gs->can($func))
       {
@@ -529,7 +549,7 @@ sub traverse
          #if ($before ne $after)
          #{
          #   print "diff: $$block{name}\n";
-         #   foreach my $hunk (Algorithm::Diff::diff([split /\n/, $before], [split /\n/, $after]))
+         #   foreach my $hunk (Algorithm::Diff::diff([split /\n/xms, $before], [split /\n/xms, $after]))
          #   {
          #      foreach my $change (@$hunk)
          #      {
@@ -553,7 +573,7 @@ sub traverse
    return $gs;
 }
 
-=item toString
+=item $self->toString()
 
 Flattens a content tree back into a scalar, ready to be inserted back
 into a PDF document.  Since whitespace is discarded by the parser, the
@@ -632,3 +652,5 @@ __END__
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

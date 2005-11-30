@@ -1,11 +1,15 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             density    => undef,
@@ -90,13 +94,15 @@ foreach my $p ($doc->rangeToArray(1, $doc->numPages(), $pagelist))
 
 __END__
 
+=for stopwords renderpdf.pl renderers
+
 =head1 NAME
 
 renderpdf.pl - Applies a renderer to one or more PDF pages
 
 =head1 SYNOPSIS
 
-renderpdf.pl [options] infile.pdf [<pagenums>]
+ renderpdf.pl [options] infile.pdf [<pagenums>]
 
  Options:
    -r --renderer=class uses this renderer class (default: CAM::PDF::Renderer::Dump)
@@ -124,8 +130,10 @@ CAM::PDF::Renderer::Text and the like).
 
 CAM::PDF
 
-getpdftext.pl
+F<getpdftext.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

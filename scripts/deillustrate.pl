@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose     => 0,
@@ -81,13 +85,15 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords deillustrate.pl
+
 =head1 NAME
 
 deillustrate.pl - Remove Adobe Illustrator metadata from a PDF file
 
 =head1 SYNOPSIS
 
-deillustrate.pl [options] infile.pdf [outfile.pdf]\n";
+ deillustrate.pl [options] infile.pdf [outfile.pdf]\n";
 
  Options:
    -o --order          preserve the internal PDF ordering for output
@@ -115,3 +121,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

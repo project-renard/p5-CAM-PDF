@@ -1,9 +1,13 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             count      => 0,
@@ -42,7 +46,7 @@ open my $in_fh, '<', $infile
 my $content = join q{}, <$in_fh>;
 close $in_fh;
 
-my @matches = ($content =~ /[\r\n]%%EOF *[\r\n]/sg);
+my @matches = ($content =~ m/ [\r\n]%%EOF *[\r\n] /gxms);
 my $revs = @matches;
 
 if ($opts{count})
@@ -60,7 +64,7 @@ elsif ($revs == 1)
 else
 {
    # Figure out line end character
-   $content =~ /(.)%%EOF.*?$/s
+   $content =~ m/ (.)%%EOF.*?\z /xms
        or die "Cannot find the end-of-file marker\n";
    my $lineend = $1;
    my $eof = $lineend.'%%EOF';
@@ -84,13 +88,15 @@ else
 
 __END__
 
+=for stopwords revertpdf.pl
+
 =head1 NAME
 
 revertpdf.pl - Remove the last edits to a PDF document
 
 =head1 SYNOPSIS
 
-revertpdf.pl [options] infile.pdf [outfile.pdf]\n";
+ revertpdf.pl [options] infile.pdf [outfile.pdf]\n";
 
  Options:
    -c --count          just print the number of revisions and exits
@@ -109,7 +115,7 @@ version of the PDF.
 This program remove the last layer of edits from the PDF document.  If
 there is just one revision, we emit a message and abort.
 
-The --count option just prints the number of generations the document
+The C<--count> option just prints the number of generations the document
 has endured and applies no changes.
 
 =head1 SEE ALSO
@@ -119,3 +125,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             # Hardcoded:
@@ -74,7 +78,7 @@ if (defined $opts{scaleval})
 }
 if (defined $opts{scaleminval})
 {
-   if ($opts{scaleminval} =~ /^\d+$/ && $opts{scaleminval} > 0)
+   if ($opts{scaleminval} =~ m/\A\d+\z/xms && $opts{scaleminval} > 0)
    {
       $opts{scalemin} = $opts{scaleminval};
    }
@@ -85,7 +89,7 @@ if (defined $opts{scaleminval})
 }
 if (defined $opts{qualityval})
 {
-   if ($opts{qualityval} =~ /^\d+$/ && $opts{qualityval} >= 1 && $opts{qualityval} <= 100)
+   if ($opts{qualityval} =~ m/\A\d+\z/xms && $opts{qualityval} >= 1 && $opts{qualityval} <= 100)
    {
       $opts{quality} = $opts{qualityval};
    }
@@ -98,7 +102,7 @@ foreach my $flag (qw( skip only ))
 {
    foreach my $val (@{$opts{$flag.'val'}})
    {
-      foreach my $key (split /\D+/, $val)
+      foreach my $key (split /\D+/xms, $val)
       {
          $opts{$flag}->{$key} = 1;
       }
@@ -139,10 +143,10 @@ my $newtotsize = 0;
 for my $p (1..$pages)
 {
    my $c = $doc->getPageContent($p);
-   my @parts = split /(\/[\w]+\s*Do)\b/s, $c;
+   my @parts = split /(\/[\w]+\s*Do)\b/xms, $c;
    foreach my $part (@parts)
    {
-      if ($part =~ /^(\/[\w]+)\s*Do$/s)
+      if ($part =~ m/\A(\/[\w]+)\s*Do\z/xms)
       {
          my $ref = $1;
          my $xobj = $doc->dereference($ref, $p);
@@ -234,8 +238,8 @@ for my $p (1..$pages)
             $media_array->[2]->{value} = $w;
             $media_array->[3]->{value} = $h;
             my $page = $rawpage;
-            $page =~ s/xxx/$w/ig;
-            $page =~ s/yyy/$h/ig;
+            $page =~ s/xxx/$w/igxms;
+            $page =~ s/yyy/$h/igxms;
             $tmpl->setPageContent(1, $page);
             $tmpl->replaceObject(9, $doc, $objnum, 1);
 
@@ -253,7 +257,8 @@ for my $p (1..$pages)
 
             _inform($cmd, $opts{Verbose});
 
-            open my $pipe, $cmd
+            # TODO: this should use IPC::Open3 or the like
+            open my $pipe, $cmd  ## no critic
                 or die "Failed to convert object $objnum to a jpg and back\n";
             my $content = join q{}, <$pipe>;
             close $pipe 
@@ -301,9 +306,12 @@ sub _inform
    {
       print STDERR $str, "\n";
    }
+   return;
 }
 
 __END__
+
+=for stopwords crunchjpgs.pl ImageMagick JPG
 
 =head1 NAME
 
@@ -311,7 +319,7 @@ crunchjpgs.pl - Compress all JPG images in a PDF
 
 =head1 SYNOPSIS
 
-crunchjpgs.pl [options] infile.pdf [outfile.pdf]
+ crunchjpgs.pl [options] infile.pdf [outfile.pdf]
 
  Options:
    -j --justjpgs       make script skip non-JPGs
@@ -334,12 +342,12 @@ The available values for --scale are:
     8   12.5%
 
 C<imnum> is a comma-separated list of integers indicating the images
-in order that they appear in the PDF.  Use listimages.pl to retrieve
+in order that they appear in the PDF.  Use F<listimages.pl> to retrieve
 the image numbers.
 
 =head1 DESCRIPTION
 
-Requires the ImageMagick C<convert> program to be available
+Requires the ImageMagick B<convert> program to be available
 
 Tweak all of the JPG images embedded in a PDF to reduce their size.
 This reduction can come from increasing the compression and/or
@@ -350,14 +358,16 @@ which images are altered.
 
 CAM::PDF
 
-listimages.pl
+F<listimages.pl>
 
-extractallimages.pl
+F<extractallimages.pl>
 
-extractjpgs.pl
+F<extractjpgs.pl>
 
-uninlinepdfimages.pl
+F<uninlinepdfimages.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

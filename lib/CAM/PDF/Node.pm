@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
 
 =head1 NAME
 
@@ -21,11 +21,11 @@ under the same terms as Perl itself.
 
 =over
 
-=item new TYPE, VALUE
+=item $pkg->new($type, $value)
 
-=item new TYPE, VALUE, OBJNUM
+=item $pkg->new($type, $value, $objnum)
 
-=item new TYPE, VALUE, OBJNUM, GENNUM
+=item $pkg->new($type, $value, $objnum, $gennum)
 
 Create a new PDF element.
 
@@ -64,3 +64,5 @@ __END__
 Clotho Advanced Media Inc., I<cpan@clotho.com>
 
 Primary developer: Chris Dolan
+
+=cut

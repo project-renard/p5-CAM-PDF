@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
 
 =head1 NAME
 
@@ -35,9 +35,9 @@ the renderText() method.
 
 =over
 
-=item getCoords NODE
+=item $self->getCoords($node)
 
-Computes device coords for the specified node.  This implementation
+Computes device coordinates for the specified node.  This implementation
 handles text-printing nodes, and hands all other types to the
 superclass.
 
@@ -48,7 +48,7 @@ sub getCoords
    my $self = shift;
    my $node = shift;
 
-   if ($node->{name} =~ /^(TJ|Tj|quote|doublequote)$/)
+   if ($node->{name} =~ m/ \A (TJ|Tj|quote|doublequote) \z /xms)
    {
       my ($x1,$y1) = $self->userToDevice(@{$self->{last}});
       my ($x2,$y2) = $self->userToDevice(@{$self->{current}});
@@ -60,9 +60,9 @@ sub getCoords
    }
 }
 
-=item textToUser X, Y
+=item $self->textToUser($x, $y)
 
-Convert text coordinates (Tm) to user coordinates.  Returns the
+Convert text coordinates (C<Tm>) to user coordinates.  Returns the
 converted X and Y.
 
 =cut
@@ -82,9 +82,9 @@ sub textToUser
    #return $self->dot($self->{Tm}, $self->dot($tf, $x, $y));
 }
 
-=item textToDevice X, Y
+=item $self->textToDevice($x, $y)
 
-Convert text coordinates (Tm) to device coordinates.  Returns
+Convert text coordinates (C<Tm>) to device coordinates.  Returns
 the converted X and Y.
 
 =cut
@@ -98,9 +98,9 @@ sub textToDevice
    return $self->userToDevice($self->textToUser($x, $y));
 }
 
-=item textLineToUser X, Y
+=item $self->textLineToUser($x, $y)
 
-Convert text coordinates (Tlm) to user coordinates.  Returns
+Convert text coordinates (C<Tlm>) to user coordinates.  Returns
 the converted X and Y.
 
 =cut
@@ -114,9 +114,9 @@ sub textLineToUser
    return $self->dot($self->{Tlm}, $x, $y);
 }
 
-=item textLineToDevice X, Y
+=item $self->textLineToDevice($x, $y)
 
-Convert text coordinates (Tlm) to device coordinates.
+Convert text coordinates (C<Tlm>) to device coordinates.
 Returns the converted X and Y.
 
 =cut
@@ -130,9 +130,9 @@ sub textLineToDevice
    return $self->userToDevice($self->textLineToUser($x, $y));
 }
 
-=item renderText STRING, WIDTH
+=item $self->renderText($string, $width)
 
-A general method for rendering strings, from Tj or TJ.  This is a
+A general method for rendering strings, from C<Tj> or C<TJ>.  This is a
 no-op, but subclasses may override.
 
 =cut
@@ -144,9 +144,10 @@ sub renderText
    my $width = shift;
 
    # noop, override in subclasses
+   return;
 }
 
-=item Tadvance WIDTH
+=item $self->Tadvance($width)
 
 Move the text cursor.
 
@@ -171,6 +172,7 @@ sub Tadvance
    $self->{moved}->[1] += $ty;
 
    $self->applyMatrix([1,0,0,1,$tx,$ty], $self->{Tm});
+   return;
 }
 
 =back
@@ -179,7 +181,7 @@ sub Tadvance
 
 =over
 
-=item BT
+=item $self->BT()
 
 =cut
 
@@ -189,9 +191,10 @@ sub BT
   
    @{$self->{Tm}} = (1, 0, 0, 1, 0, 0);
    @{$self->{Tlm}} = (1, 0, 0, 1, 0, 0);
+   return;
 }
 
-=item Tf FONTNAME, FONTSIZE
+=item $self->Tf($fontname, $fontsize)
 
 =cut
 
@@ -207,9 +210,10 @@ sub Tf
 
    # TODO: support vertical text mode (wm = 1)
    $self->{wm} = 0;
+   return;
 }
 
-=item Tstar
+=item $self->Tstar()
 
 =cut
 
@@ -218,9 +222,10 @@ sub Tstar
    my $self = shift;
 
    $self->Td(0, -$self->{TL});
+   return;
 }
 
-=item Tz SCALE
+=item $self->Tz($scale)
 
 =cut
 
@@ -230,9 +235,10 @@ sub Tz
    my $scale = shift;
 
    $self->{Tz} = $scale/100.0;
+   return;
 }
 
-=item Td X, Y
+=item $self->Td($x, $y)
 
 =cut
 
@@ -244,9 +250,10 @@ sub Td
    
    $self->applyMatrix([1,0,0,1,$x,$y], $self->{Tlm});
    @{$self->{Tm}} = @{$self->{Tlm}};
+   return;
 }
 
-=item TD X, Y
+=item $self->TD($x, $y)
 
 =cut
 
@@ -258,9 +265,10 @@ sub TD
 
    $self->TL(-$y);
    $self->Td($x,$y);
+   return;
 }
 
-=item Tj STRING
+=item $self->Tj($string)
 
 =cut
 
@@ -272,6 +280,7 @@ sub Tj
    @{$self->{last}} = $self->textToUser(0,0);
    $self->_Tj($string);
    @{$self->{current}} = $self->textToUser(0,0);
+   return;
 }
 
 sub _Tj
@@ -287,7 +296,7 @@ sub _Tj
    my @parts;
    if ($self->{mode} eq 'c' || $self->{wm} == 1)
    {
-      @parts = split //, $string;
+      @parts = split //xms, $string;
    }
    else
    {
@@ -299,9 +308,10 @@ sub _Tj
       $self->renderText($substr, $dw);
       $self->Tadvance($dw);
    }
+   return;
 }
 
-=item TJ ARRAYREF
+=item $self->TJ($arrayref)
 
 =cut
 
@@ -324,9 +334,10 @@ sub TJ
       }
    }
    @{$self->{current}} = $self->textToUser(0,0);
+   return;
 }
 
-=item quote
+=item $self->quote($string)
 
 =cut
 
@@ -339,9 +350,10 @@ sub quote
    $self->Tstar();
    $self->_Tj($string);
    @{$self->{current}} = $self->textToUser(0,0);
+   return;
 }
 
-=item doublequote
+=item $self->doublequote($tw, $tc, $string)
 
 =cut
 
@@ -353,9 +365,10 @@ sub doublequote
    my $string = shift;
 
    $self->quote($string);
+   return;
 }
 
-=item Tm M1, M2, M3, M4, M5, M6
+=item $self->Tm($m1, $m2, $m3, $m4, $m5, $m6)
 
 =cut
 
@@ -364,6 +377,7 @@ sub Tm
    my $self = shift;
    
    @{$self->{Tm}} = @{$self->{Tlm}} = @_;
+   return;
 }
 
 1;
@@ -374,3 +388,5 @@ __END__
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

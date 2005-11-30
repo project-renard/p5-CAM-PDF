@@ -5,7 +5,7 @@ use warnings;
 use strict;
 use base qw(CAM::PDF::GS);
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
 
 =head1 NAME
 
@@ -32,7 +32,7 @@ example of a renderer.
 
 =over
 
-=item renderText STRING
+=item $self->renderText($string)
 
 Prints the string prefixed by its device and user coordinates.
 
@@ -50,6 +50,7 @@ sub renderText
 
    #my ($dxd, $dyd) = $self->textToDevice(@{$self->{moved}});
    #printf "(%7.2f,%7.2f) -> (%7.2f,%7.2f) %s\n", $xd,$yd,$dxd,$dyd, $string;
+   return;
 }
 
 1;
@@ -60,3 +61,5 @@ __END__
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

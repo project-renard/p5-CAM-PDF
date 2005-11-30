@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -86,13 +90,15 @@ $docs[0]->cleanoutput($outfile);
 
 __END__
 
+=for stopwords appendpdf.pl
+
 =head1 NAME
 
 appendpdf.pl - Append one PDF to another
 
 =head1 SYNOPSIS
 
-appendpdf.pl [options] file1.pdf file2.pdf [outfile.pdf]
+ appendpdf.pl [options] file1.pdf file2.pdf [outfile.pdf]
 
  Options:
    -p --prepend        prepend the document instead of appending it
@@ -104,17 +110,18 @@ appendpdf.pl [options] file1.pdf file2.pdf [outfile.pdf]
 
 =head1 DESCRIPTION
 
-Copy the contents of file2.pdf to the end of file1.pdf.  This may
-break complex PDFs which include forms, so the --forms option is
+Copy the contents of C<file2.pdf> to the end of C<file1.pdf>.  This may
+break complex PDFs which include forms, so the C<--forms> option is
 provided to eliminate those elements from the resulting PDF.
 
 =head1 SEE ALSO
 
 CAM::PDF
 
-deletepdfpage.pl
+F<deletepdfpage.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
 
+=cut

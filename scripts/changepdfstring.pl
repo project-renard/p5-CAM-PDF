@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -66,13 +70,15 @@ else
 
 __END__
 
+=for stopwords changepdfstring.pl
+
 =head1 NAME
 
 changepdfstring.pl - Search and replace in PDF metadata
 
 =head1 SYNOPSIS
 
-changepdfstring.pl [options] infile.pdf search-str replace-str [outfile.pdf]
+ changepdfstring.pl [options] infile.pdf search-str replace-str [outfile.pdf]
 
  Options:
    -o --order          preserve the internal PDF ordering for output
@@ -82,12 +88,12 @@ changepdfstring.pl [options] infile.pdf search-str replace-str [outfile.pdf]
 
 =head1 DESCRIPTION
 
-Searches through a PDF file's metadata for instances of search-str and
-inserts replace-str.  Note that this does not change the actual PDF
+Searches through a PDF file's metadata for instances of C<search-str> and
+inserts C<replace-str>.  Note that this does not change the actual PDF
 page layout, but only interactive features, like forms and annotation.
-To change page layout strings, use instead changepagestring.pl.
+To change page layout strings, use instead F<changepagestring.pl>.
 
-The search-str can be a literal string, or it can be a Perl regular
+The C<search-str> can be a literal string, or it can be a Perl regular
 expression by wrapping it in C<regex(...)>.  For example:
 
   changepdfstring.pl in.pdf 'regex(CAM-PDF-(\d.\d+))' 'version=$1' out.pdf
@@ -96,9 +102,10 @@ expression by wrapping it in C<regex(...)>.  For example:
 
 CAM::PDF
 
-changepagestring.pl
+F<changepagestring.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
 
+=cut

@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -38,7 +42,7 @@ foreach my $flag (qw( skip ))
 {
    foreach my $val (@{$opts{$flag.'val'}})
    {
-      foreach my $key (split /\D+/, $val)
+      foreach my $key (split /\D+/xms, $val)
       {
          $opts{$flag}->{$key} = 1;
       }
@@ -67,10 +71,10 @@ my %doneobjs = ();
 for my $p (1..$pages)
 {
    my $c = $doc->getPageContent($p);
-   my @parts = split /(\/[\w]+\s*Do)\b/s, $c;
+   my @parts = split /(\/[\w]+\s*Do)\b/xms, $c;
    foreach my $part (@parts)
    {
-      if ($part =~ /^(\/[\w]+)\s*Do$/s)
+      if ($part =~ m/\A(\/[\w]+)\s*Do\z/xms)
       {
          my $ref = $1;
          my $xobj = $doc->dereference($ref, $p);
@@ -155,8 +159,8 @@ for my $p (1..$pages)
             $media_array->[2]->{value} = $w;
             $media_array->[3]->{value} = $h;
             my $page = $rawpage;
-            $page =~ s/xxx/$w/ig;
-            $page =~ s/yyy/$h/ig;
+            $page =~ s/xxx/$w/igxms;
+            $page =~ s/yyy/$h/igxms;
             $tmpl->setPageContent(1, $page);
             $tmpl->replaceObject(9, $doc, $objnum, 1);
 
@@ -188,10 +192,13 @@ sub _inform
    {
       print STDERR $str, "\n";
    }
+   return;
 }
 
 
 __END__
+
+=for stopwords extractjpgs.pl ImageMagick JPG
 
 =head1 NAME
 
@@ -199,7 +206,7 @@ extractjpgs.pl - Save copies of all PDF JPG images to a directory
 
 =head1 SYNOPSIS
 
-extractjpgs.pl [options] infile.pdf outdirectory
+ extractjpgs.pl [options] infile.pdf outdirectory
 
  Options:
    -S --skip=imnum     don't output the specified images (can be used mutliple times)
@@ -208,28 +215,30 @@ extractjpgs.pl [options] infile.pdf outdirectory
    -V --version        print CAM::PDF version
 
 C<imnum> is a comma-separated list of integers indicating the images
-in order that they appear in the PDF.  Use listimages.pl to retrieve
+in order that they appear in the PDF.  Use F<listimages.pl> to retrieve
 the image numbers.
 
 =head1 DESCRIPTION
 
-Requires the ImageMagick C<convert> program to be available
+Requires the ImageMagick B<convert> program to be available
 
 Searches the PDF for JPG images and saves them as individual files in the
-specified directory.  The files are named <imnum>.jpg.
+specified directory.  The files are named C<E<lt>imnumE<gt>.jpg>.
 
 =head1 SEE ALSO
 
 CAM::PDF
 
-crunchjpgs.pl
+F<crunchjpgs.pl>
 
-listimages.pl
+F<listimages.pl>
 
-extractallimages.pl
+F<extractallimages.pl>
 
-uninlinepdfimages.pl
+F<uninlinepdfimages.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

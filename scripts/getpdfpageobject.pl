@@ -1,11 +1,15 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Data::Dumper;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             decode     => 0,
@@ -40,7 +44,7 @@ if (@ARGV < 2)
 my $file = shift;
 my $pagenum = shift;
 
-if ($pagenum !~ /^\d+$/ || $pagenum < 1)
+if ($pagenum !~ m/\A\d+\z/xms || $pagenum < 1)
 {
    die "The page number must be an integer greater than 0\n";
 }
@@ -71,13 +75,15 @@ if ($opts{verbose})
 
 __END__
 
+=for stopwords getpdfpageobject.pl
+
 =head1 NAME
 
 getpdfpageobject.pl - Print the PDF page metadata
 
 =head1 SYNOPSIS
 
-getpdfpageobject.pl [options] infile.pdf pagenum
+ getpdfpageobject.pl [options] infile.pdf pagenum
 
  Options:
    -d --decode         uncompress any elements
@@ -88,7 +94,7 @@ getpdfpageobject.pl [options] infile.pdf pagenum
 
 =head1 DESCRIPTION
 
-Retrieves the page metadata from the PDF.  If --verbose is specified,
+Retrieves the page metadata from the PDF.  If C<--verbose> is specified,
 the memory representation is dumped to STDOUT.  Otherwise, the program
 silently returns success or emits a failure message to STDERR.
 
@@ -96,10 +102,12 @@ silently returns success or emits a failure message to STDERR.
 
 CAM::PDF
 
-getpdfpage.pl
+F<getpdfpage.pl>
 
-setpdfpage.pl
+F<setpdfpage.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

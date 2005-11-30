@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             follow     => 0,
@@ -79,13 +83,15 @@ $docs[0]->cleanoutput($outfile);
 
 __END__
 
+=for stopwords replacepdfobj.pl
+
 =head1 NAME
 
 replacepdfobj.pl - Copy a metadata object from one PDF to another
 
 =head1 SYNOPSIS
 
-replacepdfobj.pl [options] mainfile.pdf objnum objfile.pdf objnum [outfile.pdf]\n";
+ replacepdfobj.pl [options] mainfile.pdf objnum objfile.pdf objnum [outfile.pdf]\n";
 
  Options:
    -f --follow         copy referenced objects too
@@ -107,3 +113,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             triggerclear => 0,
@@ -70,13 +74,15 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords fillpdffields.pl
+
 =head1 NAME
 
 fillpdffields.pl - Replace PDF form fields with specified values
 
 =head1 SYNOPSIS
 
-fillpdffields.pl [options] infile.pdf outfile.pdf field value [field value ...]
+ fillpdffields.pl [options] infile.pdf outfile.pdf field value [field value ...]
 
  Options:
    -t --triggerclear   remove all of the form triggers after replacing values
@@ -88,15 +94,17 @@ fillpdffields.pl [options] infile.pdf outfile.pdf field value [field value ...]
 =head1 DESCRIPTION
 
 Fill in the forms in the PDF with the specified values, identified by
-their field names.  See listpdffields.pl for a the names of the form
+their field names.  See F<listpdffields.pl> for a the names of the form
 fields.
 
 =head1 SEE ALSO
 
 CAM::PDF
 
-listpdffields.pl
+F<listpdffields.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

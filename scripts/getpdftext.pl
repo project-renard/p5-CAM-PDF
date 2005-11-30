@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             check      => 0,
@@ -70,13 +74,15 @@ foreach my $p ($doc->rangeToArray(1,$doc->numPages(),$pagelist))
 
 __END__
 
+=for stopwords getpdftext.pl
+
 =head1 NAME
 
 getpdftext.pl - Extracts and print the text from one or more PDF pages
 
 =head1 SYNOPSIS
 
-getpdftext.pl [options] infile.pdf [<pagenums>]
+ getpdftext.pl [options] infile.pdf [<pagenums>]
 
  Options:
    -c --check          just validates the page instead of printing it
@@ -94,15 +100,17 @@ getpdftext.pl [options] infile.pdf [<pagenums>]
 Extracts all of the text from the specified PDF page(s) and prints
 them to STDOUT.  If no pages are specified, all pages are processed.
 
-The --check and --geometry modes are distinctly different.  They are
+The C<--check> and C<--geometry> modes are distinctly different.  They are
 used primarily for debugging.
 
 =head1 SEE ALSO
 
 CAM::PDF
 
-renderpdf.pl
+F<renderpdf.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

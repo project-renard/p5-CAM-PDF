@@ -11,6 +11,7 @@ lib/CAM/PDF/PageText.pm
 lib/CAM/PDF/Renderer/Dump.pm
 lib/CAM/PDF/Renderer/Images.pm
 lib/CAM/PDF/Renderer/Text.pm
+lib/CAM/PDF/Renderer/TextFB.pm
 LICENSE
 Makefile.PL
 MANIFEST

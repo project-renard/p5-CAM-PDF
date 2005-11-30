@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -41,10 +45,10 @@ my $nimages = 0;
 for my $p (1..$pages)
 {
    my $c = $doc->getPageContent($p);
-   my @parts = split /(\/[\w]+\s*Do)\b/s, $c;
+   my @parts = split /(\/[\w]+\s*Do)\b/xms, $c;
    foreach my $part (@parts)
    {
-      if ($part =~ /^(\/[\w]+)\s*Do$/s)
+      if ($part =~ /\A(\/[\w]+)\s*Do\z/xms)
       {
          $nimages++;
          my $ref = $1;
@@ -74,28 +78,28 @@ for my $p (1..$pages)
          # "ID" and "EI" in order in the page (which happened in the
          # PDF reference doc, of course!
 
-         while ($part =~ s/.*?\bBI\b\s*//s)
+         while ($part =~ s/.*?\bBI\b\s*//xms)
          {
-            if ($part =~ s/^(.*?)\s*\bEI\b\s*//s)
+            if ($part =~ s/\A(.*?)\s*\bEI\b\s*//xms)
             {
                my $im = $1;
-               $im =~ s/^.*\bBI\b//;  # this may get rid of a fake BI if there is one in the page
+               $im =~ s/\A.*\bBI\b//xms;  # this may get rid of a fake BI if there is one in the page
 
                # Easy tests:
-               next if ($im =~ /^\)/);
-               next if ($im =~ /\($/);
-               next if ($im !~ /\bID\b/);
+               next if ($im =~ m/ \A\) /xms);
+               next if ($im =~ m/ \(\z /xms);
+               next if ($im !~ m/ \bID\b /xms);
 
                # this is getting complex in the heuristics!
                # make sure that there is an open paren before every close
                # if not, then the "BI" was part of a string
                my $test = $im;
                my $failed = 0;
-               $test =~ s/\\[\(\)]//gs; # get rid of escaped parens for the test
-               while ($test =~ s/^(.*?)\)//s)
+               $test =~ s/ \\[\(\)] //gxms; # get rid of escaped parens for the test
+               while ($test =~ s/ \A(.*?)\) //xms)
                {
                   my $bit = $1;
-                  if ($bit !~ /\(/)
+                  if ($bit !~ m/ \( /xms)
                   {
                      $failed = 1;
                      last;
@@ -104,20 +108,20 @@ for my $p (1..$pages)
                next if ($failed);
 
                # old test: count that the parens add up
-               #my @o = ($im =~ /(\()/g);
-               #my @os = ($im =~ /(\\\()/g);
-               #my @c = ($im =~ /(\))/g);
-               #my @cs = ($im =~ /(\\\))/g);
+               #my @o  = ($im =~ m/ (\()   /gxms);
+               #my @os = ($im =~ m/ (\\\() /gxms);
+               #my @c  = ($im =~ m/ (\))   /gxms);
+               #my @cs = ($im =~ m/ (\\\)) /gxms);
                #next if ((@o-@os) != (@c-@cs));
 
                $nimages++;
                my $w = 0;
                my $h = 0;
-               if ($im =~ /\/W(|idth)\s*(\d+)/)
+               if ($im =~ m/ \/W(|idth)\s*(\d+) /xms)
                {
                   $w = $2;
                }
-               if ($im =~ /\/H(|eight)\s*(\d+)/)
+               if ($im =~ m/ \/H(|eight)\s*(\d+) /xms)
                {
                   $h = $2;
                }
@@ -130,13 +134,15 @@ for my $p (1..$pages)
 
 __END__
 
+=for stopwords listimages.pl
+
 =head1 NAME
 
 listimages.pl - Save copies of all PDF JPG images to a directory
 
 =head1 SYNOPSIS
 
-listimages.pl [options] infile.pdf
+ listimages.pl [options] infile.pdf
 
  Options:
    -v --verbose        print diagnostic messages
@@ -155,14 +161,16 @@ following formats:
 
 CAM::PDF
 
-crunchjpgs.pl
+F<crunchjpgs.pl>
 
-extractallimages.pl
+F<extractallimages.pl>
 
-extractjpgs.pl
+F<extractjpgs.pl>
 
-uninlinepdfimages.pl
+F<uninlinepdfimages.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

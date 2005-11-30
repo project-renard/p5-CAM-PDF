@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -56,13 +60,15 @@ if ($opts{verbose})
 
 __END__
 
+=for stopwords readpdf.pl
+
 =head1 NAME
 
 readpdf.pl - Read a PDF document
 
 =head1 SYNOPSIS
 
-readpdf.pl [options] file.pdf
+ readpdf.pl [options] file.pdf
 
  Options:
    -d --decode         uncompress internal PDF components
@@ -81,9 +87,10 @@ also be a way to validate a PDF document.
 
 CAM::PDF
 
-rewritepdf.pl
+F<rewritepdf.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
 
+=cut

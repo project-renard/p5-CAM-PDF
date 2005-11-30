@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             sort       => 0,
@@ -51,13 +55,15 @@ foreach my $name (@list)
 
 __END__
 
+=for stopwords listpdffields.pl
+
 =head1 NAME
 
 listpdffields.pl - Print the PDF form field names
 
 =head1 SYNOPSIS
 
-listpdffields.pl [options] infile.pdf
+ listpdffields.pl [options] infile.pdf
 
  Options:
    -s --sort           sort the output list alphabetically
@@ -73,8 +79,10 @@ Outputs to STDOUT all of the field names for any forms in the PDF document.
 
 CAM::PDF
 
-fillpdffields.pl
+F<fillpdffields.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

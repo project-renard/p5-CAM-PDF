@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -51,13 +55,15 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords uninlinepdfimages.pl
+
 =head1 NAME
 
 uninlinepdfimages.pl - Save copies of all PDF JPG images to a directory
 
 =head1 SYNOPSIS
 
-uninlinepdfimages.pl [options] infile.pdf [outfile.pdf]
+ uninlinepdfimages.pl [options] infile.pdf [outfile.pdf]
 
  Options:
    -v --verbose        print diagnostic messages
@@ -76,14 +82,16 @@ following formats:
 
 CAM::PDF
 
-crunchjpgs.pl
+F<crunchjpgs.pl>
 
-extractallimages.pl
+F<extractallimages.pl>
 
-extractjpgs.pl
+F<extractjpgs.pl>
 
-listimages.pl
+F<listimages.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             sort       => 0,
@@ -153,11 +157,13 @@ for my $p (1 .. $doc->numPages())
 # Only if if $opts{sort} is set
 foreach my $fontname (sort keys %fonts)
 {
-   $fonts{$fontname} =~ s/^  //gm;
+   $fonts{$fontname} =~ s/ ^[ ][ ] //gxms;
    print $fonts{$fontname};
 }
 
 __END__
+
+=for stopwords listfonts.pl
 
 =head1 NAME
 
@@ -165,7 +171,7 @@ listfonts.pl - Print details of the fonts used in the PDF
 
 =head1 SYNOPSIS
 
-listfonts.pl [options] infile.pdf
+ listfonts.pl [options] infile.pdf
 
  Options:
    -s --sort           sort the fonts by name, not by page
@@ -184,3 +190,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

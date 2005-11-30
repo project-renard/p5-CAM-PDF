@@ -4,7 +4,9 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
+
+=for stopwords inline
 
 =head1 NAME
 
@@ -30,7 +32,7 @@ This class is used to identify all image nodes in a page content tree.
 
 =over
 
-=item new
+=item $self->new()
 
 Creates a new renderer.
 
@@ -44,7 +46,7 @@ sub new
    }, $pkg;
 }
 
-=item clone
+=item $self->clone()
 
 Duplicates an instance.  The new instance deliberately shares its
 C<images> property with the original instance.
@@ -61,7 +63,7 @@ sub clone
    return $self;
 }
 
-=item Do DATA...
+=item $self->Do(DATA...)
 
 Record an indirect image node.
 
@@ -76,9 +78,10 @@ sub Do
       type => 'Do',
       value => $value,
    };
+   return;
 }
 
-=item BI DATA...
+=item $self->BI(DATA...)
 
 Record an inline image node.
 
@@ -93,6 +96,7 @@ sub BI
       type => 'BI',
       value => $value,
    };
+   return;
 }
 
 1;
@@ -103,3 +107,5 @@ __END__
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

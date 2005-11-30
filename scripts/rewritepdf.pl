@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             decode      => 0,
@@ -149,13 +153,15 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords rewritepdf.pl
+
 =head1 NAME
 
 rewritepdf.pl - Rebuild a PDF file
 
 =head1 SYNOPSIS
 
-rewritepdf.pl [options] infile.pdf [outfile.pdf]\n";
+ rewritepdf.pl [options] infile.pdf [outfile.pdf]\n";
 
  Options:
    -c --cleanse        seek and destroy unreferenced metadata in the document
@@ -175,13 +181,13 @@ rewritepdf.pl [options] infile.pdf [outfile.pdf]\n";
 
 Read and write a PDF document, and possibly modify it along the way.
 
-The --cleanse option might break some PDFs which use undocumented or
-poorly documented PDF features.  Namely, some PDFs implicitly store
-their FontDescriptor objects just before their Font objects, without
-explicitly referring to the former.  Cleansing removes the former,
-causing Acrobat Reader to choke.
+The C<--cleanse> option could possibly break some PDFs which use
+undocumented or poorly documented PDF features.  Namely, some PDFs
+implicitly store their C<FontDescriptor> objects just before their Font
+objects, without explicitly referring to the former.  Cleansing
+removes the former, causing Acrobat Reader to choke.
 
-We recommend that you avoid the --decode and --filter options, as
+We recommend that you avoid the C<--decode> and C<--filter> options, as
 we're not sure they work right any longer.
 
 =head1 SEE ALSO
@@ -191,3 +197,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

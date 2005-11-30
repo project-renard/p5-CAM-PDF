@@ -10,7 +10,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
 
 =head1 NAME
 
@@ -49,12 +49,12 @@ my $padding = pack 'C*',
 
 =over
 
-=item new PDF, OWNERPASS, USERPASS, PROMPT
+=item $pkg->new($pdf, $ownerpass, $userpass, $prompt)
 
 Create and validate a new decryption object.  If this fails, it will
 set $CAM::PDF::errstr and return undef.
 
-PROMPT is a boolean that says whether the user should be prompted for
+C<$prompt> is a boolean that says whether the user should be prompted for
 a password on the command line.
 
 =cut
@@ -160,7 +160,7 @@ sub new
    return $self;
 }
 
-=item decode_permissions FIELD
+=item $self->decode_permissions($field)
 
 Given a binary encoded permissions string from a PDF document, return
 the four individual boolean fields as an array: 
@@ -178,10 +178,10 @@ sub decode_permissions
    my $p = shift;
 
    my $b = unpack 'b*', pack 'V', $p;
-   return split //, substr $b, 2, 4;
+   return split //xms, substr $b, 2, 4;
 }
 
-=item encode_permissions PRINT, MODIFY, COPY, ADD
+=item $self->encode_permissions($print, $modify, $copy, $add)
 
 Given four booleans, pack them into a single field in the PDF style
 that decode_permissions can understand.  Returns that scalar.
@@ -226,9 +226,9 @@ sub encode_permissions
    return $p;
 }
 
-=item set_passwords DOC, OWNERPASS, USERPASS
+=item $self->set_passwords($doc, $ownerpass, $userpass)
 
-=item set_passwords DOC, OWNERPASS, USERPASS, PERMISSIONS
+=item $self->set_passwords($doc, $ownerpass, $userpass, $permissions)
 
 Change the PDF passwords to the specified values.  When the PDF is
 output, it will be encrypted with the new passwords.
@@ -315,7 +315,7 @@ sub set_passwords
    return $doc->{crypt};
 }
 
-=item encrypt DOC, STRING
+=item $self->encrypt($doc, $string)
 
 Encrypt the scalar using the passwords previously specified.
 
@@ -327,7 +327,7 @@ sub encrypt
    return $self->_crypt(@_);
 }
 
-=item decrypt DOC, STRING
+=item $self->decrypt($doc, $string)
 
 Decrypt the scalar using the passwords previously specified.
 
@@ -483,3 +483,5 @@ __END__
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -37,9 +41,9 @@ my $pagenum = shift;
 
 my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
 
-foreach my $p (split /\D+/, $pagenum)
+foreach my $p (split /\D+/xms, $pagenum)
 {
-   if ($p !~ /^\d+$/ || $p < 1)
+   if ($p !~ m/\A\d+\z/xms || $p < 1)
    {
       die "The page number must be an integer greater than 0\n";
    }
@@ -50,13 +54,15 @@ foreach my $p (split /\D+/, $pagenum)
 
 __END__
 
+=for stopwords getpdfpage.pl
+
 =head1 NAME
 
 getpdfpage.pl - Print the PDF page layout commands
 
 =head1 SYNOPSIS
 
-getpdfpage.pl [options] infile.pdf pagenum
+ getpdfpage.pl [options] infile.pdf pagenum
 
  Options:
    -v --verbose        print diagnostic messages
@@ -71,10 +77,12 @@ Retrieves the page content from the PDF and prints it to STDOUT.
 
 CAM::PDF
 
-getpdfpageobject.pl
+F<getpdfpageobject.pl>
 
-setpdfpage.pl
+F<setpdfpage.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

@@ -6,7 +6,9 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.03';
+our $VERSION = '1.04_01';
+
+=for stopwords fallback
 
 =head1 NAME
 
@@ -34,10 +36,11 @@ CAM::PDF::GS.
 
 =over
 
-=item new DATA
+=item $pkg->new($hashref)
 
 Create a new instance, setting all state values to their defaults.
-Stores a reference to DATA and sets the DATA property C<fm =E<gt> undef>.
+Stores a reference to C<$hashref> and sets the property
+C<$hashref->{fm}> to C<undef>.
 
 =cut
 
@@ -99,7 +102,7 @@ sub new
    return $self;
 }
 
-=item clone
+=item $self->clone()
 
 Duplicate the instance.
 
@@ -131,9 +134,9 @@ sub clone
 
 =over
 
-=item applyMatrix M1, M2
+=item $self->applyMatrix($m1, $m2)
 
-Apply m1 to m2, save in m2
+Apply C<$m1> to C<$m2>, save in C<$m2>.
 
 =cut
 
@@ -166,9 +169,10 @@ sub applyMatrix
    $m3[5] = $m2->[1]*$m1->[4] + $m2->[3]*$m1->[5] + $m2->[5];
 
    @$m2 = @m3;
+   return;
 }
 
-=item dot MATRIX, X, Y
+=item $self->dot($matrix, $x, $y)
 
 Compute the dot product of a position against the coordinate matrix.
 
@@ -185,7 +189,7 @@ sub dot
            $cm->[1]*$x + $cm->[3]*$y + $cm->[5]);
 }
 
-=item userToDevice X, Y
+=item $self->userToDevice($x, $y)
 
 Convert user coordinates to device coordinates.
 
@@ -203,9 +207,9 @@ sub userToDevice
    return ($x, $y);
 }
 
-=item getCoords NODE
+=item $self->getCoords($node)
 
-Computes device coords for the specified node.  This implementation
+Computes device coordinates for the specified node.  This implementation
 handles line-drawing nodes.
 
 =cut
@@ -216,7 +220,7 @@ sub getCoords
    my $node = shift;
 
    my ($x1,$y1,$x2,$y2);
-   if ($node->{name} =~ /^(?:m|l|h|c|v|y|re)$/)
+   if ($node->{name} =~ m/ \A (?:m|l|h|c|v|y|re) \z /xms)
    {
       ($x1,$y1) = $self->userToDevice(@{$self->{last}});
       ($x2,$y2) = $self->userToDevice(@{$self->{current}});
@@ -224,7 +228,7 @@ sub getCoords
    return ($x1,$y1,$x2,$y2);
 }
 
-=item nodeType NODE
+=item $self->nodeType($node)
 
 Returns one of C<block>, C<path>, C<paint>, C<text> or (the fallback
 case) C<op> for the type of the specified node.
@@ -236,11 +240,11 @@ sub nodeType
    my $self = shift;
    my $node = shift;
 
-   return $node->{type} eq 'block'                           ? 'block'
-        : $node->{name} =~ /^(?:m|l|h|c|v|y|re)$/            ? 'path'
-        : $node->{name} =~ /^(?:S|s|F|f|f\*|B|B\*|b|b\*|n)$/ ? 'paint'
-        : $node->{name} =~ /^T/                              ? 'text'
-        :                                                      'op';
+   return $node->{type} eq 'block'                                    ? 'block'
+        : $node->{name} =~ / \A (?:m|l|h|c|v|y|re)            \z /xms ? 'path'
+        : $node->{name} =~ / \A (?:S|s|F|f|f\*|B|B\*|b|b\*|n) \z /xms ? 'paint'
+        : $node->{name} =~ / \A T                                /xms ? 'text'
+        :                                                               'op';
 }
 
 =back
@@ -249,25 +253,25 @@ sub nodeType
 
 =over
 
-=item i FLATNESS
+=item $self->i($flatness)
 
-=item j LINEJOIN
+=item $self->j($linejoin)
 
-=item J LINECAP
+=item $self->J($linecap)
 
-=item ri RENDERING_INTENT
+=item $self->ri($rendering_intent)
 
-=item Tc CHARSPACE
+=item $self->Tc($charspace)
 
-=item TL LEADING
+=item $self->TL($leading)
 
-=item Tr RENDERING_MODE
+=item $self->Tr($rendering_mode)
 
-=item Ts RISE
+=item $self->Ts($rise)
 
-=item Tw WORDSPACE
+=item $self->Tw($wordspace)
 
-=item w LINEWIDTH
+=item $self->w($linewidth)
 
 =cut
 
@@ -276,11 +280,11 @@ sub nodeType
    no strict 'refs';
    foreach my $name (qw(i j J ri Tc TL Tr Ts Tw w))
    {
-      *{$name} = sub { $_[0]->{$name} = $_[1] };
+      *{$name} = sub { $_[0]->{$name} = $_[1]; return; };
    }
 }
 
-=item g GRAY
+=item $self->g($gray)
 
 =cut
 
@@ -291,9 +295,10 @@ sub g
 
    $self->{g} = [$g];
    $self->{device} = 'DeviceGray';
+   return;
 }
 
-=item G GRAY
+=item $self->G($gray)
 
 =cut
 
@@ -304,9 +309,10 @@ sub G
 
    $self->{G} = [$g];
    $self->{Device} = 'DeviceGray';
+   return;
 }
 
-=item rg RED GREEN BLUE
+=item $self->rg($red, $green, $blue)
 
 =cut
 
@@ -319,9 +325,10 @@ sub rg
 
    $self->{rg} = [$r, $g, $b];
    $self->{device} = 'DeviceRGB';
+   return;
 }
 
-=item RG RED GREEN BLUE
+=item $self->RG($red, $green, $blue)
 
 =cut
 
@@ -334,9 +341,10 @@ sub RG
 
    $self->{RG} = [$r, $g, $b];
    $self->{Device} = 'DeviceRGB';
+   return;
 }
 
-=item k CYAN MAGENTA YELLOW BLACK
+=item $self->k($cyan, $magenta, $yellow, $black)
 
 =cut
 
@@ -350,9 +358,10 @@ sub k
 
    $self->{k} = [$c, $m, $y, $k];
    $self->{device} = 'DeviceCMYK';
+   return;
 }
 
-=item K CYAN MAGENTA YELLOW BLACK
+=item $self->K($cyan, $magenta, $yellow, $black)
 
 =cut
 
@@ -366,9 +375,12 @@ sub K
 
    $self->{K} = [$c, $m, $y, $k];
    $self->{Device} = 'DeviceCMYK';
+   return;
 }
 
-=item gs (Not implemented...)
+=item $self->gs()
+
+(Not implemented...)
 
 =cut
 
@@ -378,9 +390,10 @@ sub gs
 
    # See PDF Ref page 157
    #warn 'gs operator not yet implemented';
+   return;
 }
 
-=item cm M1, M2, M3, M4, M5, M6
+=item $self->cm M1, M2, M3, M4, M5, M6
 
 =cut
 
@@ -389,9 +402,10 @@ sub cm
    my $self = shift;
    
    $self->applyMatrix([@_], $self->{cm});
+   return;
 }
 
-=item d ARRAYREF, SCALAR
+=item $self->d($arrayref, $scalar)
 
 =cut
 
@@ -403,9 +417,10 @@ sub d
 
    @{$self->{da}} = @$da;
    $self->{dp} = $dp;
+   return;
 }
 
-=item m X, Y
+=item $self->m($x, $y)
 
 Move path.
 
@@ -418,9 +433,10 @@ sub m
    my $y = shift;
 
    @{$self->{start}} = @{$self->{last}} = @{$self->{current}} = ($x,$y);
+   return;
 }
 
-=item l X, Y
+=item $self->l($x, $y)
 
 Line path.
 
@@ -434,9 +450,10 @@ sub l
 
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x,$y);
+   return;
 }
 
-=item h
+=item $self->h()
 
 =cut
 
@@ -446,9 +463,10 @@ sub h
 
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = @{$self->{start}};
+   return;
 }
 
-=item c X1, Y1, X2, Y2, X3, Y3
+=item $self->c($x1, $y1, $x2, $y2, $x3, $y3)
 
 =cut
 
@@ -464,9 +482,10 @@ sub c
 
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x3,$y3);
+   return;
 }
 
-=item v X1, Y1, X2, Y2
+=item $self->v($x1, $y1, $x2, $y2)
 
 =cut
 
@@ -480,9 +499,10 @@ sub v
 
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x2,$y2);
+   return;
 }
 
-=item y X1, Y1, X2, Y2
+=item $self->y($x1, $y1, $x2, $y2)
 
 =cut
 
@@ -496,9 +516,10 @@ sub y
 
    @{$self->{last}} = @{$self->{current}};
    @{$self->{current}} = ($x2,$y2);
+   return;
 }
 
-=item re X, Y, WIDTH, HEIGHT
+=item $self->re($x, $y, $width, $height)
 
 Rectangle path.
 
@@ -513,6 +534,7 @@ sub re
    my $h = shift;
 
    @{$self->{start}} = @{$self->{last}} = @{$self->{current}} = ($x,$y);
+   return;
 }
 
 1;
@@ -523,3 +545,5 @@ __END__
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

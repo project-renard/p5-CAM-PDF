@@ -1,3 +1,69 @@
+2005-11-30 13:37  chris
+
+	* scripts/: appendpdf.pl, changepagestring.pl, changepdfstring.pl,
+	  changerefkeys.pl, crunchjpgs.pl, deillustrate.pl,
+	  deletepdfpage.pl, extractallimages.pl, extractjpgs.pl,
+	  fillpdffields.pl, getpdffontobject.pl, getpdfpage.pl,
+	  getpdfpageobject.pl, getpdftext.pl, listfonts.pl, listimages.pl,
+	  listpdffields.pl, pdfinfo.pl, readpdf.pl, renderpdf.pl,
+	  replacepdfobj.pl, revertpdf.pl, rewritepdf.pl, setpdfpage.pl,
+	  stamppdf.pl, uninlinepdfimages.pl: 1.04_01
+
+2005-11-30 13:36  chris
+
+	* lib/CAM/: PDF.pm, PDF/Content.pm, PDF/Decrypt.pm, PDF/GS.pm,
+	  PDF/Node.pm, PDF/PageText.pm, PDF/GS/NoText.pm,
+	  PDF/Renderer/Dump.pm, PDF/Renderer/Images.pm,
+	  PDF/Renderer/Text.pm, PDF/Renderer/TextFB.pm: v1.04_01
+
+2005-11-30 13:32  chris
+
+	* lib/CAM/PDF.pm, scripts/appendpdf.pl,
+	  scripts/changepagestring.pl, scripts/changepdfstring.pl,
+	  scripts/changerefkeys.pl, scripts/crunchjpgs.pl,
+	  scripts/deillustrate.pl, scripts/deletepdfpage.pl,
+	  scripts/extractallimages.pl, scripts/extractjpgs.pl,
+	  scripts/fillpdffields.pl, scripts/getpdffontobject.pl,
+	  scripts/getpdfpage.pl, scripts/getpdfpageobject.pl,
+	  scripts/getpdftext.pl, scripts/listfonts.pl,
+	  scripts/listimages.pl, scripts/listpdffields.pl,
+	  scripts/pdfinfo.pl, scripts/readpdf.pl, scripts/renderpdf.pl,
+	  scripts/replacepdfobj.pl, scripts/revertpdf.pl,
+	  scripts/rewritepdf.pl, scripts/setpdfpage.pl,
+	  scripts/stamppdf.pl, scripts/uninlinepdfimages.pl: Update
+	  documentation
+
+2005-11-30 09:55  chris
+
+	* MANIFEST, MANIFEST.SKIP, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
+	  lib/CAM/PDF/Decrypt.pm, lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm,
+	  lib/CAM/PDF/PageText.pm, lib/CAM/PDF/GS/NoText.pm,
+	  lib/CAM/PDF/Renderer/Dump.pm, lib/CAM/PDF/Renderer/Images.pm,
+	  lib/CAM/PDF/Renderer/Text.pm, lib/CAM/PDF/Renderer/TextFB.pm,
+	  scripts/crunchjpgs.pl, scripts/extractallimages.pl,
+	  scripts/extractjpgs.pl, t/perlcriticrc, t/pod-coverage.t,
+	  t/pod.t: POD work, spelling
+
+2005-11-02 11:40  chris
+
+	* lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
+	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
+	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
+	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
+	  scripts/appendpdf.pl, scripts/changepagestring.pl,
+	  scripts/changepdfstring.pl, scripts/changerefkeys.pl,
+	  scripts/crunchjpgs.pl, scripts/deillustrate.pl,
+	  scripts/deletepdfpage.pl, scripts/extractallimages.pl,
+	  scripts/extractjpgs.pl, scripts/fillpdffields.pl,
+	  scripts/getpdffontobject.pl, scripts/getpdfpage.pl,
+	  scripts/getpdfpageobject.pl, scripts/getpdftext.pl,
+	  scripts/listfonts.pl, scripts/listimages.pl,
+	  scripts/listpdffields.pl, scripts/pdfinfo.pl, scripts/readpdf.pl,
+	  scripts/renderpdf.pl, scripts/replacepdfobj.pl,
+	  scripts/revertpdf.pl, scripts/rewritepdf.pl,
+	  scripts/setpdfpage.pl, scripts/stamppdf.pl,
+	  scripts/uninlinepdfimages.pl, t/perlcriticrc: Refactoring
+
 2005-10-24 09:21  chris
 
 	* t/pdf.t: Add an ENV flag to skip some tests

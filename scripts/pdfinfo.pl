@@ -1,11 +1,15 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -70,7 +74,14 @@ while (@ARGV > 0)
       {
          my $val = $info->{$key}->{value};
          if ($info->{$key}->{type} eq 'string' && $val && 
-             $val =~ /^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})([+-])(\d{2})\'(\d{2})\'$/)
+             $val =~ m/ \A
+                        D:
+                        (\d{4})(\d{2})(\d{2})
+                        (\d{2})(\d{2})(\d{2})
+                        ([+-])(\d{2})
+                        \'(\d{2})\'
+                        \z
+                      /xms)
          {
             my ($Y,$M,$D,$h,$m,$s,$sign,$tzh,$tzm) = ($1,$2,$3,$4,$5,$6,$7,$8,$9);
             require Time::Local;
@@ -106,13 +117,15 @@ while (@ARGV > 0)
 
 __END__
 
+=for stopwords pdfinfo.pl
+
 =head1 NAME
 
 pdfinfo.pl - Print information about PDF file(s)
 
 =head1 SYNOPSIS
 
-pdfinfo.pl [options] file.pdf [file.pdf ...]
+ pdfinfo.pl [options] file.pdf [file.pdf ...]
 
  Options:
    -v --verbose        print diagnostic messages
@@ -131,3 +144,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

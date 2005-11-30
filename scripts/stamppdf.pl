@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -57,13 +61,15 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords stamppdf.pl
+
 =head1 NAME
 
 stamppdf.pl - Apply a mark to each page of a PDF
 
 =head1 SYNOPSIS
 
-stamppdf.pl [options] infile.pdf stamp.pdf [outfile.pdf]
+ stamppdf.pl [options] infile.pdf stamp.pdf [outfile.pdf]
 
  Options:
    -o --order          preserve the internal PDF ordering for output
@@ -73,7 +79,7 @@ stamppdf.pl [options] infile.pdf stamp.pdf [outfile.pdf]
 
 =head1 DESCRIPTION
 
-Add the contents of stamp.pdf page 1 to each page of infile.pdf.  If
+Add the contents of C<stamp.pdf> page 1 to each page of C<infile.pdf>.  If
 the two PDFs have different page sizes, this likely won't work very
 well.
 
@@ -84,3 +90,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

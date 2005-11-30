@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -58,14 +62,16 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords changerefkeys.pl
+
 =head1 NAME
 
 changerefkeys.pl - Search and replace PDF object numbers in the Trailer
 
 =head1 SYNOPSIS
 
-changerefkeys.pl [options] infile.pdf old-objnum new-objnum
-                 [old-objnum new-objnum ...] [outfile.pdf]
+ changerefkeys.pl [options] infile.pdf old-objnum new-objnum
+                  [old-objnum new-objnum ...] [outfile.pdf]
 
  Options:
    -o --order          preserve the internal PDF ordering for output
@@ -88,3 +94,5 @@ CAM::PDF
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut

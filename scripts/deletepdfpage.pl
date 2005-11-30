@@ -1,10 +1,14 @@
 #!/usr/bin/perl -w
 
+package main;
+
 use warnings;
 use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+
+our $VERSION = '1.04_01';
 
 my %opts = (
             verbose    => 0,
@@ -57,13 +61,15 @@ $doc->cleanoutput($outfile);
 
 __END__
 
+=for stopwords deletepdfpage.pl
+
 =head1 NAME
 
 deletepdfpage.pl - Remove one or more pages from a PDF
 
 =head1 SYNOPSIS
 
-deletepdfpage.pl [options] infile.pdf <pagenums> [outfile.pdf]
+ deletepdfpage.pl [options] infile.pdf <pagenums> [outfile.pdf]
 
  Options:
    -o --order          preserve the internal PDF ordering for output
@@ -85,8 +91,10 @@ Illustrator emits.
 
 CAM::PDF
 
-appendpdf.pl
+C<appendpdf.pl>
 
 =head1 AUTHOR
 
 Clotho Advanced Media Inc., I<cpan@clotho.com>
+
+=cut
