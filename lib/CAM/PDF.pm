@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.04_01';
+our $VERSION = '1.05';
 
 =for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding
 
@@ -2127,7 +2127,7 @@ sub getPage
          if (! ref $node)
          {
             require Data::Dumper;
-            cluck Data::Dumper::Dumper($node);
+            Carp::cluck Data::Dumper::Dumper($node);
          }
       }
       

@@ -1,3 +1,24 @@
+2005-12-06 10:08  chris
+
+	* lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
+	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
+	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
+	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
+	  lib/CAM/PDF/Renderer/TextFB.pm, scripts/appendpdf.pl,
+	  scripts/changepagestring.pl, scripts/changepdfstring.pl,
+	  scripts/changerefkeys.pl, scripts/crunchjpgs.pl,
+	  scripts/deillustrate.pl, scripts/deletepdfpage.pl,
+	  scripts/extractallimages.pl, scripts/extractjpgs.pl,
+	  scripts/fillpdffields.pl, scripts/getpdffontobject.pl,
+	  scripts/getpdfpage.pl, scripts/getpdfpageobject.pl,
+	  scripts/getpdftext.pl, scripts/listfonts.pl,
+	  scripts/listimages.pl, scripts/listpdffields.pl,
+	  scripts/pdfinfo.pl, scripts/readpdf.pl, scripts/renderpdf.pl,
+	  scripts/replacepdfobj.pl, scripts/revertpdf.pl,
+	  scripts/rewritepdf.pl, scripts/setpdfpage.pl,
+	  scripts/stamppdf.pl, scripts/uninlinepdfimages.pl: v1.05 Fix a
+	  trivial bug: forgot to import Carp::cluck
+
 2005-11-30 13:37  chris
 
 	* scripts/: appendpdf.pl, changepagestring.pl, changepdfstring.pl,

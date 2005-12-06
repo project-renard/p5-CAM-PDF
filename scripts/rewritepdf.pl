@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.04_01';
+our $VERSION = '1.05';
 
 my %opts = (
             decode      => 0,

@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.04_01';
+our $VERSION = '1.05';
 
 my %opts = (
             verbose    => 0,
