@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 
 =for stopwords fallback
 

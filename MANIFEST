@@ -42,6 +42,7 @@ scripts/renderpdf.pl
 scripts/replacepdfobj.pl
 scripts/revertpdf.pl
 scripts/rewritepdf.pl
+scripts/setpdfbackground.pl
 scripts/setpdfpage.pl
 scripts/stamppdf.pl
 scripts/uninlinepdfimages.pl

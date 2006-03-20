@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.05';
+our $VERSION = '1.06';
 
 =for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding
 
@@ -18,7 +18,7 @@ CAM::PDF - PDF manipulation library
 
 =head1 LICENSE
 
-Copyright 2005 Clotho Advanced Media, Inc., <cpan@clotho.com>
+Copyright 2006 Clotho Advanced Media, Inc., <cpan@clotho.com>
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
@@ -132,6 +132,7 @@ my %inlineabbrevs = (
     (olddoc can be undef in the above for adding new objects)
  $self->numPages()
  $self->getPageText(pagenum)
+ $self->getPageDimensions(pagenum)
  $self->getPageContent(pagenum)
  $self->setPageContent(pagenum, content)
  $self->appendPageContent(pagenum, content)
@@ -2287,6 +2288,55 @@ sub getPageContent
    }
 }
 
+=item $doc->getPageDimensions($pagenum)
+
+Returns an array of C<x>, C<y>, C<width> and C<height> numbers that
+define the dimensions of the specified page in points (1/72 inches).
+Technically, this is the C<MediaBox> dimensions, which explains why
+it's possible for C<x> and C<y> to be non-zero, but that's a rare
+case.
+
+For example, given a simple 8.5 by 11 inch page, this method will return
+C<(0,0,612,792)>.
+
+This method will die() if the specified page number does not exist.
+
+=cut
+
+sub getPageDimensions
+{
+   my $self      = shift;
+   my $pagenum  = shift;
+   my $pagedict = shift; # only used during recursion
+
+   if (!$pagedict)
+   {
+      $pagedict = $self->getPage($pagenum);
+      if (!$pagedict)
+      {
+         die 'No such page '.$pagenum;
+      }
+   }
+
+   if (exists $pagedict->{MediaBox})
+   {
+      my $box = $self->getValue($pagedict->{MediaBox});
+      return ($self->getValue($box->[0]),
+              $self->getValue($box->[1]),
+              $self->getValue($box->[2]),
+              $self->getValue($box->[3]));
+   }
+   elsif (exists $pagedict->{Parent})
+   {
+      return $self->getPageDimensions($pagenum, $self->getValue($pagedict->{Parent}));
+   }
+   else
+   {
+      die 'Failed to find the page dimensions';
+      return; # never gets here
+   }
+}
+
 =item $doc->getName($object)
 
 I<For INTERNAL use>
@@ -2614,11 +2664,16 @@ parameters must be done respecting the intellectual property of the
 original document.  See Adobe's statement in the introduction of the
 reference manual.
 
+B<Important Note:> Most PDF readers (Acrobat, Preview.app) only offer
+one password field for opening documents.  So, if the C<$ownerpass>
+and C<$userpass> are different, those applications cannot read the
+documents.  (Perhaps this is a bug in CAM::PDF?)
+
 Note: any omitted booleans default to false.  So, these two are
 equivalent:
 
-    $pdf->setPrefs('password', 'password');
-    $pdf->setPrefs('password', 'password', 0, 0, 0, 0);
+    $doc->setPrefs('password', 'password');
+    $doc->setPrefs('password', 'password', 0, 0, 0, 0);
 
 =cut
 

@@ -1,809 +1,830 @@
-2005-12-06 10:08  chris
-
-	* lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
-	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
-	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
-	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
-	  lib/CAM/PDF/Renderer/TextFB.pm, scripts/appendpdf.pl,
-	  scripts/changepagestring.pl, scripts/changepdfstring.pl,
-	  scripts/changerefkeys.pl, scripts/crunchjpgs.pl,
-	  scripts/deillustrate.pl, scripts/deletepdfpage.pl,
-	  scripts/extractallimages.pl, scripts/extractjpgs.pl,
-	  scripts/fillpdffields.pl, scripts/getpdffontobject.pl,
-	  scripts/getpdfpage.pl, scripts/getpdfpageobject.pl,
-	  scripts/getpdftext.pl, scripts/listfonts.pl,
-	  scripts/listimages.pl, scripts/listpdffields.pl,
-	  scripts/pdfinfo.pl, scripts/readpdf.pl, scripts/renderpdf.pl,
-	  scripts/replacepdfobj.pl, scripts/revertpdf.pl,
-	  scripts/rewritepdf.pl, scripts/setpdfpage.pl,
-	  scripts/stamppdf.pl, scripts/uninlinepdfimages.pl: v1.05 Fix a
-	  trivial bug: forgot to import Carp::cluck
-
-2005-11-30 13:37  chris
-
-	* scripts/: appendpdf.pl, changepagestring.pl, changepdfstring.pl,
-	  changerefkeys.pl, crunchjpgs.pl, deillustrate.pl,
-	  deletepdfpage.pl, extractallimages.pl, extractjpgs.pl,
-	  fillpdffields.pl, getpdffontobject.pl, getpdfpage.pl,
-	  getpdfpageobject.pl, getpdftext.pl, listfonts.pl, listimages.pl,
-	  listpdffields.pl, pdfinfo.pl, readpdf.pl, renderpdf.pl,
-	  replacepdfobj.pl, revertpdf.pl, rewritepdf.pl, setpdfpage.pl,
-	  stamppdf.pl, uninlinepdfimages.pl: 1.04_01
-
-2005-11-30 13:36  chris
-
-	* lib/CAM/: PDF.pm, PDF/Content.pm, PDF/Decrypt.pm, PDF/GS.pm,
-	  PDF/Node.pm, PDF/PageText.pm, PDF/GS/NoText.pm,
-	  PDF/Renderer/Dump.pm, PDF/Renderer/Images.pm,
-	  PDF/Renderer/Text.pm, PDF/Renderer/TextFB.pm: v1.04_01
-
-2005-11-30 13:32  chris
-
-	* lib/CAM/PDF.pm, scripts/appendpdf.pl,
-	  scripts/changepagestring.pl, scripts/changepdfstring.pl,
-	  scripts/changerefkeys.pl, scripts/crunchjpgs.pl,
-	  scripts/deillustrate.pl, scripts/deletepdfpage.pl,
-	  scripts/extractallimages.pl, scripts/extractjpgs.pl,
-	  scripts/fillpdffields.pl, scripts/getpdffontobject.pl,
-	  scripts/getpdfpage.pl, scripts/getpdfpageobject.pl,
-	  scripts/getpdftext.pl, scripts/listfonts.pl,
-	  scripts/listimages.pl, scripts/listpdffields.pl,
-	  scripts/pdfinfo.pl, scripts/readpdf.pl, scripts/renderpdf.pl,
-	  scripts/replacepdfobj.pl, scripts/revertpdf.pl,
-	  scripts/rewritepdf.pl, scripts/setpdfpage.pl,
-	  scripts/stamppdf.pl, scripts/uninlinepdfimages.pl: Update
-	  documentation
-
-2005-11-30 09:55  chris
-
-	* MANIFEST, MANIFEST.SKIP, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
-	  lib/CAM/PDF/Decrypt.pm, lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm,
-	  lib/CAM/PDF/PageText.pm, lib/CAM/PDF/GS/NoText.pm,
-	  lib/CAM/PDF/Renderer/Dump.pm, lib/CAM/PDF/Renderer/Images.pm,
-	  lib/CAM/PDF/Renderer/Text.pm, lib/CAM/PDF/Renderer/TextFB.pm,
-	  scripts/crunchjpgs.pl, scripts/extractallimages.pl,
-	  scripts/extractjpgs.pl, t/perlcriticrc, t/pod-coverage.t,
-	  t/pod.t: POD work, spelling
-
-2005-11-02 11:40  chris
-
-	* lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
-	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
-	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
-	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
-	  scripts/appendpdf.pl, scripts/changepagestring.pl,
-	  scripts/changepdfstring.pl, scripts/changerefkeys.pl,
-	  scripts/crunchjpgs.pl, scripts/deillustrate.pl,
-	  scripts/deletepdfpage.pl, scripts/extractallimages.pl,
-	  scripts/extractjpgs.pl, scripts/fillpdffields.pl,
-	  scripts/getpdffontobject.pl, scripts/getpdfpage.pl,
-	  scripts/getpdfpageobject.pl, scripts/getpdftext.pl,
-	  scripts/listfonts.pl, scripts/listimages.pl,
-	  scripts/listpdffields.pl, scripts/pdfinfo.pl, scripts/readpdf.pl,
-	  scripts/renderpdf.pl, scripts/replacepdfobj.pl,
-	  scripts/revertpdf.pl, scripts/rewritepdf.pl,
-	  scripts/setpdfpage.pl, scripts/stamppdf.pl,
-	  scripts/uninlinepdfimages.pl, t/perlcriticrc: Refactoring
-
-2005-10-24 09:21  chris
-
-	* t/pdf.t: Add an ENV flag to skip some tests
-
-2005-10-20 17:29  chris
-
-	* Build.PL, MANIFEST, MANIFEST.SKIP, lib/CAM/PDF.pm,
-	  lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
-	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
-	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
-	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
-	  t/basic.t, t/pdf.t, t/resume.pdf, t/sample1.pdf: v1.03  *
-	  Regression tests  * Fixes for deletePages with initial support
-	  for Dests and Outlines  * Some code cleanup
+------------------------------------------------------------------------
+r2226 | chris | 2006-03-20 10:05:38 -0600 (Mon, 20 Mar 2006) | 2 lines
 
-2005-10-19 08:05  chris
+Spelling corrections
 
-	* lib/CAM/PDF.pm: Oops
+------------------------------------------------------------------------
+r2225 | chris | 2006-03-20 09:45:28 -0600 (Mon, 20 Mar 2006) | 2 lines
 
-2005-10-19 08:02  chris
+Add missing documentation
 
-	* lib/CAM/: PDF.pm, PDF/Content.pm, PDF/Decrypt.pm, PDF/GS.pm,
-	  PDF/Node.pm, PDF/PageText.pm, PDF/GS/NoText.pm,
-	  PDF/Renderer/Dump.pm, PDF/Renderer/Images.pm,
-	  PDF/Renderer/Text.pm: Set version to 1.02_02 since _01 was broken
-	  on arrival at CPAN
+------------------------------------------------------------------------
+r2224 | chris | 2006-03-20 09:44:44 -0600 (Mon, 20 Mar 2006) | 2 lines
 
-2005-10-18 08:59  chris
+Fix copyright
 
-	* Build.PL, MANIFEST, MANIFEST.SKIP, Makefile.PL, lib/CAM/PDF.pm,
-	  lib/CAM/PDF/Content.pm, lib/CAM/PDF/Decrypt.pm,
-	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Node.pm, lib/CAM/PDF/PageText.pm,
-	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
-	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
-	  scripts/appendpdf.pl, scripts/changepagestring.pl,
-	  scripts/changepdfstring.pl, scripts/changerefkeys.pl,
-	  scripts/crunchjpgs.pl, scripts/deillustrate.pl,
-	  scripts/deletepdfpage.pl, scripts/extractallimages.pl,
-	  scripts/extractjpgs.pl, scripts/fillpdffields.pl,
-	  scripts/getpdffontobject.pl, scripts/getpdfpage.pl,
-	  scripts/getpdfpageobject.pl, scripts/getpdftext.pl,
-	  scripts/listfonts.pl, scripts/listimages.pl,
-	  scripts/listpdffields.pl, scripts/pdfinfo.pl, scripts/readpdf.pl,
-	  scripts/renderpdf.pl, scripts/replacepdfobj.pl,
-	  scripts/revertpdf.pl, scripts/rewritepdf.pl,
-	  scripts/setpdfpage.pl, scripts/stamppdf.pl,
-	  scripts/uninlinepdfimages.pl, t/perlcriticrc: v1.02_01 Code
-	  refactoring.	Add options hash to the constructor.
+------------------------------------------------------------------------
+r2223 | chris | 2006-03-20 09:28:57 -0600 (Mon, 20 Mar 2006) | 4 lines
 
-2005-09-20 18:16  chris
+CAM-PDF v1.06
+ - Added scripts/setpdfbackground.pl program
+ - Added getPageDimensions() method
 
-	* Build.PL, MANIFEST, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
-	  lib/CAM/PDF/Decrypt.pm, lib/CAM/PDF/GS.pm,
-	  lib/CAM/PDF/GS/NoText.pm, t/pod-coverage.t, t/pod.t:
-	  Documentation
+------------------------------------------------------------------------
+r2197 | chris | 2006-03-10 19:13:19 -0600 (Fri, 10 Mar 2006) | 2 lines
 
-2005-09-20 10:11  chris
+CAM::PDF: Doc note about matching passwords
 
-	* lib/CAM/PDF.pm: regression fix: parseStream must be able to be
-	  called as a class method
+------------------------------------------------------------------------
+r1776 | chris | 2006-02-13 15:11:29 -0600 (Mon, 13 Feb 2006) | 1 line
 
-2005-09-20 10:00  chris
 
-	* lib/CAM/: PDF.pm, PDF/Decrypt.pm: v1.01 Remove instances of
-	  circular references so CAM::PDF instances are able   to be
-	  garbage collected.  Add a few more comments in confusing bits of
-	  code.
+------------------------------------------------------------------------
+r1513 | chris | 2006-01-11 17:51:11 -0600 (Wed, 11 Jan 2006) | 1 line
 
-	  NOTE: the API for CAM::PDF::Decrypt changed.	Several methods now
-	  require a CAM::PDF instance as a first argument.
 
-2005-09-19 09:30  chris
+------------------------------------------------------------------------
+r1478 | chris | 2005-12-06 10:08:24 -0600 (Tue, 06 Dec 2005) | 3 lines
 
-	* lib/CAM/: PDF.pm, PDF/Decrypt.pm: v1.00 Fix an artificial
-	  limitation of the encryption module Add a comment about RAM usage
+v1.05
+Fix a trivial bug: forgot to import Carp::cluck
 
-2005-06-06 10:17  chris
+------------------------------------------------------------------------
+r1477 | chris | 2005-11-30 13:37:55 -0600 (Wed, 30 Nov 2005) | 2 lines
 
-	* scripts/rewritepdf.pl: Fix typo
+1.04_01
 
-2005-04-22 13:49  chris
+------------------------------------------------------------------------
+r1476 | chris | 2005-11-30 13:36:07 -0600 (Wed, 30 Nov 2005) | 2 lines
 
-	* lib/CAM/PDF/: Content.pm, Decrypt.pm, GS.pm, GS/NoText.pm,
-	  Renderer/Dump.pm, Renderer/Images.pm, Renderer/Text.pm: Fix more
-	  license blocks
+v1.04_01
 
-2005-04-22 13:44  chris
+------------------------------------------------------------------------
+r1475 | chris | 2005-11-30 13:32:30 -0600 (Wed, 30 Nov 2005) | 2 lines
 
-	* Build.PL, LICENSE, MANIFEST, README, index.html, lib/CAM/PDF.pm,
-	  scripts/rewritepdf.pl: v0.99 Relicense
+Update documentation
 
-2005-03-31 22:00  chris
+------------------------------------------------------------------------
+r1474 | chris | 2005-11-30 09:55:33 -0600 (Wed, 30 Nov 2005) | 2 lines
 
-	* scripts/asciify: Debug shell script
+POD work, spelling
 
-2004-12-08 12:39  chris
+------------------------------------------------------------------------
+r1473 | chris | 2005-11-02 11:40:20 -0600 (Wed, 02 Nov 2005) | 2 lines
 
-	* lib/CAM/PDF/GS/NoText.pm: Add handy nodeType function
+Refactoring
 
-2004-12-08 12:39  chris
+------------------------------------------------------------------------
+r1472 | chris | 2005-10-24 09:21:08 -0500 (Mon, 24 Oct 2005) | 2 lines
 
-	* lib/CAM/PDF.pm: Bugfix: read error on fontmetrics Width array
-	  (bounds error)
+Add an ENV flag to skip some tests
 
-2004-12-06 13:29  chris
+------------------------------------------------------------------------
+r1471 | chris | 2005-10-20 17:29:54 -0500 (Thu, 20 Oct 2005) | 5 lines
 
-	* lib/CAM/PDF.pm: debugging
+v1.03
+ * Regression tests
+ * Fixes for deletePages with initial support for Dests and Outlines
+ * Some code cleanup
 
-2004-12-02 17:03  chris
+------------------------------------------------------------------------
+r1470 | chris | 2005-10-19 08:05:34 -0500 (Wed, 19 Oct 2005) | 2 lines
 
-	* lib/CAM/PDF.pm, scripts/listfonts.pl: bugfixes and additions
+Oops
 
-2004-12-01 12:28  chris
+------------------------------------------------------------------------
+r1469 | chris | 2005-10-19 08:02:23 -0500 (Wed, 19 Oct 2005) | 2 lines
 
-	* MANIFEST: Add missing MANIFEST entries
+Set version to 1.02_02 since _01 was broken on arrival at CPAN
 
-2004-11-30 16:41  chris
+------------------------------------------------------------------------
+r1468 | chris | 2005-10-18 08:59:41 -0500 (Tue, 18 Oct 2005) | 4 lines
 
-	* lib/CAM/: PDF.pm, PDF/GS.pm, PDF/GS/NoText.pm:
-	  v0.98 addFont now checks that the font does not exist before
-	  adding Added better position support to GS Added support for
-	  color devices in GS
+v1.02_01
+Code refactoring.
+Add options hash to the constructor.
 
-2004-11-29 14:44  chris
+------------------------------------------------------------------------
+r1467 | chris | 2005-09-20 18:16:54 -0500 (Tue, 20 Sep 2005) | 2 lines
 
-	* lib/CAM/PDF.pm, scripts/appendpdf.pl: Bugfix for prepend code
+Documentation
 
-2004-11-29 14:31  chris
+------------------------------------------------------------------------
+r1466 | chris | 2005-09-20 10:11:58 -0500 (Tue, 20 Sep 2005) | 2 lines
 
-	* scripts/appendpdf.pl: Add prepend option
+regression fix: parseStream must be able to be called as a class method
 
-2004-11-21 11:49  chris
+------------------------------------------------------------------------
+r1465 | chris | 2005-09-20 10:00:26 -0500 (Tue, 20 Sep 2005) | 8 lines
 
-	* lib/CAM/PDF/GS/NoText.pm: runtime load of Data::Dumper
+v1.01
+Remove instances of circular references so CAM::PDF instances are able
+  to be garbage collected.
+Add a few more comments in confusing bits of code.
 
-2004-11-09 21:40  chris
+NOTE: the API for CAM::PDF::Decrypt changed.  Several methods now require a
+CAM::PDF instance as a first argument.
 
-	* lib/CAM/PDF/Content.pm, lib/CAM/PDF/GS.pm, scripts/getpdftext.pl:
-	  v0.97 Tree validation fixes
+------------------------------------------------------------------------
+r1464 | chris | 2005-09-19 09:30:20 -0500 (Mon, 19 Sep 2005) | 4 lines
 
-2004-11-09 21:39  chris
+v1.00
+Fix an artificial limitation of the encryption module
+Add a comment about RAM usage
 
-	* lib/CAM/: PDF.pm, PDF/GS.pm: v0.97 Pass textwidth into the
-	  renderText() function
+------------------------------------------------------------------------
+r1463 | chris | 2005-06-06 10:17:16 -0500 (Mon, 06 Jun 2005) | 2 lines
 
-2004-07-01 17:29  chris
+Fix typo
 
-	* lib/CAM/: PDF.pm, PDF/Content.pm: Fix a bug in the page
-	  validation: string vs. hexstring
+------------------------------------------------------------------------
+r1462 | chris | 2005-04-22 13:49:07 -0500 (Fri, 22 Apr 2005) | 2 lines
 
-2004-06-17 17:34  chris
+Fix more license blocks
 
-	* lib/CAM/: PDF.pm, PDF/GS.pm, PDF/GS/NoText.pm: v0.95 New methods:
-	  addFont, wrapString Debugged: graphic state computation Cleaned
-	  up some documentation
+------------------------------------------------------------------------
+r1461 | chris | 2005-04-22 13:44:04 -0500 (Fri, 22 Apr 2005) | 3 lines
 
-2004-05-13 01:48  chris
+v0.99
+Relicense
 
-	* lib/CAM/PDF.pm, scripts/deillustrate.pl, scripts/pdfinfo.pl:
-	  v0.94
+------------------------------------------------------------------------
+r1460 | chris | 2005-03-31 22:00:24 -0600 (Thu, 31 Mar 2005) | 2 lines
 
-	  New methods:	 getFontNames	getFonts   getFontByBaseName
-	  deEmbedFontByBaseName   deEmbedFontObj
+Debug shell script
 
-	  Bugs fixed:	disable the "node has only one kid and no parent"
-	  error
+------------------------------------------------------------------------
+r1459 | chris | 2004-12-08 12:39:32 -0600 (Wed, 08 Dec 2004) | 2 lines
 
-	    This is a case where the delete code does a poor job of
-	  maintaining
-	    a balanced page tree and then complains about it's own bad
-	  work.
-	    This should eventually be fixed, but for now, removing the
-	  die() is
-	    good enough.
+Add handy nodeType function
 
-	  Scripts added and changed:
+------------------------------------------------------------------------
+r1458 | chris | 2004-12-08 12:39:20 -0600 (Wed, 08 Dec 2004) | 2 lines
 
-	     pdfinfo.pl - more detailed output
-	     deillustrate.pl - new script to remove Illustrator metadata
+Bugfix: read error on fontmetrics Width array (bounds error)
 
-2004-03-29 16:25  chris
+------------------------------------------------------------------------
+r1457 | chris | 2004-12-06 13:29:35 -0600 (Mon, 06 Dec 2004) | 2 lines
 
-	* lib/CAM/PDF.pm: v0.93 Fix for font de-embedding to remove unused
-	  font widths
+debugging
 
-2004-01-30 16:44  chris
+------------------------------------------------------------------------
+r1456 | chris | 2004-12-02 17:03:14 -0600 (Thu, 02 Dec 2004) | 2 lines
 
-	* lib/CAM/PDF.pm, t/pdf.t: v0.92  * fix a new bug in the page range
-	  code	* add deEmbedFont() method
+bugfixes and additions
 
-2004-01-30 13:27  chris
+------------------------------------------------------------------------
+r1455 | chris | 2004-12-01 12:28:35 -0600 (Wed, 01 Dec 2004) | 2 lines
 
-	* lib/CAM/PDF.pm, scripts/getpdftext.pl, scripts/renderpdf.pl:
-	  v0.91 - fix bug regarding page number ranges in getpdftext.pl and
-	  rendertext.pl
+Add missing MANIFEST entries
 
-2003-12-09 15:09  chris
+------------------------------------------------------------------------
+r1454 | chris | 2004-11-30 16:41:36 -0600 (Tue, 30 Nov 2004) | 6 lines
 
-	* lib/CAM/PDF.pm, scripts/listfonts.pl: Add handy listfonts.pl
-	  script Minor PDF.pm doc fix
 
-2003-09-18 15:43  chris
+v0.98
+addFont now checks that the font does not exist before adding
+Added better position support to GS
+Added support for color devices in GS
 
-	* MANIFEST: Add a couple of missing files to the MANIFEST
+------------------------------------------------------------------------
+r1453 | chris | 2004-11-29 14:44:25 -0600 (Mon, 29 Nov 2004) | 2 lines
 
-2003-09-18 13:04  chris
+Bugfix for prepend code
 
-	* Build.PL, MANIFEST, Makefile.PL, lib/CAM/PDF.pm,
-	  scripts/appendpdf.pl, scripts/asciify,
-	  scripts/changepagestring.pl, scripts/changepdfstring.pl,
-	  scripts/changerefkeys.pl, scripts/crunchjpgs.pl,
-	  scripts/deletepdfpage.pl, scripts/extractallimages.pl,
-	  scripts/extractjpgs.pl, scripts/fillpdffields.pl,
-	  scripts/getpdffontobject.pl, scripts/getpdfpage.pl,
-	  scripts/getpdfpageobject.pl, scripts/getpdftext.pl,
-	  scripts/listimages.pl, scripts/listpdffields.pl,
-	  scripts/pdfinfo.pl, scripts/readpdf.pl, scripts/renderpdf.pl,
-	  scripts/replacepdfobj.pl, scripts/revert.pl,
-	  scripts/revertpdf.pl, scripts/rewritepdf.pl,
-	  scripts/setpdfpage.pl, scripts/stamppdf.pl,
-	  scripts/uninlinepdfimages.pl: v0.90 Add functions to facilitate
-	  testing PDF permissions Add documentation to all scripts Ensure
-	  that all scripts respect PDF Modify permission Rename revert.pl
-	  to revertpdf.pl
+------------------------------------------------------------------------
+r1452 | chris | 2004-11-29 14:31:44 -0600 (Mon, 29 Nov 2004) | 2 lines
 
-2003-09-16 20:47  chris
+Add prepend option
 
-	* Build.PL, LICENSE, MANIFEST, Makefile.PL, README, index.html,
-	  test.pl, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
-	  lib/CAM/PDF/Decrypt.pm, lib/CAM/PDF/GS.pm,
-	  lib/CAM/PDF/GS/NoText.pm, lib/CAM/PDF/Renderer/Dump.pm,
-	  lib/CAM/PDF/Renderer/Images.pm, lib/CAM/PDF/Renderer/Text.pm,
-	  t/inlineimage.pdf, t/pdf.t: v0.80 Lots and lots and lots of
-	  documentation Update for new build and license infrastructure
-	  Caught a couple little bugs in Decrypt.pm
+------------------------------------------------------------------------
+r1451 | chris | 2004-11-21 11:49:38 -0600 (Sun, 21 Nov 2004) | 2 lines
 
-2003-09-11 09:08  chris
+runtime load of Data::Dumper
 
-	* lib/CAM/PDF/Decrypt.pm: Clean up some obsolete code in the
-	  Decrypt module
+------------------------------------------------------------------------
+r1450 | chris | 2004-11-09 21:40:41 -0600 (Tue, 09 Nov 2004) | 3 lines
 
-2003-09-11 09:01  chris
+v0.97
+Tree validation fixes
 
-	* lib/CAM/PDF.pm: v0.75 Fix little bug in getStringWidth method
+------------------------------------------------------------------------
+r1449 | chris | 2004-11-09 21:39:30 -0600 (Tue, 09 Nov 2004) | 3 lines
 
-2003-09-08 15:12  chris
+v0.97
+Pass textwidth into the renderText() function
 
-	* MANIFEST, lib/CAM/PDF.pm: Minor bugfix in debugging function
+------------------------------------------------------------------------
+r1448 | chris | 2004-07-01 17:29:36 -0500 (Thu, 01 Jul 2004) | 2 lines
 
-2003-08-29 11:53  chris
+Fix a bug in the page validation: string vs. hexstring
 
-	* lib/CAM/PDF.pm: v0.74 Better handling for loading
-	  Text::PDF::Filter library
+------------------------------------------------------------------------
+r1447 | chris | 2004-06-17 17:34:30 -0500 (Thu, 17 Jun 2004) | 5 lines
 
-2003-08-11 22:57  chris
+v0.95
+New methods: addFont, wrapString
+Debugged: graphic state computation
+Cleaned up some documentation
 
-	* lib/CAM/PDF/: Content.pm, GS.pm, GS/NoText.pm: Split GS.pm into
-	  two parts for performance (not yet tested)
+------------------------------------------------------------------------
+r1446 | chris | 2004-05-13 01:48:47 -0500 (Thu, 13 May 2004) | 22 lines
 
-2003-08-11 15:44  chris
+v0.94
 
-	* lib/CAM/: PDF.pm, PDF/GS.pm:
-	  v0.73 - two bugfixes
+New methods:
+  getFontNames
+  getFonts
+  getFontByBaseName
+  deEmbedFontByBaseName
+  deEmbedFontObj
 
-	    * font metric widths were not properly dereferenced, in the
-	  case of
-	      indirect objects
+Bugs fixed:
+  disable the "node has only one kid and no parent" error
 
-	    * page content "cm" directives (transform user coordinate
-	  system
-	      matrix) were replacing the current matrix instead of
-	  appending to
-	      it.
+  This is a case where the delete code does a poor job of maintaining
+  a balanced page tree and then complains about it's own bad work.
+  This should eventually be fixed, but for now, removing the die() is
+  good enough.
 
-2003-06-26 03:42  chris
+Scripts added and changed:
 
-	* test.pl, lib/CAM/PDF.pm: v0.72 rangeToArray() bug fixes in the
-	  corner cases, added tests
+   pdfinfo.pl - more detailed output
+   deillustrate.pl - new script to remove Illustrator metadata
 
-2003-06-25 19:44  chris
+------------------------------------------------------------------------
+r1445 | chris | 2004-03-29 16:25:17 -0600 (Mon, 29 Mar 2004) | 3 lines
 
-	* test.pl: Fix number of tests
+v0.93
+Fix for font de-embedding to remove unused font widths
 
-2003-06-25 19:40  chris
+------------------------------------------------------------------------
+r1444 | chris | 2004-01-30 16:44:56 -0600 (Fri, 30 Jan 2004) | 4 lines
 
-	* lib/CAM/PDF.pm: Add documentation for extractPages
+v0.92
+ * fix a new bug in the page range code
+ * add deEmbedFont() method
 
-2003-06-25 19:40  chris
+------------------------------------------------------------------------
+r1443 | chris | 2004-01-30 13:27:02 -0600 (Fri, 30 Jan 2004) | 3 lines
 
-	* test.pl, lib/CAM/PDF.pm: v0.71 * add extractPages() * fix bug in
-	  deletePages * add more tests
+v0.91 - fix bug regarding page number ranges in getpdftext.pl and
+rendertext.pl
 
-2003-06-24 23:14  chris
+------------------------------------------------------------------------
+r1442 | chris | 2003-12-09 15:09:10 -0600 (Tue, 09 Dec 2003) | 3 lines
 
-	* test.pl, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm: v0.70 Convert
-	  parser to non-destructive for higher speed Fix a bug in the test
-	  script
+Add handy listfonts.pl script
+Minor PDF.pm doc fix
 
-2003-06-24 17:01  chris
+------------------------------------------------------------------------
+r1441 | chris | 2003-09-18 15:43:39 -0500 (Thu, 18 Sep 2003) | 2 lines
 
-	* lib/CAM/PDF.pm: Oops, fix on last commit
+Add a couple of missing files to the MANIFEST
 
-2003-06-24 17:00  chris
+------------------------------------------------------------------------
+r1440 | chris | 2003-09-18 13:04:17 -0500 (Thu, 18 Sep 2003) | 6 lines
 
-	* lib/CAM/PDF.pm: v0.65 Add toPDF() and needsSave() methods.
+v0.90
+Add functions to facilitate testing PDF permissions
+Add documentation to all scripts
+Ensure that all scripts respect PDF Modify permission
+Rename revert.pl to revertpdf.pl
 
-2003-06-24 15:38  chris
+------------------------------------------------------------------------
+r1439 | chris | 2003-09-16 20:47:23 -0500 (Tue, 16 Sep 2003) | 5 lines
 
-	* lib/CAM/: PDF.pm, PDF/Content.pm: v0.64 Fix bug in syntax for
-	  page "d" element (numbers, not just integers)
+v0.80
+Lots and lots and lots of documentation
+Update for new build and license infrastructure
+Caught a couple little bugs in Decrypt.pm
 
-2003-06-23 10:27  chris
+------------------------------------------------------------------------
+r1438 | chris | 2003-09-11 09:08:22 -0500 (Thu, 11 Sep 2003) | 2 lines
 
-	* lib/CAM/PDF.pm, scripts/pdfinfo.pl: * add PDF.pm dcumentation *
-	  add isLinearized() method * add more output for pdfinfo.pl
+Clean up some obsolete code in the Decrypt module
 
-2003-06-22 22:39  chris
+------------------------------------------------------------------------
+r1437 | chris | 2003-09-11 09:01:44 -0500 (Thu, 11 Sep 2003) | 3 lines
 
-	* test.pl: Turn off debugging message
+v0.75
+Fix little bug in getStringWidth method
 
-2003-06-22 18:47  chris
+------------------------------------------------------------------------
+r1436 | chris | 2003-09-08 15:12:23 -0500 (Mon, 08 Sep 2003) | 2 lines
 
-	* MANIFEST, test.pl, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
-	  scripts/pdfinfo.pl: v0.63 * added PDF test document * added
-	  pdfinfo.pl script * added toString method on CAM::PDF::Content
-	  class * added writeInlineImage method to support above * simple
-	  bug fix in writeAny error message
+Minor bugfix in debugging function
 
-2003-06-09 14:04  chris
+------------------------------------------------------------------------
+r1435 | chris | 2003-08-29 11:53:59 -0500 (Fri, 29 Aug 2003) | 3 lines
 
-	* lib/CAM/PDF/Renderer/Images.pm: still v0.62 Add Images renderer
+v0.74
+Better handling for loading Text::PDF::Filter library
 
-2003-06-09 14:03  chris
+------------------------------------------------------------------------
+r1434 | chris | 2003-08-11 22:57:29 -0500 (Mon, 11 Aug 2003) | 2 lines
 
-	* lib/CAM/: PDF.pm, PDF/Content.pm: v0.62 * findImages() content
-	  method * Various small cleanups in the main package
+Split GS.pm into two parts for performance (not yet tested)
 
-2003-04-22 17:43  chris
+------------------------------------------------------------------------
+r1433 | chris | 2003-08-11 15:44:01 -0500 (Mon, 11 Aug 2003) | 10 lines
 
-	* lib/CAM/PDF.pm: Add prependPDF to function list
 
-2003-04-22 17:37  chris
+v0.73 - two bugfixes
 
-	* scripts/deletepdfpage.pl: bug fix
+  * font metric widths were not properly dereferenced, in the case of
+    indirect objects
 
-2003-04-22 17:34  chris
+  * page content "cm" directives (transform user coordinate system
+    matrix) were replacing the current matrix instead of appending to
+    it.
 
-	* MANIFEST, test.pl, lib/CAM/PDF.pm, scripts/deletepdfpage.pl:
-	  v0.61 Added prependPDF(), deletePages(), and rangeToArray()
-	  methods Also, a few assorted tweaks:	* test.pl overhaul  * a
-	  little debugging output in getPage()
+------------------------------------------------------------------------
+r1432 | chris | 2003-06-26 03:42:40 -0500 (Thu, 26 Jun 2003) | 3 lines
 
-2003-04-08 08:57  chris
+v0.72
+rangeToArray() bug fixes in the corner cases, added tests
 
-	* lib/CAM/PDF.pm: Fix typo
+------------------------------------------------------------------------
+r1431 | chris | 2003-06-25 19:44:23 -0500 (Wed, 25 Jun 2003) | 2 lines
 
-2003-04-04 14:48  chris
+Fix number of tests
 
-	* MANIFEST, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
-	  lib/CAM/PDF/GS.pm, lib/CAM/PDF/Renderer/Dump.pm,
-	  lib/CAM/PDF/Renderer/Text.pm, scripts/getpdftext.pl,
-	  scripts/renderpdf.pl: v0.60 Graphics state and rendering, some
-	  little code clean ups
+------------------------------------------------------------------------
+r1430 | chris | 2003-06-25 19:40:52 -0500 (Wed, 25 Jun 2003) | 2 lines
 
-2003-04-02 09:36  chris
+Add documentation for extractPages
 
-	* MANIFEST: Add getpdftext.pl to the manifest
+------------------------------------------------------------------------
+r1429 | chris | 2003-06-25 19:40:20 -0500 (Wed, 25 Jun 2003) | 5 lines
 
-2003-04-02 09:22  tasc
+v0.71
+* add extractPages()
+* fix bug in deletePages
+* add more tests
 
-	* lib/CAM/PDF.pm: Make output function more mod-perl friendly
+------------------------------------------------------------------------
+r1428 | chris | 2003-06-24 23:14:12 -0500 (Tue, 24 Jun 2003) | 4 lines
 
-2003-04-01 15:33  chris
+v0.70
+Convert parser to non-destructive for higher speed
+Fix a bug in the test script
 
-	* lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm, scripts/getpdftext.pl:
-	  Add page content validation Add parsing of inline images Add
-	  better Tj/TJ handline Add check option to getpdftext.pl
+------------------------------------------------------------------------
+r1427 | chris | 2003-06-24 17:01:10 -0500 (Tue, 24 Jun 2003) | 2 lines
 
-2003-04-01 12:34  chris
+Oops, fix on last commit
 
-	* lib/CAM/PDF.pm: simplify BT treatment
+------------------------------------------------------------------------
+r1426 | chris | 2003-06-24 17:00:35 -0500 (Tue, 24 Jun 2003) | 3 lines
 
-2003-04-01 12:32  chris
+v0.65
+Add toPDF() and needsSave() methods.
 
-	* lib/CAM/: PDF.pm, PDF/Content.pm: Enhance the content reading by
-	  using native PDF data type parsing (converted the parsing
-	  functions to be either instance or class methods) Special
-	  heuristic treatment of TJs
+------------------------------------------------------------------------
+r1425 | chris | 2003-06-24 15:38:32 -0500 (Tue, 24 Jun 2003) | 3 lines
 
-2003-04-01 11:30  chris
+v0.64
+Fix bug in syntax for page "d" element (numbers, not just integers)
 
-	* MANIFEST, lib/CAM/PDF.pm, lib/CAM/PDF/Content.pm,
-	  scripts/getpdftext.pl: v0.50 * Turn on warnings * Add page
-	  content parsing * Add script to output page text content
+------------------------------------------------------------------------
+r1424 | chris | 2003-06-23 10:27:50 -0500 (Mon, 23 Jun 2003) | 4 lines
 
-2003-02-19 16:54  chris
+* add PDF.pm dcumentation
+* add isLinearized() method
+* add more output for pdfinfo.pl
 
-	* lib/CAM/PDF.pm: Fix font autosizing to account for multiline
-	  fields
+------------------------------------------------------------------------
+r1423 | chris | 2003-06-22 22:39:49 -0500 (Sun, 22 Jun 2003) | 2 lines
 
-2003-02-19 16:06  chris
+Turn off debugging message
 
-	* lib/CAM/PDF.pm: Overhauled fillForm to do things like use
-	  inherited form field values, do justified text, do autosized
-	  text.  This requires the use of the Text::PDF font utilities.
+------------------------------------------------------------------------
+r1422 | chris | 2003-06-22 18:47:05 -0500 (Sun, 22 Jun 2003) | 7 lines
 
-2003-02-19 11:59  chris
+v0.63
+* added PDF test document
+* added pdfinfo.pl script
+* added toString method on CAM::PDF::Content class
+* added writeInlineImage method to support above
+* simple bug fix in writeAny error message
 
-	* lib/CAM/PDF.pm: Oops forgot to remove debugging line
+------------------------------------------------------------------------
+r1421 | chris | 2003-06-09 14:04:00 -0500 (Mon, 09 Jun 2003) | 3 lines
 
-2003-02-19 11:33  chris
+still v0.62
+Add Images renderer
 
-	* lib/CAM/PDF.pm: Handle multiline form widgets
+------------------------------------------------------------------------
+r1420 | chris | 2003-06-09 14:03:28 -0500 (Mon, 09 Jun 2003) | 4 lines
 
-2003-02-19 08:36  chris
+v0.62
+* findImages() content method
+* Various small cleanups in the main package
 
-	* lib/CAM/PDF.pm: v0.42 Minor update:  * expect Encoding key in
-	  resource dictionary  * expect font size zero in form widgets TO
-	  DO: properly treat font size zero as autoscaled font
+------------------------------------------------------------------------
+r1419 | chris | 2003-04-22 17:43:47 -0500 (Tue, 22 Apr 2003) | 2 lines
 
-2002-11-13 16:51  chris
+Add prependPDF to function list
 
-	* lib/CAM/PDF.pm, scripts/getpdffontobject.pl: Add getFont()
-	  function and supporting script
+------------------------------------------------------------------------
+r1418 | chris | 2003-04-22 17:37:53 -0500 (Tue, 22 Apr 2003) | 2 lines
 
-2002-11-13 15:56  chris
+bug fix
 
-	* lib/CAM/PDF.pm: Typo in documentation
+------------------------------------------------------------------------
+r1417 | chris | 2003-04-22 17:34:24 -0500 (Tue, 22 Apr 2003) | 6 lines
 
-2002-11-11 11:35  chris
+v0.61
+Added prependPDF(), deletePages(), and rangeToArray() methods
+Also, a few assorted tweaks:
+ * test.pl overhaul
+ * a little debugging output in getPage()
 
-	* MANIFEST: oops, add new script to the MANIFEST
+------------------------------------------------------------------------
+r1416 | chris | 2003-04-08 08:57:30 -0500 (Tue, 08 Apr 2003) | 2 lines
 
-2002-11-11 10:46  chris
+Fix typo
 
-	* lib/CAM/PDF.pm, scripts/deletepdfpage.pl: Add deletePage()
-	  function, and deletepdfpage.pl script
+------------------------------------------------------------------------
+r1415 | chris | 2003-04-04 14:48:20 -0600 (Fri, 04 Apr 2003) | 3 lines
 
-2002-10-29 07:53  tasc
+v0.60
+Graphics state and rendering, some little code clean ups
 
-	* lib/CAM/PDF.pm: Added simple warning message
+------------------------------------------------------------------------
+r1414 | chris | 2003-04-02 09:36:57 -0600 (Wed, 02 Apr 2003) | 2 lines
 
-2002-10-28 16:43  chris
+Add getpdftext.pl to the manifest
 
-	* lib/CAM/PDF.pm: Add return of number of successes to
-	  fillformfields, v0.39
+------------------------------------------------------------------------
+r1413 | tasc | 2003-04-02 09:22:42 -0600 (Wed, 02 Apr 2003) | 2 lines
 
-2002-10-28 15:28  chris
+Make output function more mod-perl friendly
 
-	* lib/CAM/PDF.pm, scripts/appendpdf.pl, scripts/rewritepdf.pl:
-	  v0.38 Fix appendPDF, added clearAnnotations and addPageResources
-	  The docs are not yet updated.
+------------------------------------------------------------------------
+r1412 | chris | 2003-04-01 15:33:01 -0600 (Tue, 01 Apr 2003) | 5 lines
 
-2002-10-04 17:02  chris
+Add page content validation
+Add parsing of inline images
+Add better Tj/TJ handline
+Add check option to getpdftext.pl
 
-	* MANIFEST: Add appendpdf.pl to the MANIFEST
+------------------------------------------------------------------------
+r1411 | chris | 2003-04-01 12:34:20 -0600 (Tue, 01 Apr 2003) | 2 lines
 
-2002-10-04 16:42  chris
+simplify BT treatment
 
-	* lib/CAM/PDF.pm, scripts/appendpdf.pl: v0.37 add appendPDF()
-	  function and a script to facilitate PDF merging.
+------------------------------------------------------------------------
+r1410 | chris | 2003-04-01 12:32:34 -0600 (Tue, 01 Apr 2003) | 4 lines
 
-2002-08-12 14:47  chris
+Enhance the content reading by using native PDF data type parsing
+(converted the parsing functions to be either instance or class methods)
+Special heuristic treatment of TJs
 
-	* lib/CAM/PDF.pm, scripts/rewritepdf.pl: Fix and enable the cleanse
-	  function.  I can't make this function fail any longer.  Yay!
+------------------------------------------------------------------------
+r1409 | chris | 2003-04-01 11:30:34 -0600 (Tue, 01 Apr 2003) | 5 lines
 
-2002-08-12 13:15  chris
+v0.50
+* Turn on warnings
+* Add page content parsing
+* Add script to output page text content
 
-	* lib/CAM/PDF.pm: Clean up documentation
+------------------------------------------------------------------------
+r1408 | chris | 2003-02-19 16:54:22 -0600 (Wed, 19 Feb 2003) | 2 lines
 
-2002-08-12 12:41  chris
+Fix font autosizing to account for multiline fields
 
-	* lib/CAM/PDF.pm, scripts/rewritepdf.pl: * Support for removal of
-	  decryption blocks * deleteObject function
+------------------------------------------------------------------------
+r1407 | chris | 2003-02-19 16:06:20 -0600 (Wed, 19 Feb 2003) | 4 lines
 
-2002-08-12 10:55  chris
+Overhauled fillForm to do things like use inherited form field values,
+do justified text, do autosized text.  This requires the use of the
+Text::PDF font utilities.
 
-	* lib/CAM/PDF.pm: Fix typo for free block in xref dictionary
-	  creation
+------------------------------------------------------------------------
+r1406 | chris | 2003-02-19 11:59:28 -0600 (Wed, 19 Feb 2003) | 2 lines
 
-2002-08-12 10:35  chris
+Oops forgot to remove debugging line
 
-	* lib/CAM/PDF.pm: Add support for the "null" object type
+------------------------------------------------------------------------
+r1405 | chris | 2003-02-19 11:33:51 -0600 (Wed, 19 Feb 2003) | 2 lines
 
-2002-07-29 15:08  tasc
+Handle multiline form widgets
 
-	* lib/CAM/PDF.pm: Catch undef objects in fillFormFields
+------------------------------------------------------------------------
+r1404 | chris | 2003-02-19 08:36:05 -0600 (Wed, 19 Feb 2003) | 6 lines
 
-2002-07-29 14:15  chris
+v0.42
+Minor update:
+ * expect Encoding key in resource dictionary
+ * expect font size zero in form widgets
+TO DO: properly treat font size zero as autoscaled font
 
-	* lib/CAM/PDF.pm: Bump version number
+------------------------------------------------------------------------
+r1403 | chris | 2002-11-13 16:51:02 -0600 (Wed, 13 Nov 2002) | 2 lines
 
-2002-07-29 14:15  chris
+Add getFont() function and supporting script
 
-	* lib/CAM/PDF.pm: Add clearFormFieldTriggers function
+------------------------------------------------------------------------
+r1402 | chris | 2002-11-13 15:56:12 -0600 (Wed, 13 Nov 2002) | 2 lines
 
-2002-07-18 17:20  chris
+Typo in documentation
 
-	* lib/CAM/PDF.pm: stupid tiny change
+------------------------------------------------------------------------
+r1401 | chris | 2002-11-11 11:35:55 -0600 (Mon, 11 Nov 2002) | 2 lines
 
-2002-07-18 12:58  chris
+oops, add new script to the MANIFEST
 
-	* lib/CAM/PDF.pm: Fix dereference() documentation.
+------------------------------------------------------------------------
+r1400 | chris | 2002-11-11 10:46:33 -0600 (Mon, 11 Nov 2002) | 2 lines
 
-2002-07-18 12:50  chris
+Add deletePage() function, and deletepdfpage.pl script
 
-	* lib/CAM/PDF.pm: Make buildNameTable work on fonts as well as
-	  xobjects
+------------------------------------------------------------------------
+r1399 | tasc | 2002-10-29 07:53:03 -0600 (Tue, 29 Oct 2002) | 2 lines
 
-2002-06-20 16:56  chris
+Added simple warning message
 
-	* scripts/: changepagestring.pl, changepdfstring.pl,
-	  changerefkeys.pl, fillpdffields.pl, getpdfpage.pl,
-	  getpdfpageobject.pl, listimages.pl, listpdffields.pl, readpdf.pl,
-	  replacepdfobj.pl, revert.pl, rewritepdf.pl, setpdfpage.pl,
-	  stamppdf.pl, uninlinepdfimages.pl: Change "if" to "while" in
-	  check for cmd line arguments
+------------------------------------------------------------------------
+r1398 | chris | 2002-10-28 16:43:19 -0600 (Mon, 28 Oct 2002) | 2 lines
 
-2002-06-20 16:46  chris
+Add return of number of successes to fillformfields, v0.39
 
-	* lib/CAM/PDF.pm, scripts/uninlinepdfimages.pl: Moved
-	  uninlineImages function into library from script.  Made some
-	  improvements to the embedded image detection logic.
+------------------------------------------------------------------------
+r1397 | chris | 2002-10-28 15:28:21 -0600 (Mon, 28 Oct 2002) | 4 lines
 
-2002-05-14 14:07  chris
+v0.38
+Fix appendPDF, added clearAnnotations and addPageResources
+The docs are not yet updated.
 
-	* lib/CAM/PDF.pm, lib/CAM/PDF/Decrypt.pm, scripts/changerefkeys.pl,
-	  scripts/crunchjpgs.pl, scripts/extractallimages.pl,
-	  scripts/extractjpgs.pl, scripts/fillpdffields.pl,
-	  scripts/getpdfpageobject.pl, scripts/listimages.pl: Change data
-	  structure for nodes from arrayref to object (hashref)
+------------------------------------------------------------------------
+r1396 | chris | 2002-10-04 17:02:53 -0500 (Fri, 04 Oct 2002) | 2 lines
 
-2002-05-14 11:15  chris
+Add appendpdf.pl to the MANIFEST
 
-	* Makefile.PL, crunchjpg_tmpl.pdf, scripts/crunchjpg_tmpl.pdf: Last
-	  few tweaks for v0.31
+------------------------------------------------------------------------
+r1395 | chris | 2002-10-04 16:42:01 -0500 (Fri, 04 Oct 2002) | 2 lines
 
-2002-05-14 11:05  chris
+v0.37 add appendPDF() function and a script to facilitate PDF merging.
 
-	* asciify, scripts/asciify: Oops, missed one
+------------------------------------------------------------------------
+r1394 | chris | 2002-08-12 14:47:10 -0500 (Mon, 12 Aug 2002) | 3 lines
 
-2002-05-14 11:03  chris
+Fix and enable the cleanse function.  I can't make this function fail
+any longer.  Yay!
 
-	* MANIFEST, Makefile.PL, changepagestring.pl, changepdfstring.pl,
-	  changerefkeys.pl, crunchjpgs.pl, extractallimages.pl,
-	  extractjpgs.pl, fillpdffields.pl, getpdfpage.pl,
-	  getpdfpageobject.pl, listimages.pl, listpdffields.pl, readpdf.pl,
-	  replacepdfobj.pl, revert.pl, rewritepdf.pl, setpdfpage.pl,
-	  stamppdf.pl, test.pl, uninlinepdfimages.pl, lib/CAM/PDF.pm,
-	  lib/CAM/PDF/Decrypt.pm, scripts/changepagestring.pl,
-	  scripts/changepdfstring.pl, scripts/changerefkeys.pl,
-	  scripts/crunchjpgs.pl, scripts/extractallimages.pl,
-	  scripts/extractjpgs.pl, scripts/fillpdffields.pl,
-	  scripts/getpdfpage.pl, scripts/getpdfpageobject.pl,
-	  scripts/listimages.pl, scripts/listpdffields.pl,
-	  scripts/readpdf.pl, scripts/replacepdfobj.pl, scripts/revert.pl,
-	  scripts/rewritepdf.pl, scripts/setpdfpage.pl,
-	  scripts/stamppdf.pl, scripts/uninlinepdfimages.pl: Reorganize
-	  directory
+------------------------------------------------------------------------
+r1393 | chris | 2002-08-12 13:15:31 -0500 (Mon, 12 Aug 2002) | 2 lines
 
-2002-05-13 17:11  chris
+Clean up documentation
 
-	* MANIFEST, Makefile.PL, PDF.pm, changepagestring.pl,
-	  changepdfstring.pl, changerefkeys.pl, crunchjpgs.pl,
-	  extractallimages.pl, extractjpgs.pl, fillpdffields.pl,
-	  getpdfpage.pl, getpdfpageobject.pl, listimages.pl,
-	  listpdffields.pl, readpdf.pl, replacepdfobj.pl, rewritepdf.pl,
-	  setpdfpage.pl, stamppdf.pl, test.pl, uninlinepdfimages.pl: Many
-	  changes * bumped minor version number * change package name from
-	  PDF to CAM::PDF * fix undef bug in getFormField * lots and lots
-	  of documentation
+------------------------------------------------------------------------
+r1392 | chris | 2002-08-12 12:41:37 -0500 (Mon, 12 Aug 2002) | 3 lines
 
-2002-04-26 17:08  chris
+* Support for removal of decryption blocks
+* deleteObject function
 
-	* PDF.pm, crunchjpgs.pl, extractallimages.pl, extractjpgs.pl,
-	  listimages.pl: bugfixes, version bump
+------------------------------------------------------------------------
+r1391 | chris | 2002-08-12 10:55:14 -0500 (Mon, 12 Aug 2002) | 2 lines
 
-2002-04-19 17:06  chris
+Fix typo for free block in xref dictionary creation
 
-	* PDF.pm: Bump version password fields some comments
+------------------------------------------------------------------------
+r1390 | chris | 2002-08-12 10:35:58 -0500 (Mon, 12 Aug 2002) | 2 lines
 
-2002-04-19 16:39  chris
+Add support for the "null" object type
 
-	* Makefile.PL, PDF.pm: * Make Makefile.PL smarter -- read MANIFEST
-	  itself * fix delinearize for non-linearized files * font tweaks
-	  in form filling
+------------------------------------------------------------------------
+r1389 | tasc | 2002-07-29 15:08:20 -0500 (Mon, 29 Jul 2002) | 2 lines
 
-2002-04-19 13:04  chris
+Catch undef objects in fillFormFields
 
-	* MANIFEST: Add listpdffields.pl to the manifest
+------------------------------------------------------------------------
+r1388 | chris | 2002-07-29 14:15:53 -0500 (Mon, 29 Jul 2002) | 2 lines
 
-2002-04-15 16:24  chris
+Bump version number
 
-	* PDF.pm, listpdffields.pl: 0.21: improvements to form handling,
-	  bug fixes in output of xref
+------------------------------------------------------------------------
+r1387 | chris | 2002-07-29 14:15:30 -0500 (Mon, 29 Jul 2002) | 2 lines
 
-2002-04-12 09:06  chris
+Add clearFormFieldTriggers function
 
-	* MANIFEST, PDF.pm: Bump version, add .pl files to manifest
+------------------------------------------------------------------------
+r1386 | chris | 2002-07-18 17:20:14 -0500 (Thu, 18 Jul 2002) | 2 lines
 
-2002-04-12 09:03  chris
+stupid tiny change
 
-	* PDF.pm, changepdfstring.pl: Change how the changestring code
-	  works with regex values
+------------------------------------------------------------------------
+r1385 | chris | 2002-07-18 12:58:55 -0500 (Thu, 18 Jul 2002) | 2 lines
 
-2002-04-11 15:42  chris
+Fix dereference() documentation.
 
-	* PDF.pm, fillpdffields.pl: * Form fields * fix bug for \n in
-	  string
+------------------------------------------------------------------------
+r1384 | chris | 2002-07-18 12:50:43 -0500 (Thu, 18 Jul 2002) | 2 lines
 
-2002-04-11 12:41  chris
+Make buildNameTable work on fonts as well as xobjects
 
-	* PDF.pm: Clean up API documentation just a little bit
+------------------------------------------------------------------------
+r1383 | chris | 2002-06-20 16:56:47 -0500 (Thu, 20 Jun 2002) | 2 lines
 
-2002-04-11 10:55  chris
+Change "if" to "while" in check for cmd line arguments
 
-	* PDF.pm, setpdfpage.pl: Fix string output implementation (used to
-	  break Acrobat5 and Xpdf)
+------------------------------------------------------------------------
+r1382 | chris | 2002-06-20 16:46:00 -0500 (Thu, 20 Jun 2002) | 3 lines
 
-2002-04-10 15:36  chris
+Moved uninlineImages function into library from script.  Made some
+improvements to the embedded image detection logic.
 
-	* MANIFEST, Makefile.PL: remove extra files from make process
+------------------------------------------------------------------------
+r1381 | chris | 2002-05-14 14:07:45 -0500 (Tue, 14 May 2002) | 2 lines
 
-2002-04-10 15:28  chris
+Change data structure for nodes from arrayref to object (hashref)
 
-	* Changes: remove dumb Changes file
+------------------------------------------------------------------------
+r1380 | chris | 2002-05-14 11:15:53 -0500 (Tue, 14 May 2002) | 2 lines
 
-2002-04-10 15:26  chris
+Last few tweaks for v0.31
 
-	* Changes, MANIFEST, Makefile.PL, test.pl: Prepping PDF package as
-	  a distro
+------------------------------------------------------------------------
+r1379 | chris | 2002-05-14 11:05:06 -0500 (Tue, 14 May 2002) | 2 lines
 
-2002-04-10 13:54  chris
+Oops, missed one
 
-	* PDF.pm, asciify, extractallimages.pl, revert.pl, rewritepdf.pl:
-	  PDF.pm support for:  different PDF versions  concatenated strings
-	   \ continued lines  \ escaped characters  cleaner output
-	  formatting  some dictionary sorting (special cases)
+------------------------------------------------------------------------
+r1378 | chris | 2002-05-14 11:03:54 -0500 (Tue, 14 May 2002) | 2 lines
 
-	  mac2unix support in asciify verbose option in extractallimages.pl
-	  pdf versioning in rewritepdf.pl new revision reversion tool
+Reorganize directory
 
-2002-03-14 13:22  chris
+------------------------------------------------------------------------
+r1377 | chris | 2002-05-13 17:11:35 -0500 (Mon, 13 May 2002) | 6 lines
 
-	* PDF.pm, changepagestring.pl, crunchjpgs.pl, stamppdf.pl: jpg
-	  options; PDF stamping functions
+Many changes
+* bumped minor version number
+* change package name from PDF to CAM::PDF
+* fix undef bug in getFormField
+* lots and lots of documentation
 
-2002-03-13 16:22  chris
+------------------------------------------------------------------------
+r1376 | chris | 2002-04-26 17:08:53 -0500 (Fri, 26 Apr 2002) | 2 lines
 
-	* crunchjpg_tmpl.pdf, crunchjpgs.pl, replacepdfobj.pl: cmd line
-	  options for tweaking jpg compression
+bugfixes, version bump
 
-2002-03-13 14:08  chris
+------------------------------------------------------------------------
+r1375 | chris | 2002-04-19 17:06:54 -0500 (Fri, 19 Apr 2002) | 4 lines
 
-	* PDF.pm, crunchjpgs.pl: change version number, add JPEG quality
-	  flag
+Bump version
+password fields
+some comments
 
-2002-03-13 12:30  chris
+------------------------------------------------------------------------
+r1374 | chris | 2002-04-19 16:39:53 -0500 (Fri, 19 Apr 2002) | 4 lines
 
-	* PDF.pm, crunchjpgs.pl, rewritepdf.pl: bug fixes
+* Make Makefile.PL smarter -- read MANIFEST itself
+* fix delinearize for non-linearized files
+* font tweaks in form filling
 
-2002-03-13 10:40  chris
+------------------------------------------------------------------------
+r1373 | chris | 2002-04-19 13:04:54 -0500 (Fri, 19 Apr 2002) | 2 lines
 
-	* PDF.pm, crunchjpgs.pl, extractallimages.pl, extractjpgs.pl,
-	  getpdfpage.pl, rewritepdf.pl: some bug fixes, added support for
-	  messing with images
+Add listpdffields.pl to the manifest
 
-2002-03-01 09:39  chris
+------------------------------------------------------------------------
+r1372 | chris | 2002-04-15 16:24:47 -0500 (Mon, 15 Apr 2002) | 2 lines
 
-	* PDF.pm: Fix bug in escaped strings
+0.21: improvements to form handling, bug fixes in output of xref
 
-2002-02-22 09:46  chris
+------------------------------------------------------------------------
+r1371 | chris | 2002-04-12 09:06:02 -0500 (Fri, 12 Apr 2002) | 2 lines
 
-	* PDF.pm, changepdfstring.pl, rewritepdf.pl: Fix permission
-	  modification
+Bump version, add .pl files to manifest
 
-2002-02-22 09:21  chris
+------------------------------------------------------------------------
+r1370 | chris | 2002-04-12 09:03:16 -0500 (Fri, 12 Apr 2002) | 2 lines
 
-	* PDF.pm, changepdfstring.pl, changerefkeys.pl, getpdfpage.pl,
-	  getpdfpageobject.pl, listimages.pl, readpdf.pl, replacepdfobj.pl,
-	  rewritepdf.pl, uninlinepdfimages.pl: Changes galore: *
-	  encryption/decryption * some documentation
+Change how the changestring code works with regex values
 
-2002-02-21 15:01  chris
+------------------------------------------------------------------------
+r1369 | chris | 2002-04-11 15:42:22 -0500 (Thu, 11 Apr 2002) | 3 lines
 
-	* PDF.pm, changepdfstring.pl, changerefkeys.pl, getpdfpage.pl,
-	  getpdfpageobject.pl, listimages.pl, readpdf.pl, replacepdfobj.pl,
-	  rewritepdf.pl, uninlinepdfimages.pl: Tons of changes!
+* Form fields
+* fix bug for \n in string
 
-2002-02-18 17:26  chris
+------------------------------------------------------------------------
+r1368 | chris | 2002-04-11 12:41:25 -0500 (Thu, 11 Apr 2002) | 2 lines
 
-	* PDF.pm, changepdfstring.pl: Search-and-replace text in a PDF doc
+Clean up API documentation just a little bit
 
-2002-02-18 16:15  chris
+------------------------------------------------------------------------
+r1367 | chris | 2002-04-11 10:55:15 -0500 (Thu, 11 Apr 2002) | 2 lines
 
-	* .cvsignore, asciify: Util changes
+Fix string output implementation (used to break Acrobat5 and Xpdf)
 
-2002-02-18 16:14  chris
+------------------------------------------------------------------------
+r1366 | chris | 2002-04-10 15:36:04 -0500 (Wed, 10 Apr 2002) | 2 lines
 
-	* changerefkeys.pl: Program to change all reference objects
+remove extra files from make process
 
-2002-02-18 16:14  chris
+------------------------------------------------------------------------
+r1365 | chris | 2002-04-10 15:28:58 -0500 (Wed, 10 Apr 2002) | 2 lines
 
-	* PDF.pm, replacepdfobj.pl, rewritepdf.pl: add cleanse feature
-	  (which breaks acrobat), fix some traverse bugs
+remove dumb Changes file
 
-2002-02-16 01:07  chris
+------------------------------------------------------------------------
+r1364 | chris | 2002-04-10 15:26:19 -0500 (Wed, 10 Apr 2002) | 2 lines
 
-	* .cvsignore, PDF.pm, getpdfpage.pl, getpdfpageobject.pl,
-	  listimages.pl, readpdf.pl, replacepdfobj.pl, rewritepdf.pl,
-	  uninlinepdfimages.pl: Inline image uninlining
+Prepping PDF package as a distro
 
-2002-02-15 20:13  chris
+------------------------------------------------------------------------
+r1363 | chris | 2002-04-10 13:54:06 -0500 (Wed, 10 Apr 2002) | 13 lines
 
-	* .cvsignore: List of files to ignore in this directory
+PDF.pm support for:
+ different PDF versions
+ concatenated strings
+ \ continued lines
+ \ escaped characters
+ cleaner output formatting
+ some dictionary sorting (special cases)
 
-2002-02-15 20:05  chris
+mac2unix support in asciify
+verbose option in extractallimages.pl
+pdf versioning in rewritepdf.pl
+new revision reversion tool
 
-	* PDF.pm, getpdfpage.pl, getpdfpageobject.pl, listimages.pl,
-	  readpdf.pl, replacepdfobj.pl, rewritepdf.pl: Initial import
+------------------------------------------------------------------------
+r1362 | chris | 2002-03-14 13:22:36 -0600 (Thu, 14 Mar 2002) | 2 lines
 
+jpg options; PDF stamping functions
+
+------------------------------------------------------------------------
+r1361 | chris | 2002-03-13 16:22:12 -0600 (Wed, 13 Mar 2002) | 2 lines
+
+cmd line options for tweaking jpg compression
+
+------------------------------------------------------------------------
+r1360 | chris | 2002-03-13 14:08:44 -0600 (Wed, 13 Mar 2002) | 2 lines
+
+change version number, add JPEG quality flag
+
+------------------------------------------------------------------------
+r1359 | chris | 2002-03-13 12:30:49 -0600 (Wed, 13 Mar 2002) | 2 lines
+
+bug fixes
+
+------------------------------------------------------------------------
+r1358 | chris | 2002-03-13 10:40:09 -0600 (Wed, 13 Mar 2002) | 2 lines
+
+some bug fixes, added support for messing with images
+
+------------------------------------------------------------------------
+r1357 | chris | 2002-03-01 09:39:37 -0600 (Fri, 01 Mar 2002) | 2 lines
+
+Fix bug in escaped strings
+
+------------------------------------------------------------------------
+r1356 | chris | 2002-02-22 09:46:38 -0600 (Fri, 22 Feb 2002) | 2 lines
+
+Fix permission modification
+
+------------------------------------------------------------------------
+r1355 | chris | 2002-02-22 09:21:36 -0600 (Fri, 22 Feb 2002) | 4 lines
+
+Changes galore:
+* encryption/decryption
+* some documentation
+
+------------------------------------------------------------------------
+r1354 | chris | 2002-02-21 15:01:39 -0600 (Thu, 21 Feb 2002) | 2 lines
+
+Tons of changes!
+
+------------------------------------------------------------------------
+r1353 | chris | 2002-02-18 17:26:38 -0600 (Mon, 18 Feb 2002) | 2 lines
+
+Search-and-replace text in a PDF doc
+
+------------------------------------------------------------------------
+r1352 | chris | 2002-02-18 16:15:32 -0600 (Mon, 18 Feb 2002) | 2 lines
+
+Util changes
+
+------------------------------------------------------------------------
+r1351 | chris | 2002-02-18 16:14:53 -0600 (Mon, 18 Feb 2002) | 2 lines
+
+Program to change all reference objects
+
+------------------------------------------------------------------------
+r1350 | chris | 2002-02-18 16:14:07 -0600 (Mon, 18 Feb 2002) | 2 lines
+
+add cleanse feature (which breaks acrobat), fix some traverse bugs
+
+------------------------------------------------------------------------
+r1349 | chris | 2002-02-16 01:07:29 -0600 (Sat, 16 Feb 2002) | 2 lines
+
+Inline image uninlining
+
+------------------------------------------------------------------------
+r1348 | chris | 2002-02-15 20:13:18 -0600 (Fri, 15 Feb 2002) | 2 lines
+
+List of files to ignore in this directory
+
+------------------------------------------------------------------------
+r1347 | chris | 2002-02-15 20:05:29 -0600 (Fri, 15 Feb 2002) | 2 lines
+
+Initial import
+
+------------------------------------------------------------------------
+r1346 | (no author) | 2002-02-15 20:05:29 -0600 (Fri, 15 Feb 2002) | 1 line
+
+New repository initialized by cvs2svn.
+------------------------------------------------------------------------
