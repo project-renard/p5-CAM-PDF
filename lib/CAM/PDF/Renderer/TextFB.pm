@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =for stopwords framebuffer
 
@@ -101,14 +101,14 @@ sub DESTROY
    my $self = shift;
 
    my $fb = $self->{fb};
-   for my $r (reverse 0 .. $#$fb)
+   for my $r (reverse 0 .. $#{$fb})
    {
       my $row = $fb->[$r];
       if ($row)
       {
          #print "r $r c ".@$row."\n";
          #print '>';
-         for my $c (0 .. $#$row)
+         for my $c (0 .. $#{$row})
          {
             my $str = $row->[$c];
             if (!defined $str || $str eq q{})

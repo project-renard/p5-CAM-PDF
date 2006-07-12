@@ -10,7 +10,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =head1 NAME
 
@@ -371,7 +371,8 @@ sub _crypt
 
       croak 'gennum missing in crypt';
       
-      $gennum = $doc->dereference($objnum)->{gennum};
+      # Unreachable
+      #$gennum = $doc->dereference($objnum)->{gennum};
    }
    
    return Crypt::RC4::RC4($self->_compute_key($objnum, $gennum), $content);

@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding
 
@@ -259,7 +259,7 @@ successfully decrypted.
 
 =cut
 
-sub new
+sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
 {
    my $pkg = shift;
    my $content = shift;  # or a filename
@@ -366,7 +366,7 @@ sub new
       if (ref $id)
       {
          my $accum = q{};
-         for my $obj (@$id)
+         for my $obj (@{$id})
          {
             $accum .= $self->getValue($obj);
          }
@@ -664,7 +664,7 @@ sub _buildNameTable
                my $x = $self->getValue($r->{$key});
                if ((ref $x) eq 'HASH')
                {
-                  %n = (%$x, %n);
+                  %n = (%{$x}, %n);
                }
             }
          }
@@ -725,15 +725,15 @@ sub parseObj
    my $objnum = shift; #unused
    my $gennum = shift; #unused
 
-   if ($$c !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms)
+   if (${$c} !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms)
    {
-      die "Expected object open tag\n" . $self->trimstr($$c);
+      die "Expected object open tag\n" . $self->trimstr(${$c});
    }
    $objnum = $1;
    $gennum = $2;
 
    my $obj;
-   if ($$c =~ m/ \G(.*?)endobj\s* /cgxms)
+   if (${$c} =~ m/ \G(.*?)endobj\s* /cgxms)
    {
       my $string = $1;
       $obj = $self->parseAny(\$string, $objnum, $gennum);
@@ -741,14 +741,14 @@ sub parseObj
       {
          if ($obj->{type} ne 'dictionary')
          {
-            die "Found an object stream without a preceding dictionary\n" . $self->trimstr($$c);
+            die "Found an object stream without a preceding dictionary\n" . $self->trimstr(${$c});
          }
          $obj->{value}->{StreamData} = $self->parseStream(\$string, $objnum, $gennum, $obj->{value});
       }
    }
    else
    {
-      die "Expected endobj\n" . $self->trimstr($$c);
+      die "Expected endobj\n" . $self->trimstr(${$c});
    }
    return CAM::PDF::Node->new('object', $obj, $objnum, $gennum);
 }
@@ -773,9 +773,9 @@ sub parseInlineImage
    my $objnum = shift;
    my $gennum = shift;
 
-   if ($$c !~ m/ \GBI\b /xms)
+   if (${$c} !~ m/ \GBI\b /xms)
    {
-      die "Expected inline image open tag\n" . $self->trimstr($$c);
+      die "Expected inline image open tag\n" . $self->trimstr(${$c});
    }
    my $dict = $self->parseDict($c, $objnum, $gennum, 'BI\\b\\s*', 'ID\\b');
    $self->unabbrevInlineImage($dict);
@@ -783,7 +783,7 @@ sub parseInlineImage
    $dict->{value}->{Subtype} = CAM::PDF::Node->new('label', 'Image', $objnum, $gennum);
    $dict->{value}->{StreamData} = $self->parseStream($c, $objnum, $gennum, $dict->{value},
                                                      qr/ \s* /xms, qr/ \s*EI\b /xms);
-   $$c =~ m/ \G\s+ /cgxms;
+   ${$c} =~ m/ \G\s+ /cgxms;
 
    return CAM::PDF::Node->new('object', $dict, $objnum, $gennum);
 }
@@ -843,9 +843,9 @@ sub parseStream
    my $begin = shift || qr/ stream\r?\n /xms;
    my $end   = shift || qr/ \s*endstream\s* /xms;
 
-   if ($$c !~ m/ \G$begin /cgxms)
+   if (${$c} !~ m/ \G$begin /cgxms)
    {
-      die "Expected stream open tag\n" . $self->trimstr($$c);
+      die "Expected stream open tag\n" . $self->trimstr(${$c});
    }
 
    my $stream;
@@ -855,9 +855,9 @@ sub parseStream
    {
       if ($begin =~ m/ \Gstream /xms)
       {
-         die "Missing stream length\n" . $self->trimstr($$c);
+         die "Missing stream length\n" . $self->trimstr(${$c});
       }
-      if ($$c =~ m/ \G$begin(.*?)$end /cgxms)
+      if (${$c} =~ m/ \G$begin(.*?)$end /cgxms)
       {
          $stream = $1;
          my $len = length $stream;
@@ -865,18 +865,18 @@ sub parseStream
       }
       else
       {
-         die "Missing stream begin/end\n" . $self->trimstr($$c);
+         die "Missing stream begin/end\n" . $self->trimstr(${$c});
       }
    }
    else
    {
       my $length = $self->getValue($l);
-      my $pos = pos $$c;
-      $stream = substr $$c, $pos, $length;
-      pos($$c) += $length;    ## no critic for builtin with parens
-      if ($$c !~ m/ \G$end /cgxms)
+      my $pos = pos ${$c};
+      $stream = substr ${$c}, $pos, $length;
+      pos(${$c}) += $length;    ## no critic(CodeLayout::ProhibitParensWithBuiltins)
+      if (${$c} !~ m/ \G$end /cgxms)
       {
-         die "Expected endstream\n" . $self->trimstr($$c);
+         die "Expected endstream\n" . $self->trimstr(${$c});
       }
    }
 
@@ -920,16 +920,16 @@ sub parseDict
    my $end = shift || '>>\\s*';
 
    my $dict = {};
-   if ($$c =~ m/ \G$begin /cgxms)
+   if (${$c} =~ m/ \G$begin /cgxms)
    {
-      while ($$c !~ m/ \G$end /cgxms)
+      while (${$c} !~ m/ \G$end /cgxms)
       {
-         #warn "looking for label:\n" . $pkg_or_doc->trimstr($$c);
+         #warn "looking for label:\n" . $pkg_or_doc->trimstr(${$c});
          my $keyref = $pkg_or_doc->parseLabel($c, $objnum, $gennum);
          my $key = $keyref->{value};
-         #warn "looking for value:\n" . $pkg_or_doc->trimstr($$c);
+         #warn "looking for value:\n" . $pkg_or_doc->trimstr(${$c});
          my $value = $pkg_or_doc->parseAny($c, $objnum, $gennum);
-         $$dict{$key} = $value;
+         $dict->{$key} = $value;
       }
    }
 
@@ -957,12 +957,12 @@ sub parseArray
    my $gennum = shift;
 
    my $array = [];
-   if ($$c =~ m/ \G\[\s* /cgxms)
+   if (${$c} =~ m/ \G\[\s* /cgxms)
    {
-      while ($$c !~ m/ \G\]\s* /cgxms)
+      while (${$c} !~ m/ \G\]\s* /cgxms)
       {
-         #warn "looking for array value:\n" . $pkg_or_doc->trimstr($$c);
-         push @$array, $pkg_or_doc->parseAny($c, $objnum, $gennum);
+         #warn "looking for array value:\n" . $pkg_or_doc->trimstr(${$c});
+         push @{$array}, $pkg_or_doc->parseAny($c, $objnum, $gennum);
       }
    }
 
@@ -990,13 +990,13 @@ sub parseLabel
    my $gennum = shift;
 
    my $label;
-   if ($$c =~ m/ \G\/([^\s<>\/\[\]\(\)]+)\s* /cgxms)
+   if (${$c} =~ m/ \G\/([^\s<>\/\[\]\(\)]+)\s* /cgxms)
    {
       $label = $1;
    }
    else
    {
-      die "Expected identifier label:\n" . $pkg_or_doc->trimstr($$c);
+      die "Expected identifier label:\n" . $pkg_or_doc->trimstr(${$c});
    }
    return CAM::PDF::Node->new('label', $label, $objnum, $gennum);
 }
@@ -1022,13 +1022,13 @@ sub parseRef
    my $gennum = shift;
 
    my $newobjnum;
-   if ($$c =~ m/ \G(\d+)\s+\d+\s+R\s* /cgxms)
+   if (${$c} =~ m/ \G(\d+)\s+\d+\s+R\s* /cgxms)
    {
       $newobjnum = $1;
    }
    else
    {
-      die "Expected object reference\n" . $pkg_or_doc->trimstr($$c);
+      die "Expected object reference\n" . $pkg_or_doc->trimstr(${$c});
    }
    return CAM::PDF::Node->new('reference', $newobjnum, $objnum, $gennum);
 }
@@ -1054,13 +1054,13 @@ sub parseNum
    my $gennum = shift;
 
    my $value;
-   if ($$c =~ m/ \G([\d\.\-\+]+)\s* /cgxms)
+   if (${$c} =~ m/ \G([\d\.\-\+]+)\s* /cgxms)
    {
       $value = $1;
    }
    else
    {
-      die "Expected numerical constant\n" . $pkg_or_doc->trimstr($$c);
+      die "Expected numerical constant\n" . $pkg_or_doc->trimstr(${$c});
    }
    return CAM::PDF::Node->new('number', $value, $objnum, $gennum);
 }
@@ -1086,14 +1086,14 @@ sub parseString
    my $gennum     = shift;
 
    my $value = q{};
-   if ($$c =~ m/ \G\( /cgxms)
+   if (${$c} =~ m/ \G\( /cgxms)
    {
       # TODO: use Text::Balanced or Regexp::Common from CPAN??
 
       my $depth = 1;
       while ($depth > 0)
       {
-         if ($$c =~ m/ \G([^\(\)]*)([\(\)]) /cgxms)
+         if (${$c} =~ m/ \G([^\(\)]*)([\(\)]) /cgxms)
          {
             my $string = $1;
             my $delim  = $2;
@@ -1117,14 +1117,14 @@ sub parseString
          }
          else
          {
-            die "Expected string closing\n" . $pkg_or_doc->trimstr($$c);
+            die "Expected string closing\n" . $pkg_or_doc->trimstr(${$c});
          }
       }
-      $$c =~ m/ \G\s* /cgxms;
+      ${$c} =~ m/ \G\s* /cgxms;
    }
    else
    {
-      die "Expected string opener\n" . $pkg_or_doc->trimstr($$c);
+      die "Expected string opener\n" . $pkg_or_doc->trimstr(${$c});
    }
 
    # Unescape slash-escaped characters.  Treat \\ specially.
@@ -1183,7 +1183,7 @@ sub parseHexString
    my $gennum = shift;
 
    my $str = q{};
-   if ($$c =~ m/ \G<([\da-fA-F]*)>\s* /cgxms)
+   if (${$c} =~ m/ \G<([\da-fA-F]*)>\s* /cgxms)
    {
       $str = $1;
       my $len = length $str;
@@ -1195,7 +1195,7 @@ sub parseHexString
    }
    else
    {
-     die "Expected hex string\n" . $pkg_or_doc->trimstr($$c);
+     die "Expected hex string\n" . $pkg_or_doc->trimstr(${$c});
    }
 
    if (ref $pkg_or_doc)
@@ -1230,13 +1230,13 @@ sub parseBoolean
    my $gennum = shift;
 
    my $val = q{};
-   if ($$c =~ m/ \G(true|false)\s* /cgxmsi)
+   if (${$c} =~ m/ \G(true|false)\s* /cgxmsi)
    {
       $val = lc $1;
    }
    else
    {
-     die "Expected boolean true or false keyword\n" . $pkg_or_doc->trimstr($$c);
+     die "Expected boolean true or false keyword\n" . $pkg_or_doc->trimstr(${$c});
    }
 
    return CAM::PDF::Node->new('boolean', $val, $objnum, $gennum);
@@ -1263,13 +1263,13 @@ sub parseNull
    my $gennum = shift;
 
    my $val = q{};
-   if ($$c =~ m/ \Gnull\s* /cgxmsi)
+   if (${$c} =~ m/ \Gnull\s* /cgxmsi)
    {
       $val = undef;
    }
    else
    {
-     die "Expected null keyword\n" . $pkg_or_doc->trimstr($$c);
+     die "Expected null keyword\n" . $pkg_or_doc->trimstr(${$c});
    }
 
    return CAM::PDF::Node->new('null', $val, $objnum, $gennum);
@@ -1294,16 +1294,16 @@ sub parseAny
    my $objnum = shift;
    my $gennum = shift;
 
-   return $$c =~ m/ \G \d+\s+\d+\s+R\b /xms  ? $p->parseRef(      $c, $objnum, $gennum)
-        : $$c =~ m/ \G \/              /xms  ? $p->parseLabel(    $c, $objnum, $gennum)
-        : $$c =~ m/ \G <<              /xms  ? $p->parseDict(     $c, $objnum, $gennum)
-        : $$c =~ m/ \G \[              /xms  ? $p->parseArray(    $c, $objnum, $gennum)
-        : $$c =~ m/ \G \(              /xms  ? $p->parseString(   $c, $objnum, $gennum)
-        : $$c =~ m/ \G \<              /xms  ? $p->parseHexString($c, $objnum, $gennum)
-        : $$c =~ m/ \G [\d\.\-\+]+     /xms  ? $p->parseNum(      $c, $objnum, $gennum)
-        : $$c =~ m/ \G (true|false)    /ixms ? $p->parseBoolean(  $c, $objnum, $gennum)
-        : $$c =~ m/ \G null            /ixms ? $p->parseNull(     $c, $objnum, $gennum)
-        : die "Unrecognized type in parseAny:\n" . $p->trimstr($$c);
+   return ${$c} =~ m/ \G \d+\s+\d+\s+R\b /xms  ? $p->parseRef(      $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G \/              /xms  ? $p->parseLabel(    $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G <<              /xms  ? $p->parseDict(     $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G \[              /xms  ? $p->parseArray(    $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G \(              /xms  ? $p->parseString(   $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G \<              /xms  ? $p->parseHexString($c, $objnum, $gennum)
+        : ${$c} =~ m/ \G [\d\.\-\+]+     /xms  ? $p->parseNum(      $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G (true|false)    /ixms ? $p->parseBoolean(  $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G null            /ixms ? $p->parseNull(     $c, $objnum, $gennum)
+        : die "Unrecognized type in parseAny:\n" . $p->trimstr(${$c});
 }
 
 ################################################################################
@@ -1462,7 +1462,7 @@ sub getPropertyNames
    $self->_buildNameTable($pagenum);
    my $props = $self->{Names}->{$pagenum};
    return if (!defined $props);
-   return keys %$props;
+   return keys %{$props};
 }
 sub getProperty
 {
@@ -1525,7 +1525,7 @@ sub getFontNames
    my @names;
    if ($list)
    {
-      for my $key (keys %$list)
+      for my $key (keys %{$list})
       {
          my $dict = $self->getValue($list->{$key});
          if ($dict && $dict->{Type} && $dict->{Type}->{value} eq 'Font')
@@ -1556,7 +1556,7 @@ sub getFonts
    my @fonts;
    if ($list)
    {
-      for my $key (keys %$list)
+      for my $key (keys %{$list})
       {
          my $dict = $self->getValue($list->{$key});
          if ($dict && $dict->{Type} && $dict->{Type}->{value} eq 'Font')
@@ -1585,7 +1585,7 @@ sub getFontByBaseName
 
    $self->_buildNameTable($pagenum);
    my $list = $self->{Names}->{$pagenum};
-   for my $key (keys %$list)
+   for my $key (keys %{$list})
    {
       my $num = $list->{$key}->{value};
       my $obj = $self->dereference($num);
@@ -1715,7 +1715,7 @@ sub addFont
    if ($fontmetrics)
    {
       my $copy = $self->copyObject($fontmetrics);
-      for my $key (keys %$copy)
+      for my $key (keys %{$copy})
       {
          if (!$dict->{value}->{$key})
          {
@@ -2067,7 +2067,7 @@ sub getPage
             die "Error: \@kids is not an array\n";
          }
          my $child = 0; 
-         if (@$kids == 1)
+         if (@{$kids} == 1)
          {
             #warn "getPage: just one kid\n";
             # Do the simple case first:
@@ -2082,9 +2082,9 @@ sub getPage
             
             #warn "getPage: checking kids\n";
 
-            while ($child < $#$kids)
+            while ($child < $#{$kids})
             {
-               #warn "getPage:   checking kid $child of $#$kids\n";
+               #warn "getPage:   checking kid $child of $#{$kids}\n";
 
                if ($pagenum == $nodestart)
                {
@@ -2156,7 +2156,7 @@ sub getPageObjnum
 
    my $page = $self->getPage($pagenum);
    return if (!$page);
-   my ($anyobj) = values %$page;
+   my ($anyobj) = values %{$page};
    if (!$anyobj)
    {
       die "Internal error: page has no attributes!!!\n";
@@ -2263,7 +2263,7 @@ sub getPageContent
    elsif ((ref $contents) eq 'ARRAY')
    {
       my $stream = q{};
-      for my $arrobj (@$contents)
+      for my $arrobj (@{$contents})
       {
          my $data = $self->getValue($arrobj);
          if (! ref $data)
@@ -2284,8 +2284,8 @@ sub getPageContent
    else
    {
       die "Unexpected content type for page contents\n";
-      return; # should never get here
    }
+   return; # should never get here
 }
 
 =item $doc->getPageDimensions($pagenum)
@@ -2333,8 +2333,8 @@ sub getPageDimensions
    else
    {
       die 'Failed to find the page dimensions';
-      return; # never gets here
    }
+   return; # never gets here
 }
 
 =item $doc->getName($object)
@@ -2490,7 +2490,7 @@ sub getFormFieldList
    }
 
    my @list = ();
-   for my $kid (@$kidlist)
+   for my $kid (@{$kidlist})
    {
       if ((! ref $kid) || (ref $kid) ne 'CAM::PDF::Node' || $kid->{type} ne 'reference')
       {
@@ -2564,7 +2564,7 @@ sub getFormField
       }
 
       $self->{formcache}->{$fieldname} = undef;  # assume the worst...
-      for my $kid (@$kidlist)
+      for my $kid (@{$kidlist})
       {
          my $obj = $self->dereference($kid->{value});
          $obj->{formparent} = $parent;
@@ -2613,14 +2613,14 @@ sub getFormFieldDict
       $dict->{DR} ||= CAM::PDF::Node->new('dictionary', {});
       my $dr = $self->getValue($dict->{DR});
       my $olddr = $self->getValue($olddict->{DR});
-      for my $key (keys %{%$olddr})
+      for my $key (keys %{$olddr})
       {
          if ($dr->{$key})
          {
             if ($key eq 'Font')
             {
                my $fonts = $self->getValue($olddr->{$key});
-               for my $font (keys %$fonts)
+               for my $font (keys %{$fonts})
                {
                   $dr->{$key}->{$font} = $self->copyObject($fonts->{$font});
                }
@@ -3006,14 +3006,14 @@ sub _deletePage
             croak 'Tried to delete the only page';
          }
          my $parentkids = $self->getValue($parentdict->{Kids});
-         @$parentkids = grep {$_->{value} != $node->{objnum}} @$parentkids;
+         @{$parentkids} = grep {$_->{value} != $node->{objnum}} @{$parentkids};
          $self->{changes}->{$parentdict->{Kids}->{objnum}} = 1;
          $self->deleteObject($node->{objnum});
          last;
       }
 
       my $kids = $self->getValue($nodedict->{Kids});
-      if (@$kids == 1)
+      if (@{$kids} == 1)
       {
          # Count was not 1, so this must not be a leaf node
          # hop down into node's child
@@ -3027,7 +3027,7 @@ sub _deletePage
       else
       {
          # search through all kids
-         for my $child (0 .. $#$kids)
+         for my $child (0 .. $#{$kids})
          {
             my $sub = $self->dereference($kids->[$child]->{value});
             my $subdict = $sub->{value}->{value};
@@ -3037,7 +3037,7 @@ sub _deletePage
                if ($pagenum == $nodestart)
                {
                   # Got it!
-                  splice @$kids, $child, 1;
+                  splice @{$kids}, $child, 1;
                   $node = undef;  # flag that we are done
                   last;
                }
@@ -3064,7 +3064,7 @@ sub _deletePage
                   $nodestart += $count;
                }
             }
-            if ($child == $#$kids)
+            if ($child == $#{$kids})
             {
                die "Internal error: did not find the page to delete -- corrupted page index\n";
             }
@@ -3101,7 +3101,7 @@ sub _deleteRefsToPages
          }
       }
 
-      if (0 == scalar keys %$names)
+      if (0 == scalar keys %{$names})
       {
          my $names_objnum = $root->{Names}->{value};
          $self->deleteObject($names_objnum);
@@ -3176,7 +3176,7 @@ sub _deleteOutlines
    return;
 }
 
-sub _deleteDests
+sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
 {
    my $self = shift;
    my $dests = shift;
@@ -3203,18 +3203,18 @@ sub _deleteDests
       if ($node->{Names})
       {
          my $pairs = $self->getValue($node->{Names});
-         for (my $i=1; $i<@$pairs; $i+=2)  ## no critic for C-style for loop
+         for (my $i=1; $i<@{$pairs}; $i+=2) ## no critic(ControlStructures::ProhibitCStyleForLoops)
          {
-            push @stack, [$self->getValue($pairs->[$i]), @$chain];
+            push @stack, [$self->getValue($pairs->[$i]), @{$chain}];
          }
-         #$Names += @$pairs/2;
+         #$Names += @{$pairs}/2;
          #$Namenodes++;
       }
       elsif ($node->{Kids})
       {
          my $list = $self->getValue($node->{Kids});
-         push @stack, map {[$self->getValue($_), @$chain]} @$list;
-         #$kids += @$list;
+         push @stack, map {[$self->getValue($_), @{$chain}]} @{$list};
+         #$kids += @{$list};
          #$kidnodes++;
       }
       elsif ($node->{D})
@@ -3239,11 +3239,11 @@ sub _deleteDests
    ## Delete the nodes, and their parents if applicable
    for my $chain (@deletes)
    {
-      my $obj = shift @$chain;
-      my $objnum = [values %$obj]->[0]->{objnum};
+      my $obj = shift @{$chain};
+      my $objnum = [values %{$obj}]->[0]->{objnum};
       if (!$objnum)
       {
-         die 'Destination object lacks an object number (number '.@$chain.' in the chain)';
+         die 'Destination object lacks an object number (number '.@{$chain}.' in the chain)';
       }
       $self->deleteObject($objnum);
       #$nodes--;
@@ -3254,11 +3254,11 @@ sub _deleteDests
       my $child = $obj;
       
     CHAIN:
-      for my $node (@$chain)
+      for my $node (@{$chain})
       {
          last if (exists $node->{deleted});  # internal flag
          
-         my $node_objnum = [values %$node]->[0]->{objnum} || die;
+         my $node_objnum = [values %{$node}]->[0]->{objnum} || die;
          
          if ($node->{Names})
          {
@@ -3268,12 +3268,12 @@ sub _deleteDests
             
             # Find and remove child reference
             # iterate over keys of key-value array
-            for (my $i=@$pairs-2; $i>=0; $i-=2)  ## no critic for C-style for loop
+            for (my $i=@{$pairs}-2; $i>=0; $i-=2) ## no critic(ControlStructures::ProhibitCStyleForLoops)
             {
                if ($pairs->[$i+1]->{value} == $objnum)
                {
                   my $name = $pairs->[$i]->{value} || die 'No name in Name tree';
-                  splice @$pairs, $i, 2;
+                  splice @{$pairs}, $i, 2;
                   if ($limits->[0]->{value} eq $name || $limits->[1]->{value} eq $name)
                   {
                      $redo_limits = 1;
@@ -3282,12 +3282,12 @@ sub _deleteDests
                }
             }
 
-            if (@$pairs > 0)
+            if (@{$pairs} > 0)
             {
                if ($redo_limits)
                {
                   my @names;
-                  for (my $i=0; $i<@$pairs; $i+=2)  ## no critic for C-style for loop
+                  for (my $i=0; $i<@{$pairs}; $i+=2) ## no critic(ControlStructures::ProhibitCStyleForLoops)
                   {
                      push @names, $pairs->[$i]->{value};
                   }
@@ -3305,30 +3305,30 @@ sub _deleteDests
             my $list = $self->getValue($node->{Kids});
             
             # Find and remove child reference
-            for my $i (reverse 0 .. $#$list)
+            for my $i (reverse 0 .. $#{$list})
             {
                if ($list->[$i]->{value} == $objnum)
                {
-                  splice @$list, $i, 1;
+                  splice @{$list}, $i, 1;
                   #$kids--;
                }
             }
             
-            if (@$list > 0)
+            if (@{$list} > 0)
             {
                if ($node->{Limits})
                {
                   my $limits = $self->getValue($node->{Limits});
-                  if (!$limits || @$limits != 2)
+                  if (!$limits || @{$limits} != 2)
                   {
                      die 'Internal error: trouble parsing the Limits array in a name tree';
                   }
                   my @names;
-                  for my $i (0..@$list)
+                  for my $i (0..$#{$list})
                   {
                      my $child = $self->getValue($list->[$i]);
                      my $child_limits = $self->getValue($child->{Limits});
-                     push @names, map {$_->{value}} @$child_limits;
+                     push @names, map {$_->{value}} @{$child_limits};
                   }
                   @names = sort @names;
                   $limits->[0]->{value} = $names[0];
@@ -3401,7 +3401,7 @@ sub addPageResources
    my $page = $self->getPage($pagenum);
    return if (!$page);
 
-   my ($anyobj) = values %$page;
+   my ($anyobj) = values %{$page};
    my $objnum = $anyobj->{objnum};
    my $gennum = $anyobj->{gennum};
 
@@ -3416,7 +3416,7 @@ sub addPageResources
       $page->{Resources} = CAM::PDF::Node->new('dictionary', $pagersrcs, $objnum, $gennum);
       $self->{changes}->{$objnum} = 1;
    }
-   for my $type (keys %$newrsrcs)
+   for my $type (keys %{$newrsrcs})
    {
       my $new_r = $self->getValue($newrsrcs->{$type});
       my $page_r;
@@ -3432,7 +3432,7 @@ sub addPageResources
             $pagersrcs->{$type} = CAM::PDF::Node->new('dictionary', $page_r, $objnum, $gennum);
             $self->{changes}->{$objnum} = 1;
          }
-         for my $font (keys %$new_r)
+         for my $font (keys %{$new_r})
          {
             next if (exists $page_r->{$font});
             my $val = $new_r->{$font};
@@ -3453,15 +3453,15 @@ sub addPageResources
             $pagersrcs->{$type} = CAM::PDF::Node->new('array', $page_r, $objnum, $gennum);
             $self->{changes}->{$objnum} = 1;
          }
-         for my $proc (@$new_r)
+         for my $proc (@{$new_r})
          {
             if ($proc->{type} ne 'label')
             {
                die 'Internal error: procset entry is not a label';
             }
-            next if (grep {$_->{value} eq $proc->{value}} @$page_r);
-            push @$page_r, CAM::PDF::Node->new('label', $proc->{value}, $objnum, $gennum);
-            #warn "add procset $$proc{value}\n";
+            next if (grep {$_->{value} eq $proc->{value}} @{$page_r});
+            push @{$page_r}, CAM::PDF::Node->new('label', $proc->{value}, $objnum, $gennum);
+            #warn "add procset $proc->{value}\n";
             $self->{changes}->{$objnum} = 1;
          }
       }
@@ -3496,7 +3496,7 @@ sub appendPDF
    my $prepend = shift; # boolean, default false
 
    my $pageroot = $self->getPagesDict();
-   my ($anyobj) = values %$pageroot;
+   my ($anyobj) = values %{$pageroot};
    my $objnum = $anyobj->{objnum};
    my $gennum = $anyobj->{gennum};
 
@@ -3524,7 +3524,7 @@ sub appendPDF
    $subpage->{Parent} = CAM::PDF::Node->new('reference', $newpagekey, $key, $subpage->{gennum});
 
    #my $kidlist = $self->getValue($pageroot->{Kids});
-   #push @$kidlist, CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
+   #push @{$kidlist}, CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
    #$self->{changes}->{$objnum} = 1;
 
    #print STDERR "$newpagekey $objnum $key\n";
@@ -3533,7 +3533,7 @@ sub appendPDF
    {
       my $forms = $doc2->getValue($doc2->getValue($root2->{AcroForm})->{Fields});
       my @newforms = ();
-      for my $reference (@$forms)
+      for my $reference (@{$forms})
       {
          if ($reference->{type} ne 'reference')
          {
@@ -3554,7 +3554,7 @@ sub appendPDF
             $reference->{objnum} = $mainforms->[0]->{objnum};
             $reference->{gennum} = $mainforms->[0]->{gennum};
          }
-         push @$mainforms, @newforms;
+         push @{$mainforms}, @newforms;
       }
       else
       {
@@ -4020,6 +4020,8 @@ sub createID
 
 =item $doc->fillFormFields($name => $value, ...)
 
+=item $doc->fillFormFields($opts_hash, $name => $value, ...)
+
 Set the default values of PDF form fields.  The name should be the
 full hierarchical name of the field as output by the
 getFormFieldList() function.  The argument list can be a hash if you
@@ -4029,12 +4031,29 @@ like.  A simple way to use this function is something like this:
     $field{zip} = 53703;
     $self->fillFormFields(%fields);
 
+If the first argument is a hash reference, it is interpreted as
+options for how to render the filled data:
+
+=over
+
+=item background_color =E<lt> 'none' | $gray | [$r, $g, $b]
+
+Specify the background color for the text field.
+
+=back
+
 =cut
 
-sub fillFormFields
+sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
 {
    my $self = shift;
+   my $opts = ref $_[0] ? shift : {};
    my @list = (@_);
+
+   my %opts = (
+      background_color => 1,
+      %{$opts},
+   );
 
    my $filled = 0;
    while (@list > 0)
@@ -4089,7 +4108,7 @@ sub fillFormFields
          if ($dict->{Rect})
          {
             my $r = $self->getValue($dict->{Rect});
-            my ($x1, $y1, $x2, $y2) = @$r;
+            my ($x1, $y1, $x2, $y2) = @{$r};
             @rect = (
                $self->getValue($x1),
                $self->getValue($y1),
@@ -4260,8 +4279,15 @@ sub fillFormFields
          # Move text from lower left corner of form field
          my $tm = "1 0 0 1 $tx $ty Tm ";
 
+         # if not 'none', draw a background as a filled rectangle of solid color
+         my $background_color
+             = $opts{background_color} eq 'none' ? q{}
+             : ref $opts{background_color}       ? "@{$opts{background_color}} rgb"
+             :                                     "$opts{background_color} g";
+         my $background = $background_color ? "$background_color 0 0 $dx $dy re f" : q{};
+
          $text =  "$tl $da $tm $text Tj";
-         $text = "1 g 0 0 $dx $dy re f /Tx BMC q 1 1 ".($dx-$border).q{ }.($dy-$border)." re W n BT $text ET Q EMC";
+         $text = "$background /Tx BMC q 1 1 ".($dx-$border).q{ }.($dy-$border)." re W n BT $text ET Q EMC";
          my $len = length $text;
          $formdict->{Length} = CAM::PDF::Node->new('number', $len, $formonum, $formgnum);
          $formdict->{StreamData} = CAM::PDF::Node->new('stream', $text, $formonum, $formgnum);
@@ -4378,7 +4404,7 @@ sub clearAnnotations
          $self->addPageResources($p, $formrsrcs);
          my $annotsarray = $self->getValue($page->{Annots});
          delete $page->{Annots};
-         for my $annotref (@$annotsarray)
+         for my $annotref (@{$annotsarray})
          {
             my $annot = $self->getValue($annotref);
             if ((ref $annot) ne 'HASH')
@@ -4627,7 +4653,7 @@ sub save
       {
          $o{$self->{order}->[$i]} = $i;
       }
-      @objects = sort {($o{$a}||$a+$n) <=> ($o{$b}||$b+$n)} @objects;
+      @objects = map {$_->[1]} sort {$a->[0] <=> $b->[0]} map {[$o{$_} || $_+$n, $_]} @objects;
    }
    delete $self->{order};
 
@@ -4899,13 +4925,13 @@ sub _writeArray
    my $obj = shift;
 
    my $val = $obj->{value};
-   if (@$val == 0)
+   if (@{$val} == 0)
    {
       return '[ ]';
    }
    my $str = q{};
    my @strs;
-   for (@$val)
+   for (@{$val})
    {
       my $newstr = $self->writeAny($_);
       if ($str ne q{})
@@ -4945,7 +4971,7 @@ sub _writeDictionary
    {
       $str .= ($str ? q{ } : q{}) . '/Subtype ' . $self->writeAny($val->{Subtype});
    }
-   for my $dictkey (sort keys %$val)
+   for my $dictkey (sort keys %{$val})
    {
       next if ($dictkey eq 'Type');
       next if ($dictkey eq 'Subtype');
@@ -4960,7 +4986,7 @@ sub _writeDictionary
          # This is a stream way down deep in the data...  Probably due to a solidifyObject
          
          # First, try to handle the easy case:
-         if (2 == scalar keys %$val && (exists $val->{Length} || exists $val->{L}))
+         if (2 == scalar keys %{$val} && (exists $val->{Length} || exists $val->{L}))
          {
             my $str = $val->{$dictkey}->{value};
             my $len = length $str;
@@ -4971,7 +4997,7 @@ sub _writeDictionary
          # TODO: Handle more complex streams ...
          die "This stream is too complex for me to write... Giving up\n";
          
-         next;
+         next; ## no critic(ControlStructures::ProhibitUnreachableCode)
       }
       
       my $newstr = "/$dictkey " . $self->writeAny($val->{$dictkey});
@@ -5082,8 +5108,8 @@ sub traverse
          }
       }
 
-      push @stack, $type eq 'dictionary'          ? values %$val
-                 : $type eq 'array'               ? @$val
+      push @stack, $type eq 'dictionary'          ? values %{$val}
+                 : $type eq 'array'               ? @{$val}
                  : $type eq 'object'              ? $val
                  : $type eq 'reference'
                    && $deref
@@ -5238,7 +5264,7 @@ sub decodeOne
 
             {
                # Hack to turn off warnings in Filter library
-               no warnings;
+               no warnings; ## no critic(TestingAndDebugging::ProhibitNoWarnings)
                $data = $filt->infilt($data, 1);
             }
 
@@ -5319,16 +5345,16 @@ sub fixDecode
             if (exists $d->{Columns})
             {
                my $c       = $self->getValue($d->{Columns});
-               my $len     = length $$data;
+               my $len     = length ${$data};
                my $newdata = q{};
 
                my $i = 1;
                while ($i < $len)
                {
-                  $newdata .= substr $$data, $i, $c;
+                  $newdata .= substr ${$data}, $i, $c;
                   $i += $c+1;
                }
-               $$data = $newdata;
+               ${$data} = $newdata;
             }
          }
       }
@@ -5360,7 +5386,7 @@ Apply the specified filter to the object.
 
 =cut
 
-sub encodeOne
+sub encodeOne  ## no critic(Subroutines::ProhibitExcessComplexity)
 {
    my $self = shift;
    my $obj = shift;
@@ -5519,7 +5545,7 @@ sub getRefList
    my $list = {};
    $self->traverse(1, $obj, \&_getRefListCB, $list);
 
-   return (sort keys %$list);
+   return (sort keys %{$list});
 }
 
 # PRIVATE FUNCTION
@@ -5624,7 +5650,7 @@ sub _abbrevInlineImageCB
    elsif ($obj->{type} eq 'dictionary')
    {
       my $dict = $obj->{value};
-      for my $key (keys %$dict)
+      for my $key (keys %{$dict})
       {
          my $new = $convert->{$key};
          if (defined $new && $new ne $key)
@@ -5666,14 +5692,14 @@ sub _changeStringCB
 
    if ($obj->{type} eq 'string')
    {
-      for my $key (keys %$changelist)
+      for my $key (keys %{$changelist})
       {
          if ($key =~ m/ \A regex\((.*)\) \z /xms)
          {
             my $regex = $1;
             my $res;
             eval {
-               $res = ($obj->{value} =~ s/ $regex /$$changelist{$key}/gxms);
+               $res = ($obj->{value} =~ s/ $regex /$changelist->{$key}/gxms);
             };
             if ($EVAL_ERROR)
             {
@@ -5686,7 +5712,7 @@ sub _changeStringCB
          }
          else
          {
-            if ($obj->{value} =~ s/ $key /$$changelist{$key}/gxms && $obj->{objnum})
+            if ($obj->{value} =~ s/ $key /$changelist->{$key}/gxms && $obj->{objnum})
             {
                $self->{changes}->{$obj->{objnum}} = 1;
             }
@@ -5831,7 +5857,7 @@ sub copyObject
    require Data::Dumper;
    my $d = Data::Dumper->new([$obj],['obj']);
    $d->Purity(1)->Indent(0);
-   eval $d->Dump();   ## no critic for string eval
+   eval $d->Dump(); ## no critic(BuiltinFunctions::ProhibitStringyEval)
 
    return $obj;
 }   
@@ -5881,9 +5907,9 @@ sub asciify
 
    ## Heuristics: fix up some odd text characters:
    # f-i ligature
-   $$R_string =~ s/ \223 /fi/gxms;
+   ${$R_string} =~ s/ \223 /fi/gxms;
    # Registered symbol
-   $$R_string =~ s/ \xae /(R)/gxms;
+   ${$R_string} =~ s/ \xae /(R)/gxms;
    return $pkg_or_doc;
 }
 

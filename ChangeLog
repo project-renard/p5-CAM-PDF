@@ -1,4 +1,11 @@
 ------------------------------------------------------------------------
+r2666 | chris | 2006-07-11 16:35:31 -0500 (Tue, 11 Jul 2006) | 4 lines
+
+CAM-PDF v1.07
+ * Add background_color options to fillFormFields
+ * Perl::Critic v0.17 compliance
+
+------------------------------------------------------------------------
 r2226 | chris | 2006-03-20 10:05:38 -0600 (Mon, 20 Mar 2006) | 2 lines
 
 Spelling corrections

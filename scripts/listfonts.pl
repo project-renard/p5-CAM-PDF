@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 my %opts = (
             sort       => 0,
@@ -56,7 +56,7 @@ for my $p (1 .. $doc->numPages())
       my $font = $doc->getFont($p, $fontname);
 
       # Collect a list of all fields, so we can list the unhandled ones at the end
-      my %fields = map {$_,1} keys %$font;
+      my %fields = map {$_,1} keys %{$font};
       delete $fields{Type}; # delete the fields as we handle them
       
       # Font name, if present
@@ -93,7 +93,7 @@ for my $p (1 .. $doc->numPages())
             # Handle encoding here.  If it's not an encoding, no big deal
             $desc .= "    Encoding:\n";
             my $ref = $doc->getValue($font->{Encoding});
-            my %efields = map {$_,1} keys %$ref;
+            my %efields = map {$_,1} keys %{$ref};
             delete $efields{Type};
             if ($ref->{BaseEncoding})
             {

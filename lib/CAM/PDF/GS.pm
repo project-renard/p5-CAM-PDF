@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =head1 NAME
 
@@ -321,7 +321,7 @@ sub TJ
    my $array = shift;
 
    @{$self->{last}} = $self->textToUser(0,0);
-   foreach my $node (@$array)
+   foreach my $node (@{$array})
    {
       if ($node->{type} eq 'number')
       {

@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =head1 NAME
 
@@ -52,9 +52,9 @@ sub render
       my $node = $stack[-1];
       if (ref $node)
       {
-         if (@$node > 0)   # Still has children?
+         if (@{$node} > 0)   # Still has children?
          {
-            my $block = shift @$node;   # grab the next child
+            my $block = shift @{$node};   # grab the next child
             if ($block->{type} eq 'block')
             {
                if ($block->{name} eq 'BT')
@@ -107,7 +107,7 @@ sub _TJ
    my $str = shift;
    my $args_ref = shift;
 
-   if (@$args_ref != 1 || $args_ref->[0]->{type} ne 'array')
+   if (@{$args_ref} != 1 || $args_ref->[0]->{type} ne 'array')
    {
       die 'Bad TJ';
    }
@@ -138,7 +138,7 @@ sub _Tj
    my $str      = shift;
    my $args_ref = shift;
 
-   if (@$args_ref < 1 ||
+   if (@{$args_ref} < 1 ||
        ($args_ref->[-1]->{type} ne 'string' && $args_ref->[-1]->{type} ne 'hexstring'))
    {
       die 'Bad Tj';
@@ -154,7 +154,7 @@ sub _Tquote
    my $str      = shift;
    my $args_ref = shift;
 
-   if (@$args_ref < 1 ||
+   if (@{$args_ref} < 1 ||
        ($args_ref->[-1]->{type} ne 'string' && $args_ref->[-1]->{type} ne 'hexstring'))
    {
       die 'Bad Tquote';
@@ -170,7 +170,7 @@ sub _Td
    my $str      = shift;
    my $args_ref = shift;
 
-   if (@$args_ref != 2 || 
+   if (@{$args_ref} != 2 || 
        $args_ref->[0]->{type} ne 'number' ||
        $args_ref->[1]->{type} ne 'number')
    {

@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =for stopwords fallback
 
@@ -168,7 +168,7 @@ sub applyMatrix
    $m3[4] = $m2->[0]*$m1->[4] + $m2->[2]*$m1->[5] + $m2->[4];
    $m3[5] = $m2->[1]*$m1->[4] + $m2->[3]*$m1->[5] + $m2->[5];
 
-   @$m2 = @m3;
+   @{$m2} = @m3;
    return;
 }
 
@@ -277,7 +277,7 @@ sub nodeType
 
 # default setters
 {
-   no strict 'refs';
+   no strict 'refs'; ## no critic(ProhibitNoStrict)
    foreach my $name (qw(i j J ri Tc TL Tr Ts Tw w))
    {
       *{$name} = sub { $_[0]->{$name} = $_[1]; return; };
@@ -415,7 +415,7 @@ sub d
    my $da = shift;
    my $dp = shift;
 
-   @{$self->{da}} = @$da;
+   @{$self->{da}} = @{$da};
    $self->{dp} = $dp;
    return;
 }

@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 my %opts = (
             density    => undef,
@@ -55,15 +55,15 @@ if (defined $opts{xdensity} || defined $opts{ydensity})
    }
    if (defined $opts{xdensity})
    {
-      no strict 'refs';
+      no strict 'refs'; ## no critic(ProhibitNoStrict)
       my $varname = $opts{renderer}.'::xdensity';
-      $$varname = $opts{xdensity};
+      ${$varname} = $opts{xdensity};
    }
    if (defined $opts{ydensity})
    {
-      no strict 'refs';
+      no strict 'refs'; ## no critic(ProhibitNoStrict)
       my $varname = $opts{renderer}.'::ydensity';
-      $$varname = $opts{ydensity};
+      ${$varname} = $opts{ydensity};
    }
 }
 

@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 my %opts = (
             verbose    => 0,
@@ -70,7 +70,7 @@ while (@ARGV > 0)
    print "Pages:        $pages\n";
    if ($info)
    {
-      foreach my $key (sort keys %$info)
+      foreach my $key (sort keys %{$info})
       {
          my $val = $info->{$key}->{value};
          if ($info->{$key}->{type} eq 'string' && $val && 

@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 =for stopwords renderers
 
@@ -190,8 +190,8 @@ sub parse
    my $c    = shift;
 
    $progress = 0;
-   pos($$c) = 0;   ## no critic for builtin with parens
-   $$c =~ m/ \A \s+ /cgxms; # prime the regex
+   pos(${$c}) = 0;   ## no critic(CodeLayout::ProhibitParensWithBuiltins)
+   ${$c} =~ m/ \A \s+ /cgxms; # prime the regex
    my $result = $self->_parseBlocks($c, $self->{blocks});
    if (!defined $result)
    {
@@ -201,11 +201,11 @@ sub parse
       }
       return;
    }
-   if ($$c =~ m/ \G\S /cgxms)
+   if (${$c} =~ m/ \G\S /cgxms)
    {
       if ($self->{verbose})
       {
-         carp 'Trailing unparsed content: ' . CAM::PDF->trimstr($$c);
+         carp 'Trailing unparsed content: ' . CAM::PDF->trimstr(${$c});
       }
       return;
    }
@@ -223,7 +223,7 @@ sub _parseBlocks
    my $end = shift;
 
    my @stack;
-   while ($$c =~ m/ \G.*\S /xms)
+   while (${$c} =~ m/ \G.*\S /xms)
    {
       my $block = $self->_parseBlock($c, $end);
       if (!defined $block)
@@ -238,7 +238,7 @@ sub _parseBlocks
       {
          push @{$block->{args}}, @stack;
          @stack = ();
-         push @$A_blocks, $block;
+         push @{$A_blocks}, $block;
       }
       else
       {
@@ -266,7 +266,7 @@ sub _parseBlock
    my $end  = shift;
 
    # Start a new block?
-   if ($$c =~ m/ \G($starts)\s* /ocgxms)
+   if (${$c} =~ m/ \G($starts)\s* /ocgxms)
    {
       my $type = $1;
       my $blocks = [];
@@ -281,13 +281,13 @@ sub _parseBlock
    }
 
    # Balanced end to open block?
-   if (defined $end && $$c =~ m/ \G$end\s* /cgxms)
+   if (defined $end && ${$c} =~ m/ \G$end\s* /cgxms)
    {
       return q{};
    }
 
    # Unbalanced end?
-   if ($$c =~ m/ \G($ends)\s* /ocgxms)
+   if (${$c} =~ m/ \G($ends)\s* /ocgxms)
    {
       my $op = $1;
       if ($self->{verbose})
@@ -305,7 +305,7 @@ sub _parseBlock
    }
 
    # Inline image?
-   if ($$c =~ m/ \G(BI)\b /xms)
+   if (${$c} =~ m/ \G(BI)\b /xms)
    {
       my $op = $1;
       my $img = CAM::PDF->parseInlineImage($c);
@@ -324,7 +324,7 @@ sub _parseBlock
    # Non-block operand?
 
    ## This is the REAL list
-   #if ($$c =~ m/ \G(
+   #if (${$c} =~ m/ \G(
    #                    [bBcdfFgGhijJkKlmMnsSvwWy\'\"]|
    #                    b\*|B\*|BDC|BI|d[01]|c[sm]|CS|Do|DP|f\*|gs|MP|
    #                    re|RG|rg|ri|sc|SC|scn|SCN|sh|T[cdDfJjLmrswz\*]|W\*
@@ -332,7 +332,7 @@ sub _parseBlock
    #               /cgxms)
 
    ## This is a cheat version of the above
-   if ($$c =~ m/ \G([A-Za-z\'\"][\w\*]*)\s* /cgxms)
+   if (${$c} =~ m/ \G([A-Za-z\'\"][\w\*]*)\s* /cgxms)
    {
       my $op = $1;
       return _b('op', $op);
@@ -351,14 +351,14 @@ specification.
 
 =cut
 
-sub validate
+sub validate  ## no critic(Subroutines::ProhibitExcessComplexity)
 {
    my $self   = shift;
    my $blocks = shift || $self->{blocks};
 
    $self->_buildOpSyntax();
 
-   foreach my $block (@$blocks)
+   foreach my $block (@{$blocks})
    {
       if ($block->{type} eq 'block')
       {
@@ -383,17 +383,17 @@ sub validate
          {
             # variable args, skip
          }
-         elsif (@{$block->{args}} != @$syntax)
+         elsif (@{$block->{args}} != @{$syntax})
          {
             if ($self->{verbose})
             {
-               carp "Wrong number of arguments to '$$block{name}' (got ".@{$block->{args}}.' instead of '.@$syntax.')';
+               carp "Wrong number of arguments to '$block->{name}' (got ".@{$block->{args}}.' instead of '.@{$syntax}.')';
             }
             return;
          }
          else
          {
-            foreach my $i (0 .. $#$syntax)
+            foreach my $i (0 .. $#{$syntax})
             {
                my $arg   = $block->{args}->[$i];
                my $types = $syntax->[$i];
@@ -426,7 +426,7 @@ sub validate
                {
                   if ($self->{verbose})
                   {
-                     carp "Expected '$types' argument for '$$block{name}' (got $$arg{type})";
+                     carp "Expected '$types' argument for '$block->{name}' (got $arg->{type})";
                   }
                   return;
                }
@@ -522,7 +522,7 @@ sub traverse
       $gs = $renderer->new($self->{refs});
    }
 
-   foreach my $block (@$blocks)
+   foreach my $block (@{$blocks})
    {
       $block->{gs} = $gs;
 
@@ -537,7 +537,7 @@ sub traverse
          my $newgs = $gs->clone();
 
          {
-            no strict 'refs';
+            no strict 'refs'; ## no critic(ProhibitNoStrict)
             $newgs->$func(map {$_->{value}} @{$block->{args}});
          }
 
@@ -548,10 +548,10 @@ sub traverse
          #my $after  = Dumper($newgs);
          #if ($before ne $after)
          #{
-         #   print "diff: $$block{name}\n";
+         #   print "diff: $block->{name}\n";
          #   foreach my $hunk (Algorithm::Diff::diff([split /\n/xms, $before], [split /\n/xms, $after]))
          #   {
-         #      foreach my $change (@$hunk)
+         #      foreach my $change (@{$hunk})
          #      {
          #         print STDERR $change->[0], $change->[2], "\n";
          #      }
@@ -588,7 +588,7 @@ sub toString
 
    my $str = q{};
    my $doc = $self->{refs}->{doc};
-   foreach my $block (@$blocks)
+   foreach my $block (@{$blocks})
    {
       if ($block->{name} eq 'BI')
       {

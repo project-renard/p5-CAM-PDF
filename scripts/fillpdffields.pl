@@ -8,22 +8,24 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 my %opts = (
             triggerclear => 0,
-            verbose    => 0,
-            order      => 0,
-            help       => 0,
-            version    => 0,
+            background   => '1',
+            verbose      => 0,
+            order        => 0,
+            help         => 0,
+            version      => 0,
             );
 
 Getopt::Long::Configure('bundling');
 GetOptions('t|triggerclear'  => \$opts{triggerclear},
-           'v|verbose'  => \$opts{verbose},
-           'o|order'    => \$opts{order},
-           'h|help'     => \$opts{help},
-           'V|version'  => \$opts{version},
+           'b|background=s'  => \$opts{background},
+           'v|verbose'       => \$opts{verbose},
+           'o|order'         => \$opts{order},
+           'h|help'          => \$opts{help},
+           'V|version'       => \$opts{version},
            ) or pod2usage(1);
 if ($opts{help})
 {
@@ -43,10 +45,16 @@ if (@ARGV < 3)
 my $infile = shift;
 my $outfile = shift;
 
+if ($opts{background} =~ m/\s/xms)
+{
+   # Separate r,g,b
+   $opts{background} = [split m/\s+/xms, $opts{background}];
+}
+
 my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my @list = (@ARGV);
-$doc->fillFormFields(@list);
+$doc->fillFormFields({background_color => $opts{background}}, @list);
 if ($opts{triggerclear})
 {
    # get even-numbered-index elemented (i.e. fieldnames)
@@ -85,11 +93,21 @@ fillpdffields.pl - Replace PDF form fields with specified values
  fillpdffields.pl [options] infile.pdf outfile.pdf field value [field value ...]
 
  Options:
-   -t --triggerclear   remove all of the form triggers after replacing values
-   -o --order          preserve the internal PDF ordering for output
-   -v --verbose        print diagnostic messages
-   -h --help           verbose help message
-   -V --version        print CAM::PDF version
+   -b --background=val  specify a background color behind the filled text field
+                        Options are: 'none', gray or 'r g b'.  Default: '1'
+   -t --triggerclear    remove all of the form triggers after replacing values
+   -o --order           preserve the internal PDF ordering for output
+   -v --verbose         print diagnostic messages
+   -h --help            verbose help message
+   -V --version         print CAM::PDF version
+
+Examples of C<--background> values are:
+
+  --background=none
+  --background=1        # white
+  --background=0.5      # gray
+  --background=0        # black
+  --background="1 0 0"  # red
 
 =head1 DESCRIPTION
 
