@@ -7,7 +7,7 @@ use strict;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             count      => 0,
@@ -64,9 +64,11 @@ elsif ($revs == 1)
 else
 {
    # Figure out line end character
-   $content =~ m/ (.)%%EOF.*?\z /xms
-       or die "Cannot find the end-of-file marker\n";
-   my $lineend = $1;
+   my ($lineend) = $content =~ m/ (.)%%EOF.*?\z /xms;
+   if (!$lineend)
+   {
+      die "Cannot find the end-of-file marker\n";
+   }
    my $eof = $lineend.'%%EOF';
 
    my $i = rindex $content, $eof;

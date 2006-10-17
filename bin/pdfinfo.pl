@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             verbose    => 0,
@@ -52,8 +52,8 @@ while (@ARGV > 0)
    my $pages = $doc->numPages();
    my @prefs = $doc->getPrefs();
    my $pdfversion = $doc->{pdfversion};
-   my $info = $doc->{trailer}->{Info};
-   $info &&= $doc->getValue($info);
+   my $pdfinfo = $doc->{trailer}->{Info};
+   $pdfinfo &&= $doc->getValue($pdfinfo);
 
    my @pagesize = (0,0);
    my $p = $doc->{Pages};
@@ -68,12 +68,12 @@ while (@ARGV > 0)
    print "File:         $file\n";
    print "File Size:    $size bytes\n";
    print "Pages:        $pages\n";
-   if ($info)
+   if ($pdfinfo)
    {
-      foreach my $key (sort keys %{$info})
+      foreach my $key (sort keys %{$pdfinfo})
       {
-         my $val = $info->{$key}->{value};
-         if ($info->{$key}->{type} eq 'string' && $val && 
+         my $val = $pdfinfo->{$key}->{value};
+         if ($pdfinfo->{$key}->{type} eq 'string' && $val && 
              $val =~ m/ \A
                         D:
                         (\d{4})(\d{2})(\d{2})

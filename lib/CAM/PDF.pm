@@ -8,7 +8,10 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
+
+## no critic(Bangs::ProhibitCommentedOutCode)
+## no critic(ControlStructures::ProhibitDeepNests)
 
 =for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding
 
@@ -287,9 +290,10 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
    my $pdfversion = '1.2';
    if ($content =~ m/ \A%PDF-([\d\.]+) /xms)
    {
-      if ($1 && $1 > $pdfversion)
+      my $ver = $1;
+      if ($ver && $ver > $pdfversion)
       {
-         $pdfversion = $1;
+         $pdfversion = $ver;
       }
    }
    else
@@ -302,6 +306,7 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
             $content = q{};
             my $offset = 0;
             my $step = 4096;
+            binmode STDIN;
             while ($step == read STDIN, $content, $step, $offset)
             {
                $offset += $step;
@@ -322,9 +327,10 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
       }
       if ($content =~ m/ \A%PDF-([\d\.]+) /xms)
       {
-         if ($1 && $1 > $pdfversion)
+         my $ver = $1;
+         if ($ver && $ver > $pdfversion)
          {
-            $pdfversion = $1;
+            $pdfversion = $ver;
          }
       }
       else
@@ -366,15 +372,14 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
       if (ref $id)
       {
          my $accum = q{};
-         for my $obj (@{$id})
+         for my $objnode (@{$id})
          {
-            $accum .= $self->getValue($obj);
+            $accum .= $self->getValue($objnode);
          }
          $id = $accum;
       }
       $self->{ID} = $id;
    }
-   #$self->{ID} ||= q{};
 
    $self->{crypt} = CAM::PDF::Decrypt->new($self, $opassword, $upassword,
                                           $self->{options}->{prompt_for_password});
@@ -455,14 +460,15 @@ sub _startdoc
    ### Parse the document metadata
 
    # Start by parsing out the location of the last xref block
-   if ($self->{content} !~ m/ startxref\s*(\d+)\s*%%EOF\s*\z /xms)
+   my ($startxref) = $self->{content} =~ m/ startxref\s*(\d+)\s*%%EOF\s*\z /xms;
+   if (!$startxref)
    {
       $CAM::PDF::errstr = "Cannot find the index in the PDF content\n";
       return;
    }
 
    # Parse the hierarchy of xref blocks
-   $self->{startxref} = $1;
+   $self->{startxref} = $startxref;
    $self->{trailer} = $self->_buildxref($self->{startxref}, $self->{xref}, $self->{versions});
    if (!defined $self->{trailer})
    {
@@ -548,15 +554,16 @@ sub _buildxref
          next if (exists $index->{$objnum});
 
          my $row = substr $end, $i*20, 20;
-         if ($row !~ m/ \A (\d{10}) [ ] (\d{5}) [ ] (\w) /xms)
+         my ($indexnum, $version, $type) = $row =~ m/ \A (\d{10}) [ ] (\d{5}) [ ] (\w) /xms;
+         if (!$indexnum)
          {
             $CAM::PDF::errstr = "Could not decipher xref row:\n" . $self->trimstr($row);
             return;
          }
-         if ($3 eq 'n')
+         if ($type eq 'n')
          {
-            $index->{$objnum} = $1;
-            $versions->{$objnum} = $2;
+            $index->{$objnum} = $indexnum;
+            $versions->{$objnum} = $version;
          }
          if ($objnum > $self->{maxobj})
          {
@@ -609,7 +616,7 @@ sub _buildendxref
       $r->{$rev{$pos[$i]}} = $pos[$i+1];
    }
    # The end of the last object is the end of the file
-   $r->{$rev{$pos[$#pos]}} = $self->{contentlength};
+   $r->{$rev{$pos[-1]}} = $self->{contentlength};
 
    $self->{endxref} = $r;
    return;
@@ -632,14 +639,14 @@ sub _buildNameTable
          $self->_buildNameTable($p);
       }
       my %n = ();
-      for my $obj (values %{$self->{objcache}})
+      for my $objnode (values %{$self->{objcache}})
       {
-         if ($obj->{value}->{type} eq 'dictionary')
+         if ($objnode->{value}->{type} eq 'dictionary')
          {
-            my $dict = $obj->{value}->{value};
+            my $dict = $objnode->{value}->{value};
             if ($dict->{Name})
             {
-               $n{$dict->{Name}->{value}} = CAM::PDF::Node->new('reference', $obj->{objnum});
+               $n{$dict->{Name}->{value}} = CAM::PDF::Node->new('reference', $objnode->{objnum});
             }
          }
       }
@@ -722,35 +729,32 @@ sub parseObj
 {
    my $self = shift;
    my $c = shift;
-   my $objnum = shift; #unused
-   my $gennum = shift; #unused
 
-   if (${$c} !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms)
+   my ($objnum,$gennum) = ${$c} =~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms;
+   if (!$objnum)
    {
       die "Expected object open tag\n" . $self->trimstr(${$c});
    }
-   $objnum = $1;
-   $gennum = $2;
 
-   my $obj;
+   my $objnode;
    if (${$c} =~ m/ \G(.*?)endobj\s* /cgxms)
    {
       my $string = $1;
-      $obj = $self->parseAny(\$string, $objnum, $gennum);
+      $objnode = $self->parseAny(\$string, $objnum, $gennum);
       if ($string =~ m/ \Gstream /xms)
       {
-         if ($obj->{type} ne 'dictionary')
+         if ($objnode->{type} ne 'dictionary')
          {
             die "Found an object stream without a preceding dictionary\n" . $self->trimstr(${$c});
          }
-         $obj->{value}->{StreamData} = $self->parseStream(\$string, $objnum, $gennum, $obj->{value});
+         $objnode->{value}->{StreamData} = $self->parseStream(\$string, $objnum, $gennum, $objnode->{value});
       }
    }
    else
    {
       die "Expected endobj\n" . $self->trimstr(${$c});
    }
-   return CAM::PDF::Node->new('object', $obj, $objnum, $gennum);
+   return CAM::PDF::Node->new('object', $objnode, $objnum, $gennum);
 }
 
 
@@ -799,10 +803,10 @@ the CAM::PDF::Content class.
 sub writeInlineImage
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
    # Make a copy since we are going to trash the image
-   my $dictobj = $self->copyObject($obj)->{value};
+   my $dictobj = $self->copyObject($objnode)->{value};
 
    my $dict = $dictobj->{value};
    delete $dict->{Type};
@@ -810,7 +814,6 @@ sub writeInlineImage
    my $stream = $dict->{StreamData}->{value};
    delete $dict->{StreamData};
    $self->abbrevInlineImage($dictobj);
-   #$dict->{L} ||= CAM::PDF::Node->new('number', length($stream));
    
    my $str = $self->writeAny($dictobj);
    $str =~ s/ \A <<    /BI /xms;
@@ -1328,25 +1331,25 @@ objects.
 sub getValue
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   return if (! ref $obj);
+   return if (! ref $objnode);
 
-   while ($obj->{type} eq 'reference' || $obj->{type} eq 'object')
+   while ($objnode->{type} eq 'reference' || $objnode->{type} eq 'object')
    {
-      if ($obj->{type} eq 'reference')
+      if ($objnode->{type} eq 'reference')
       {
-         my $objnum = $obj->{value};
-         $obj = $self->dereference($objnum);
+         my $objnum = $objnode->{value};
+         $objnode = $self->dereference($objnum);
       }
-      if ($obj->{type} eq 'object')
+      if ($objnode->{type} eq 'object')
       {
-         $obj = $obj->{value};
+         $objnode = $objnode->{value};
       }
-      return if (! ref $obj);
+      return if (! ref $objnode);
    }
 
-   return $obj->{value};
+   return $objnode->{value};
 }
 
 =item $doc->getObjValue($objectnum)
@@ -1413,15 +1416,19 @@ sub dereference
          return;
       }
 
+=for oldcode
       ## This is the old method.  It is slow.  Below is faster.
       #my $end = substr $self->{content}, $pos;
 
+=for oldcode
       ## This is faster, but disastrous if 'endobj' is a string in the obj!!!
       #$endpos = index $self->{content}, 'endobj', $pos;
       #if ($endpos == -1)
       #{
       #   die "Didn't find endobj after obj\n";
       #}
+
+=cut
 
       # This is fastest and safest
       if (!exists $self->{endxref})
@@ -1493,10 +1500,10 @@ sub getFont
    my $fontname = shift;
 
    $fontname =~ s/ \A\/? /\//xms; # add leading slash if needed
-   my $obj = $self->dereference($fontname, $pagenum);
-   return if (!$obj);
+   my $objnode = $self->dereference($fontname, $pagenum);
+   return if (!$objnode);
 
-   my $dict = $self->getValue($obj);
+   my $dict = $self->getValue($objnode);
    if ($dict && $dict->{Type} && $dict->{Type}->{value} eq 'Font')
    {
       return $dict;
@@ -1588,8 +1595,8 @@ sub getFontByBaseName
    for my $key (keys %{$list})
    {
       my $num = $list->{$key}->{value};
-      my $obj = $self->dereference($num);
-      my $dict = $self->getValue($obj);
+      my $objnode = $self->dereference($num);
+      my $dict = $self->getValue($objnode);
       if ($dict &&
           $dict->{Type} && $dict->{Type}->{value} eq 'Font' &&
           $dict->{BaseFont} && $dict->{BaseFont}->{value} eq $fontname)
@@ -1740,7 +1747,7 @@ sub addFont
    my $r = $self->getValue($page->{Resources});
    if (!exists $r->{Font})
    {
-      $page->{Font} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
+      $r->{Font} = CAM::PDF::Node->new('dictionary', {}, $objnum, $gennum);
    }
    my $f = $self->getValue($r->{Font});
    $f->{$label} = CAM::PDF::Node->new('reference', $fontobjnum, $objnum, $gennum);
@@ -1891,14 +1898,19 @@ sub wrapString
       }
       else
       {
-         $s =~ s/ \A(\s*) //xms;
-         my $cur = $1;
+         my $cur;
+         if ($s =~ s/ \A(\s*) //xms)
+         {
+            $cur = $1;
+         }
          my $curw = $cur eq q{} ? 0 : $self->getStringWidth($fm, $cur);
          while ($s)
          {
-            $s =~ s/ \A(\s*)(\S*) //xms;
-            my $sp = $1;
-            my $wd = $2;
+            my ($sp,$wd);
+            if ($s =~ s/ \A(\s*)(\S*) //xms)
+            {
+               ($sp,$wd) = ($1,$2);
+            }
             my $wwd = $wd eq q{} ? 0 : $self->getStringWidth($fm, $wd);
             if ($curw == 0)
             {
@@ -1958,36 +1970,25 @@ sub getStringWidth
          my $firstc  = $self->getValue($fontmetrics->{FirstChar});
          my $lastc   = $self->getValue($fontmetrics->{LastChar});
          my $widths  = $self->getValue($fontmetrics->{Widths});
-         my $missing_width;
-         my $fd;
+         my $missing_width;  # populate this on demand
+       CHAR:
          for my $char (unpack 'C*', $string)
          {
             if ($char >= $firstc && $char <= $lastc)
             {
                $width += $widths->[$char - $firstc]->{value};
+               next CHAR;
             }
-            else
+
+            if (!defined $missing_width)
             {
-               if (!defined $missing_width)
-               {
-                  $missing_width = 0; # fallback
-                  if (!$fd)
-                  {
-                     if (exists $fontmetrics->{FontDescriptor})
-                     {
-                        $fd = $self->getValue($fontmetrics->{FontDescriptor});
-                     }
-                  }
-                  if ($fd)
-                  {
-                     if (exists $fd->{MissingWidth})
-                     {
-                        $missing_width = $self->getValue($fd->{MissingWidth});
-                     }
-                  }
-               }
-               $width += $missing_width;
+               my $fd = exists $fontmetrics->{FontDescriptor} ?
+                   $self->getValue($fontmetrics->{FontDescriptor}) : undef;
+               $missing_width = $fd && exists $fd->{MissingWidth} ?
+                   $self->getValue($fd->{MissingWidth}) : 0;
             }
+
+            $width += $missing_width;
          }
          $width /= 1000.0;  # units conversion
       }
@@ -2060,7 +2061,6 @@ sub getPage
       my $nodestart = 1;
       while ($self->getValue($node->{Type}) eq 'Pages')
       {
-         #warn "getPage: nodestart $nodestart\n";
          my $kids = $self->getValue($node->{Kids});
          if ((ref $kids) ne 'ARRAY')
          {
@@ -2069,7 +2069,6 @@ sub getPage
          my $child = 0; 
          if (@{$kids} == 1)
          {
-            #warn "getPage: just one kid\n";
             # Do the simple case first:
             $child = 0;
             # nodestart is unchanged
@@ -2080,49 +2079,32 @@ sub getPage
             # the last one because that is surely the right one if all
             # the others are wrong.
             
-            #warn "getPage: checking kids\n";
-
             while ($child < $#{$kids})
             {
-               #warn "getPage:   checking kid $child of $#{$kids}\n";
-
-               if ($pagenum == $nodestart)
-               {
-                  #warn "getPage:   match\n";
-                  # the first leaf of the kid is the page we want.  It
-                  # doesn't matter if the kid is a leaf or a node.
-                  last;
-               }
+               # the first leaf of the kid is the page we want.  It
+               # doesn't matter if the kid is a leaf or a node.
+               last if ($pagenum == $nodestart);
 
                # Retrieve the dictionary of this child
                my $sub = $self->getValue($kids->[$child]);
                if ($sub->{Type}->{value} ne 'Pages')
                {
-                  #warn "getPage:   wrong leaf\n";
                   # Its a leaf, and not the right one.  Move on.
                   $nodestart++;
                }
                else
                {
                   my $count = $self->getValue($sub->{Count});
-                  if ($nodestart + $count - 1 >= $pagenum)
-                  {
-                     #warn "getPage:   descend\n";
-                     # The page we want is in this kid.  Descend.
-                     last;
-                  }
-                  else
-                  {
-                     #warn "getPage:   wrong node\n";
 
-                     # Not in this kid.  Move on.
-                     $nodestart += $count;
-                  }
+                  # The page we want is in this kid.  Descend.
+                  last if ($nodestart + $count - 1 >= $pagenum);
+
+                  # Not in this kid.  Move on.
+                  $nodestart += $count;
                }
                $child++;
             }
          }
-         #warn "getPage: get new node\n";
 
          $node = $self->getValue($kids->[$child]);
          if (! ref $node)
@@ -2132,8 +2114,6 @@ sub getPage
          }
       }
       
-      #warn "getPage: done\n";
-
       # Ok, now we've got the right page.  Store it.
       $self->{pagecache}->{$pagenum} = $node;
    }
@@ -2265,14 +2245,14 @@ sub getPageContent
       my $stream = q{};
       for my $arrobj (@{$contents})
       {
-         my $data = $self->getValue($arrobj);
-         if (! ref $data)
+         my $streamdata = $self->getValue($arrobj);
+         if (! ref $streamdata)
          {
-            $stream .= $data;
+            $stream .= $streamdata;
          }
-         elsif ((ref $data) eq 'HASH')
+         elsif ((ref $streamdata) eq 'HASH')
          {
-            $stream .= $self->decodeOne(CAM::PDF::Node->new('dictionary',$data));  # doesn't matter if it's not encoded...
+            $stream .= $self->decodeOne(CAM::PDF::Node->new('dictionary',$streamdata));  # doesn't matter if it's not encoded...
          }
          else
          {
@@ -2349,11 +2329,11 @@ is useful for indirect references to images in particular.
 sub getName
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   if ($obj->{value}->{type} eq 'dictionary')
+   if ($objnode->{value}->{type} eq 'dictionary')
    {
-      my $dict = $obj->{value}->{value};
+      my $dict = $objnode->{value}->{value};
       if (exists $dict->{Name})
       {
          return $self->getValue($dict->{Name});
@@ -2496,8 +2476,8 @@ sub getFormFieldList
       {
          die "Expected a reference as the form child of '$parentname'\n";
       }
-      my $obj = $self->dereference($kid->{value});
-      my $dict = $self->getValue($obj);
+      my $objnode = $self->dereference($kid->{value});
+      my $dict = $self->getValue($objnode);
       my $name = '(no name)';  # assume the worst
       if (exists $dict->{T})
       {
@@ -2509,7 +2489,7 @@ sub getFormFieldList
       {
          push @list, $prefix . $self->getValue($dict->{TU}) . ' (alternate name)';
       }
-      $self->{formcache}->{$name} = $obj;
+      $self->{formcache}->{$name} = $objnode;
       my @kidnames = $self->getFormFieldList($name);
       if (@kidnames > 0)
       {
@@ -2544,8 +2524,12 @@ sub getFormField
       my $parent;
       if ($fieldname =~ m/ \. /xms)
       {
-         $fieldname =~ s/ \A(.*)\.([\.]+)\z /$2/xms;
-         my $parentname = $1;
+         my $parentname;
+         if ($fieldname =~ s/ \A(.*)\.([\.]+)\z /$2/xms)
+         {
+            $parentname = $1;
+         }
+         return if (!$parentname);
          $parent = $self->getFormField($parentname);
          return if (!$parent);
          my $dict = $self->getValue($parent);
@@ -2566,16 +2550,16 @@ sub getFormField
       $self->{formcache}->{$fieldname} = undef;  # assume the worst...
       for my $kid (@{$kidlist})
       {
-         my $obj = $self->dereference($kid->{value});
-         $obj->{formparent} = $parent;
-         my $dict = $self->getValue($obj);
+         my $objnode = $self->dereference($kid->{value});
+         $objnode->{formparent} = $parent;
+         my $dict = $self->getValue($objnode);
          if (exists $dict->{T})
          {
-            $self->{formcache}->{$self->getValue($dict->{T})} = $obj;
+            $self->{formcache}->{$self->getValue($dict->{T})} = $objnode;
          }
          if (exists $dict->{TU})
          {
-            $self->{formcache}->{$self->getValue($dict->{TU})} = $obj;
+            $self->{formcache}->{$self->getValue($dict->{TU})} = $objnode;
          }
       }
    }
@@ -2698,15 +2682,15 @@ Change the name of a PDF object structure.
 sub setName
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $name = shift;
 
-   if ($name && $obj->{value}->{type} eq 'dictionary')
+   if ($name && $objnode->{value}->{type} eq 'dictionary')
    {
-      $obj->{value}->{value}->{Name} = CAM::PDF::Node->new('label', $name, $obj->{objnum}, $obj->{gennum});
-      if ($obj->{objnum})
+      $objnode->{value}->{value}->{Name} = CAM::PDF::Node->new('label', $name, $objnode->{objnum}, $objnode->{gennum});
+      if ($objnode->{objnum})
       {
-         $self->{changes}->{$obj->{objnum}} = 1;
+         $self->{changes}->{$objnode->{objnum}} = 1;
       }
       return $self;
    }
@@ -2724,14 +2708,14 @@ Delete the name of a PDF object structure.
 sub removeName
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   if ($obj->{value}->{type} eq 'dictionary' && exists $obj->{value}->{value}->{Name})
+   if ($objnode->{value}->{type} eq 'dictionary' && exists $objnode->{value}->{value}->{Name})
    {
-      delete $obj->{value}->{value}->{Name};
-      if ($obj->{objnum})
+      delete $objnode->{value}->{value}->{Name};
+      if ($objnode->{objnum})
       {
-         $self->{changes}->{$obj->{objnum}} = 1;
+         $self->{changes}->{$objnode->{objnum}} = 1;
       }
       return $self;
    }
@@ -2923,7 +2907,7 @@ sub _deletePages
    # Pages should be reverse sorted since we need to delete from the
    # end to make the page numbers come out right.
    my @objnums;
-   for (sort {$b <=> $a} @_)
+   for (reverse sort {$a <=> $b} @_)
    {
       my $objnum = $self->_deletePage($_);
       if (!$objnum)
@@ -3126,15 +3110,9 @@ sub _deleteOutlines
    my @deletes;
    my @stack = ($outlines);
 
-   #my $nodes = 0;
-   #my $dests = 0;
-   #my $deleted = 0;
-
    while (@stack > 0)
    {
       my $node = shift @stack;
-
-      #$nodes++;
 
       # Check for a Destination (aka internal hyperlink)
       # A is indirect ref, Dest is direct ref; only one can be present
@@ -3157,10 +3135,7 @@ sub _deleteOutlines
             # Easier to just delete both, even though only one may exist
             delete $node->{A};
             delete $node->{Dest};
-
-            #$deleted++;
          }
-         #$dests++;
       }
 
       if ($node->{Next})
@@ -3172,7 +3147,6 @@ sub _deleteOutlines
          push @stack, $self->getValue($node->{First});
       }
    }
-   #print "nodes: $nodes, dests: $dests, deleted: $deleted\n";
    return;
 }
 
@@ -3186,18 +3160,8 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
    my @deletes;
    my @stack = ([$dests]);
    
-   #my $nodes = 0;
-   #my $Namenodes = 0;
-   #my $Names = 0;
-   #my $kidnodes = 0;
-   #my $kids = 0;
-   #my $leafs = 0;
-   #my $others = 0;
-
    while (@stack > 0)
    {
-      #$nodes++;
-
       my $chain = pop @stack;
       my $node = $chain->[0];
       if ($node->{Names})
@@ -3207,19 +3171,14 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
          {
             push @stack, [$self->getValue($pairs->[$i]), @{$chain}];
          }
-         #$Names += @{$pairs}/2;
-         #$Namenodes++;
       }
       elsif ($node->{Kids})
       {
          my $list = $self->getValue($node->{Kids});
          push @stack, map {[$self->getValue($_), @{$chain}]} @{$list};
-         #$kids += @{$list};
-         #$kidnodes++;
       }
       elsif ($node->{D})
       {
-         #$leafs++;
          my $props = $self->getValue($node->{D});
          my $ref = $props->[0];
          if ($ref && $ref->{type} eq 'reference' && $objnums->{$ref->{value}})
@@ -3227,31 +3186,21 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
             push @deletes, $chain;
          }
       }
-      #else
-      #{
-      #   $others++;
-      #}
    }
 
-   #my $deletes = @deletes;
-   #print "nodes: $nodes ($Namenodes/$kidnodes), names: $Names, kids: $kids, leafs: $leafs, others: $others, deletes: $deletes\n";
-   
    ## Delete the nodes, and their parents if applicable
    for my $chain (@deletes)
    {
-      my $obj = shift @{$chain};
-      my $objnum = [values %{$obj}]->[0]->{objnum};
+      my $objnode = shift @{$chain};
+      my $objnum = [values %{$objnode}]->[0]->{objnum};
       if (!$objnum)
       {
          die 'Destination object lacks an object number (number '.@{$chain}.' in the chain)';
       }
       $self->deleteObject($objnum);
-      #$nodes--;
-      #$leafs--;
-      #$deletes--;
 
       # Ascend chain...  $objnum gets overwritten
-      my $child = $obj;
+      my $child = $objnode;
       
     CHAIN:
       for my $node (@{$chain})
@@ -3278,7 +3227,6 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
                   {
                      $redo_limits = 1;
                   }
-                  #$Names--;
                }
             }
 
@@ -3297,7 +3245,6 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
                }
                last CHAIN;
             }
-            #$Namenodes--;
          }
 
          elsif ($node->{Kids})
@@ -3310,7 +3257,6 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
                if ($list->[$i]->{value} == $objnum)
                {
                   splice @{$list}, $i, 1;
-                  #$kids--;
                }
             }
             
@@ -3336,7 +3282,6 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
                }
                last CHAIN;
             }
-            #$kidnodes--;
          }
          
          else
@@ -3347,15 +3292,12 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
          # If we got here, the node is empty, so delete it and move onward
          $self->deleteObject($node_objnum);
          $node->{deleted} = undef;  # internal flag
-         #$nodes--;
          
          # Prepare for next iteration
          $child = $node;
          $objnum = $node_objnum;
       }
    }
-
-   #print "nodes: $nodes ($Namenodes/$kidnodes), names: $Names, kids: $kids, leafs: $leafs, others: $others, deletes: $deletes\n";
 
    return exists $dests->{deleted};
 }
@@ -3441,7 +3383,6 @@ sub addPageResources
                die 'Internal error: font entry is not a reference';
             }
             $page_r->{$font} = CAM::PDF::Node->new('reference', $val->{value}, $objnum, $gennum);
-            #warn "add font $font\n";
             $self->{changes}->{$objnum} = 1;
          }
       }
@@ -3461,7 +3402,6 @@ sub addPageResources
             }
             next if (grep {$_->{value} eq $proc->{value}} @{$page_r});
             push @{$page_r}, CAM::PDF::Node->new('label', $proc->{value}, $objnum, $gennum);
-            #warn "add procset $proc->{value}\n";
             $self->{changes}->{$objnum} = 1;
          }
       }
@@ -3492,7 +3432,7 @@ F<appendpdf.pl> script for a workaround.
 sub appendPDF
 {
    my $self = shift;
-   my $doc2 = shift;
+   my $otherdoc = shift;
    my $prepend = shift; # boolean, default false
 
    my $pageroot = $self->getPagesDict();
@@ -3501,9 +3441,9 @@ sub appendPDF
    my $gennum = $anyobj->{gennum};
 
    my $root = $self->getRootDict();
-   my $root2 = $doc2->getRootDict();
-   my $pageobj2 = $doc2->dereference($root2->{Pages}->{value});
-   my ($key, %refkeys) = $self->appendObject($doc2, $pageobj2->{objnum}, 1);
+   my $otherroot = $otherdoc->getRootDict();
+   my $otherpageobj = $otherdoc->dereference($otherroot->{Pages}->{value});
+   my ($key, %refkeys) = $self->appendObject($otherdoc, $otherpageobj->{objnum}, 1);
    my $subpage = $self->getObjValue($key);
 
    my $newdict = {};
@@ -3515,7 +3455,7 @@ sub appendPDF
                                            CAM::PDF::Node->new('reference', $prepend ? $key : $objnum),
                                            CAM::PDF::Node->new('reference', $prepend ? $objnum : $key),
                                            ]);
-   $self->{PageCount} += $doc2->{PageCount};
+   $self->{PageCount} += $otherdoc->{PageCount};
    $newdict->{Count} = CAM::PDF::Node->new('number', $self->{PageCount});
    my $newpagekey = $self->appendObject(undef, $newpage, 0);
    $root->{Pages}->{value} = $newpagekey;
@@ -3523,15 +3463,9 @@ sub appendPDF
    $pageroot->{Parent} = CAM::PDF::Node->new('reference', $newpagekey, $key, $subpage->{gennum});
    $subpage->{Parent} = CAM::PDF::Node->new('reference', $newpagekey, $key, $subpage->{gennum});
 
-   #my $kidlist = $self->getValue($pageroot->{Kids});
-   #push @{$kidlist}, CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
-   #$self->{changes}->{$objnum} = 1;
-
-   #print STDERR "$newpagekey $objnum $key\n";
-
-   if ($root2->{AcroForm})
+   if ($otherroot->{AcroForm})
    {
-      my $forms = $doc2->getValue($doc2->getValue($root2->{AcroForm})->{Fields});
+      my $forms = $otherdoc->getValue($otherdoc->getValue($otherroot->{AcroForm})->{Fields});
       my @newforms = ();
       for my $reference (@{$forms})
       {
@@ -3540,7 +3474,6 @@ sub appendPDF
             die 'Internal error: expected a reference';
          }
          my $newkey = $refkeys{$reference->{value}};
-         #print STDERR "old ".$reference->{value}." new $newkey\n";
          if ($newkey)
          {
             push @newforms, CAM::PDF::Node->new('reference', $newkey);
@@ -3558,7 +3491,6 @@ sub appendPDF
       }
       else
       {
-         #my $key = $self->appendObject($doc2, $pageobj2->{objnum}, 0);
          die 'adding new forms is not implemented';
       }
    }
@@ -3666,15 +3598,15 @@ sub createStreamObject
                                  },
                                  );
 
-   my $obj = CAM::PDF::Node->new('object', $dict);
+   my $objnode = CAM::PDF::Node->new('object', $dict);
 
    while (my $filter = shift)
    {
       #warn "$filter encoding\n";
-      $self->encodeOne($obj->{value}, $filter);
+      $self->encodeOne($objnode->{value}, $filter);
    }
 
-   return $obj;
+   return $objnode;
 }
 
 =item $doc->uninlineImages()
@@ -3805,8 +3737,8 @@ newly-created block to the PDF.
 sub appendObject
 {
    my $self = shift;
-   my $doc2 = shift;
-   my $key2 = shift;
+   my $otherdoc = shift;
+   my $otherkey = shift;
    my $follow = shift;
 
    my $objnum = ++$self->{maxobj};
@@ -3814,7 +3746,7 @@ sub appendObject
    #$self->{endxref}->{$objnum} = undef if (exists $self->{endxref});
    $self->{versions}->{$objnum} = -1;
 
-   my %refkeys = $self->replaceObject($objnum, $doc2, $key2, $follow);
+   my %refkeys = $self->replaceObject($objnum, $otherdoc, $otherkey, $follow);
    if (wantarray)
    {
       return ($objnum, %refkeys);
@@ -3843,8 +3775,8 @@ sub replaceObject
 {
    my $self = shift;
    my $key = shift;
-   my $doc2 = shift;
-   my $key2 = shift;
+   my $otherdoc = shift;
+   my $otherkey = shift;
    my $follow = shift;
 
    # careful! 'undef' means something different from '0' here!
@@ -3853,16 +3785,16 @@ sub replaceObject
       $follow = 1;
    }
 
-   my $obj;
-   my $obj2;
-   if ($doc2)
+   my $objnode;
+   my $otherobj;
+   if ($otherdoc)
    {
-      $obj2 = $doc2->dereference($key2);
-      $obj = $self->copyObject($obj2);
+      $otherobj = $otherdoc->dereference($otherkey);
+      $objnode = $self->copyObject($otherobj);
    }
    else
    {
-      $obj = $key2;
+      $objnode = $otherkey;
       if ($follow)
       {
          warn "Error: you cannot \"follow\" an object if it has no document.\n" .
@@ -3871,7 +3803,7 @@ sub replaceObject
       }
    }
 
-   $self->setObjNum($obj, $key, 0);
+   $self->setObjNum($objnode, $key, 0);
 
    # Preserve the name of the object
    if ($self->{xref}->{$key})  # make sure it isn't a brand new object
@@ -3879,27 +3811,27 @@ sub replaceObject
       my $oldname = $self->getName($self->dereference($key));
       if ($oldname)
       {
-         $self->setName($obj, $oldname);
+         $self->setName($objnode, $oldname);
       }
       else
       {
-         $self->removeName($obj);
+         $self->removeName($objnode);
       }
    }
 
-   $self->{objcache}->{$key} = $obj;
+   $self->{objcache}->{$key} = $objnode;
    $self->{changes}->{$key} = 1;
 
-   my %newrefkeys = ($key2, $key);
+   my %newrefkeys = ($otherkey, $key);
    if ($follow)
    {
-      for my $oldrefkey ($doc2->getRefList($obj2))
+      for my $oldrefkey ($otherdoc->getRefList($otherobj))
       {
-         next if ($oldrefkey == $key2);
-         my $newkey = $self->appendObject($doc2, $oldrefkey, 0);
+         next if ($oldrefkey == $otherkey);
+         my $newkey = $self->appendObject($otherdoc, $oldrefkey, 0);
          $newrefkeys{$oldrefkey} = $newkey;
       }
-      $self->changeRefKeys($obj, \%newrefkeys);
+      $self->changeRefKeys($objnode, \%newrefkeys);
       for my $newkey (values %newrefkeys)
       {
          $self->changeRefKeys($self->dereference($newkey), \%newrefkeys);
@@ -4067,17 +3999,17 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
 
       next if (!$key);
       next if (ref $key);
-      my $obj = $self->getFormField($key);
-      next if (!$obj);
+      my $objnode = $self->getFormField($key);
+      next if (!$objnode);
 
-      my $objnum = $obj->{objnum};
-      my $gennum = $obj->{gennum};
+      my $objnum = $objnode->{objnum};
+      my $gennum = $objnode->{gennum};
 
       # This read-only dict includes inherited properties
-      my $propdict = $self->getFormFieldDict($obj);
+      my $propdict = $self->getFormFieldDict($objnode);
 
       # This read-write dict does not include inherited properties
-      my $dict = $self->getValue($obj);
+      my $dict = $self->getValue($objnode);
       $dict->{V}  = CAM::PDF::Node->new('string', $value, $objnum, $gennum);
       #$dict->{DV} = CAM::PDF::Node->new('string', $value, $objnum, $gennum);
 
@@ -4107,6 +4039,7 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
          my @rect = (0,0,0,0);
          if ($dict->{Rect})
          {
+            ## no critic(Bangs::ProhibitNumberedNames)
             my $r = $self->getValue($dict->{Rect});
             my ($x1, $y1, $x2, $y2) = @{$r};
             @rect = (
@@ -4350,13 +4283,13 @@ sub clearFormFieldTriggers
 
    for my $fieldname (@_)
    {
-      my $obj = $self->getFormField($fieldname);
-      if ($obj)
+      my $objnode = $self->getFormField($fieldname);
+      if ($objnode)
       {
-         if (exists $obj->{value}->{value}->{AA})
+         if (exists $objnode->{value}->{value}->{AA})
          {
-            delete $obj->{value}->{value}->{AA};
-            my $objnum = $obj->{objnum};
+            delete $objnode->{value}->{value}->{AA};
+            my $objnum = $objnode->{objnum};
             if ($objnum)
             {
                $self->{changes}->{$objnum} = 1;
@@ -4499,10 +4432,10 @@ sub isLinearized
    }
 
    my $linearized = undef; # false
-   my $obj = $self->dereference($first);
-   if ($obj && $obj->{value}->{type} eq 'dictionary')
+   my $objnode = $self->dereference($first);
+   if ($objnode && $objnode->{value}->{type} eq 'dictionary')
    {
-      if (exists $obj->{value}->{value}->{Linearized})
+      if (exists $objnode->{value}->{value}->{Linearized})
       {
          $linearized = $self; # true
       }
@@ -4540,10 +4473,10 @@ sub delinearize
       $first = $revxref{$first};
    }
 
-   my $obj = $self->dereference($first);
-   if ($obj->{value}->{type} eq 'dictionary')
+   my $objnode = $self->dereference($first);
+   if ($objnode->{value}->{type} eq 'dictionary')
    {
-      if (exists $obj->{value}->{value}->{Linearized})
+      if (exists $objnode->{value}->{value}->{Linearized})
       {
          $self->deleteObject($first);
       }
@@ -4893,17 +4826,17 @@ Node types, including object Nodes.
 sub writeAny
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   if (! ref $obj)
+   if (! ref $objnode)
    {
       die 'Not a ref';
    }
 
-   my $key = $obj->{type};
-   my $val = $obj->{value};
-   my $objnum = $obj->{objnum};
-   my $gennum = $obj->{gennum};
+   my $key = $objnode->{type};
+   my $val = $objnode->{value};
+   my $objnum = $objnode->{objnum};
+   my $gennum = $objnode->{gennum};
 
    return $key eq 'string'     ? $self->writeString($self->{crypt}->encrypt($self, $val, $objnum, $gennum))
         : $key eq 'hexstring'  ? '<' . (unpack 'H*', $self->{crypt}->encrypt($self, $val, $objnum, $gennum)) . '>'
@@ -4912,9 +4845,9 @@ sub writeAny
         : $key eq 'boolean'    ? $val
         : $key eq 'null'       ? 'null'
         : $key eq 'label'      ? "/$val"
-        : $key eq 'array'      ? $self->_writeArray($obj)
-        : $key eq 'dictionary' ? $self->_writeDictionary($obj)
-        : $key eq 'object'     ? $self->_writeObject($obj)
+        : $key eq 'array'      ? $self->_writeArray($objnode)
+        : $key eq 'dictionary' ? $self->_writeDictionary($objnode)
+        : $key eq 'object'     ? $self->_writeObject($objnode)
 
         : die "Unknown key '$key' in writeAny (objnum ".($objnum||'<none>').")\n";
 }
@@ -4922,9 +4855,9 @@ sub writeAny
 sub _writeArray
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   my $val = $obj->{value};
+   my $val = $objnode->{value};
    if (@{$val} == 0)
    {
       return '[ ]';
@@ -4958,9 +4891,9 @@ sub _writeArray
 sub _writeDictionary
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   my $val = $obj->{value};
+   my $val = $objnode->{value};
    my $str = q{};
    my @strs;
    if (exists $val->{Type})
@@ -4991,7 +4924,7 @@ sub _writeDictionary
             my $str = $val->{$dictkey}->{value};
             my $len = length $str;
             my $unpacked = unpack 'H' . $len*2, $str;
-            return $self->writeAny(CAM::PDF::Node->new('hexstring', $unpacked, $obj->{objnum}, $obj->{gennum}));
+            return $self->writeAny(CAM::PDF::Node->new('hexstring', $unpacked, $objnode->{objnum}, $objnode->{gennum}));
          }
          
          # TODO: Handle more complex streams ...
@@ -5025,9 +4958,9 @@ sub _writeDictionary
 sub _writeObject
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   my $val = $obj->{value};
+   my $val = $objnode->{value};
    if (! ref $val)
    {
       die "Obj data is not a ref! ($val)";
@@ -5042,7 +4975,7 @@ sub _writeObject
       my $oldlength = $self->getValue($l);
       if ($length != $oldlength)
       {
-         $val->{value}->{Length} = CAM::PDF::Node->new('number', $length, $obj->{objnum}, $obj->{gennum});
+         $val->{value}->{Length} = CAM::PDF::Node->new('number', $length, $objnode->{objnum}, $objnode->{gennum});
          delete $val->{value}->{L};
       }
       $val->{value}->{StreamDataDone} = 1;
@@ -5050,7 +4983,7 @@ sub _writeObject
    my $str = $self->writeAny($val);
    if ($stream)
    {
-      $stream = $self->{crypt}->encrypt($self, $stream, $obj->{objnum}, $obj->{gennum});
+      $stream = $self->{crypt}->encrypt($self, $stream, $objnode->{objnum}, $objnode->{gennum});
       $str .= "\nstream\n" . $stream . 'endstream';
    }
    return "obj\n$str\nendobj\n";
@@ -5080,21 +5013,21 @@ sub traverse
 {
    my $self = shift;
    my $deref = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $func = shift;
    my $funcdata = shift;
 
    my $traversed = {};
-   my @stack = ($obj);
+   my @stack = ($objnode);
 
    my $i = 0;
    while ($i < @stack)
    {
-      my $obj = $stack[$i++];
-      $self->$func($obj, $funcdata);
+      my $objnode = $stack[$i++];
+      $self->$func($objnode, $funcdata);
 
-      my $type = $obj->{type};
-      my $val = $obj->{value};
+      my $type = $objnode->{type};
+      my $val = $objnode->{value};
 
       if ($type eq 'object')
       {
@@ -5102,9 +5035,9 @@ sub traverse
          splice @stack, 0, $i;
          $i = 0;
          # Mark object done
-         if ($obj->{objnum})
+         if ($objnode->{objnum})
          {
-            $traversed->{$obj->{objnum}} = 1;
+            $traversed->{$objnode->{objnum}} = 1;
          }
       }
 
@@ -5141,9 +5074,9 @@ sub decodeObject
    my $self = shift;
    my $objnum = shift;
 
-   my $obj = $self->dereference($objnum);
+   my $objnode = $self->dereference($objnum);
 
-   $self->decodeOne($obj->{value}, 1);
+   $self->decodeOne($objnode->{value}, 1);
    return;
 }
 
@@ -5159,9 +5092,9 @@ referenced by it.
 sub decodeAll
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   $self->traverse(1, $obj, \&decodeOne, 1);
+   $self->traverse(1, $objnode, \&decodeOne, 1);
    return;
 }
 
@@ -5181,17 +5114,17 @@ false, the function returns the defiltered content.
 sub decodeOne
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $save = shift || 0;
 
    my $changed = 0;
-   my $data = q{};
+   my $streamdata = q{};
 
-   if ($obj->{type} eq 'dictionary')
+   if ($objnode->{type} eq 'dictionary')
    {
-      my $dict = $obj->{value};
+      my $dict = $objnode->{value};
 
-      $data = $dict->{StreamData}->{value};
+      $streamdata = $dict->{StreamData}->{value};
       #warn 'decoding thing ' . ($dict->{StreamData}->{objnum} || '(unknown)') . "\n";
 
       # Don't work on {F} since that's too common a word
@@ -5238,12 +5171,6 @@ sub decodeOne
             # Make sure this is not an encrypt dict
             next if ($filtername eq 'Standard');
 
-            #if ($filtername eq 'LZWDecode' || $filtername eq 'LZW')
-            #{
-            #   warn "$filtername filter not supported\n";
-            #   next;
-            #}
-
             my $filt;
             eval {
                require Text::PDF::Filter;
@@ -5260,16 +5187,16 @@ sub decodeOne
                last;
             }
 
-            my $oldlength = length$data;
+            my $oldlength = length $streamdata;
 
             {
                # Hack to turn off warnings in Filter library
                no warnings; ## no critic(TestingAndDebugging::ProhibitNoWarnings)
-               $data = $filt->infilt($data, 1);
+               $streamdata = $filt->infilt($streamdata, 1);
             }
 
-            $self->fixDecode(\$data, $filtername, shift @parms);
-            my $length = length $data;
+            $self->fixDecode(\$streamdata, $filtername, shift @parms);
+            my $length = length $streamdata;
 
             #warn "decoded length: $oldlength -> $length\n";
 
@@ -5282,7 +5209,7 @@ sub decodeOne
                   $self->{changes}->{$objnum} = 1;
                }
                $changed = 1;
-               $dict->{StreamData}->{value} = $data;
+               $dict->{StreamData}->{value} = $streamdata;
                if ($length != $oldlength)
                {
                   $dict->{Length} = CAM::PDF::Node->new('number', $length, $objnum, $gennum);
@@ -5306,11 +5233,11 @@ sub decodeOne
    }
    else
    {
-      return $data;
+      return $streamdata;
    }
 }
 
-=item $doc->fixDecode($data, $filter, $params)
+=item $doc->fixDecode($streamdata, $filter, $params)
 
 This is a utility method to do any tweaking after removing the filter
 from a data stream.
@@ -5320,7 +5247,7 @@ from a data stream.
 sub fixDecode
 {
    my $self = shift;
-   my $data = shift;
+   my $streamdata = shift;
    my $filter = shift;
    my $parms = shift;
 
@@ -5345,16 +5272,16 @@ sub fixDecode
             if (exists $d->{Columns})
             {
                my $c       = $self->getValue($d->{Columns});
-               my $len     = length ${$data};
+               my $len     = length ${$streamdata};
                my $newdata = q{};
 
                my $i = 1;
                while ($i < $len)
                {
-                  $newdata .= substr ${$data}, $i, $c;
+                  $newdata .= substr ${$streamdata}, $i, $c;
                   $i += $c+1;
                }
-               ${$data} = $newdata;
+               ${$streamdata} = $newdata;
             }
          }
       }
@@ -5374,9 +5301,9 @@ sub encodeObject
    my $objnum = shift;
    my $filtername = shift;
 
-   my $obj = $self->dereference($objnum);
+   my $objnode = $self->dereference($objnum);
 
-   $self->encodeOne($obj->{value}, $filtername);
+   $self->encodeOne($objnode->{value}, $filtername);
    return;
 }
 
@@ -5389,16 +5316,16 @@ Apply the specified filter to the object.
 sub encodeOne  ## no critic(Subroutines::ProhibitExcessComplexity)
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $filtername = shift;
 
    my $changed = 0;
 
-   if ($obj->{type} eq 'dictionary')
+   if ($objnode->{type} eq 'dictionary')
    {
-      my $dict = $obj->{value};
-      my $objnum = $obj->{objnum};
-      my $gennum = $obj->{gennum};
+      my $dict = $objnode->{value};
+      my $objnum = $objnode->{objnum};
+      my $gennum = $objnode->{gennum};
 
       if (! exists $dict->{StreamData})
       {
@@ -5508,11 +5435,11 @@ accounting.
 sub setObjNum
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $objnum = shift;
    my $gennum = shift;
    
-   $self->traverse(0, $obj, \&_setObjNumCB, [$objnum, $gennum]);
+   $self->traverse(0, $objnode, \&_setObjNumCB, [$objnum, $gennum]);
    return;
 }
 
@@ -5521,11 +5448,11 @@ sub setObjNum
 sub _setObjNumCB
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $nums = shift;
    
-   $obj->{objnum} = $nums->[0];
-   $obj->{gennum} = $nums->[1];
+   $objnode->{objnum} = $nums->[0];
+   $objnode->{gennum} = $nums->[1];
    return;
 }
 
@@ -5540,10 +5467,10 @@ Return an array all of objects referred to in this object.
 sub getRefList
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    
    my $list = {};
-   $self->traverse(1, $obj, \&_getRefListCB, $list);
+   $self->traverse(1, $objnode, \&_getRefListCB, $list);
 
    return (sort keys %{$list});
 }
@@ -5553,12 +5480,12 @@ sub getRefList
 sub _getRefListCB
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $list = shift;
    
-   if ($obj->{type} eq 'reference')
+   if ($objnode->{type} eq 'reference')
    {
-      $list->{$obj->{value}} = 1;
+      $list->{$objnode->{value}} = 1;
    }
    return;
 }
@@ -5574,12 +5501,12 @@ Renumber all references in an object.
 sub changeRefKeys
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $newrefkeys = shift;
 
    my $follow = shift || 0;   # almost always false
 
-   $self->traverse($follow, $obj, \&_changeRefKeysCB, $newrefkeys);
+   $self->traverse($follow, $objnode, \&_changeRefKeysCB, $newrefkeys);
    return;
 }
 
@@ -5588,14 +5515,14 @@ sub changeRefKeys
 sub _changeRefKeysCB
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $newrefkeys = shift;
    
-   if ($obj->{type} eq 'reference')
+   if ($objnode->{type} eq 'reference')
    {
-      if (exists $newrefkeys->{$obj->{value}})
+      if (exists $newrefkeys->{$objnode->{value}})
       {
-         $obj->{value} = $newrefkeys->{$obj->{value}};
+         $objnode->{value} = $newrefkeys->{$objnode->{value}};
       }
    }
    return;
@@ -5610,9 +5537,9 @@ Contract all image keywords to inline abbreviations.
 sub abbrevInlineImage
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   $self->traverse(0, $obj, \&_abbrevInlineImageCB, {reverse %inlineabbrevs});
+   $self->traverse(0, $objnode, \&_abbrevInlineImageCB, {reverse %inlineabbrevs});
    return;
 }
 
@@ -5625,9 +5552,9 @@ Expand all inline image abbreviations.
 sub unabbrevInlineImage
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   $self->traverse(0, $obj, \&_abbrevInlineImageCB, \%inlineabbrevs);
+   $self->traverse(0, $objnode, \&_abbrevInlineImageCB, \%inlineabbrevs);
    return;
 }
 
@@ -5636,20 +5563,20 @@ sub unabbrevInlineImage
 sub _abbrevInlineImageCB
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $convert = shift;
 
-   if ($obj->{type} eq 'label')
+   if ($objnode->{type} eq 'label')
    {
-      my $new = $convert->{$obj->{value}};
+      my $new = $convert->{$objnode->{value}};
       if (defined $new)
       {
-         $obj->{value} = $new;
+         $objnode->{value} = $new;
       }
    }
-   elsif ($obj->{type} eq 'dictionary')
+   elsif ($objnode->{type} eq 'dictionary')
    {
-      my $dict = $obj->{value};
+      my $dict = $objnode->{value};
       for my $key (keys %{$dict})
       {
          my $new = $convert->{$key};
@@ -5675,10 +5602,10 @@ Otherwise the search-and-replace is literal.
 sub changeString
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $changelist = shift;
 
-   $self->traverse(0, $obj, \&_changeStringCB, $changelist);
+   $self->traverse(0, $objnode, \&_changeStringCB, $changelist);
    return;
 }
 
@@ -5687,10 +5614,10 @@ sub changeString
 sub _changeStringCB
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
    my $changelist = shift;
 
-   if ($obj->{type} eq 'string')
+   if ($objnode->{type} eq 'string')
    {
       for my $key (keys %{$changelist})
       {
@@ -5699,22 +5626,22 @@ sub _changeStringCB
             my $regex = $1;
             my $res;
             eval {
-               $res = ($obj->{value} =~ s/ $regex /$changelist->{$key}/gxms);
+               $res = ($objnode->{value} =~ s/ $regex /$changelist->{$key}/gxms);
             };
             if ($EVAL_ERROR)
             {
                die "Failed regex search/replace: $EVAL_ERROR\n";
             }
-            if ($res && $obj->{objnum})
+            if ($res && $objnode->{objnum})
             {
-               $self->{changes}->{$obj->{objnum}} = 1;
+               $self->{changes}->{$objnode->{objnum}} = 1;
             }
          }
          else
          {
-            if ($obj->{value} =~ s/ $key /$changelist->{$key}/gxms && $obj->{objnum})
+            if ($objnode->{value} =~ s/ $key /$changelist->{$key}/gxms && $objnode->{objnum})
             {
-               $self->{changes}->{$obj->{objnum}} = 1;
+               $self->{changes}->{$objnode->{objnum}} = 1;
             }
          }
       }
@@ -5747,21 +5674,21 @@ sub rangeToArray
    my $pkg_or_doc = shift;
    my $min = shift;
    my $max = shift;
-   my @array1 = grep {defined $_} @_;
+   my @in_array = grep {defined $_} @_;
 
-   @array1 = map { 
+   @in_array = map { 
       s/ [^\d\-,] //gxms;   # clean
       m/ ([\d\-]+) /gxms;   # split on numbers and ranges
-   } @array1;
+   } @in_array;
 
-   my @array2;
-   if (@array1 == 0)
+   my @out_array;
+   if (@in_array == 0)
    {
-      @array2 = $min .. $max;
+      @out_array = $min .. $max;
    }
    else
    {
-      for (@array1)
+      for (@in_array)
       {
          if (m/ (\d*)-(\d*) /xms)
          {
@@ -5799,20 +5726,20 @@ sub rangeToArray
             
             if ($a > $b)
             {
-               push @array2, reverse $b .. $a;
+               push @out_array, reverse $b .. $a;
             }
             else
             {
-               push @array2, $a .. $b;
+               push @out_array, $a .. $b;
             }
          }
          elsif ($_ >= $min && $_ <= $max)
          {
-            push @array2, $_;
+            push @out_array, $_;
          }
       }
    }
-   return @array2;
+   return @out_array;
 }
 
 =item $doc->trimstr($string)
@@ -5851,15 +5778,15 @@ Clones a node via Data::Dumper and eval().
 sub copyObject
 {
    my $self = shift;
-   my $obj = shift;
+   my $objnode = shift;
 
-   # replace $obj with a copy of itself
+   # replace $objnode with a copy of itself
    require Data::Dumper;
-   my $d = Data::Dumper->new([$obj],['obj']);
+   my $d = Data::Dumper->new([$objnode],['objnode']);
    $d->Purity(1)->Indent(0);
    eval $d->Dump(); ## no critic(BuiltinFunctions::ProhibitStringyEval)
 
-   return $obj;
+   return $objnode;
 }   
 
 

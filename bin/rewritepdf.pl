@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             decode      => 0,
@@ -78,10 +78,12 @@ if (@ARGV < 1)
    pod2usage(1);
 }
 
-my $infile = shift;
+my $infile  = shift;
 my $outfile = shift || q{-};
+my $opass   = shift;
+my $upass   = shift || $opass;
 
-my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
+my $doc = CAM::PDF->new($infile, $opass, $upass) || die "$CAM::PDF::errstr\n";
 
 if (!$doc->canModify())
 {
@@ -95,15 +97,15 @@ if ($opts{newversion})
 
 if ($opts{decode} || @{$opts{filters}} > 0)
 {
-   foreach my $obj (keys %{$doc->{xref}})
+   foreach my $objnode (keys %{$doc->{xref}})
    {
       if ($opts{decode})
       {
-         $doc->decodeObject($obj);
+         $doc->decodeObject($objnode);
       }
       foreach my $filtername (@{$opts{filters}})
       {
-         $doc->encodeObject($obj, $filtername);
+         $doc->encodeObject($objnode, $filtername);
       }
    }
 }
@@ -153,7 +155,7 @@ $doc->cleanoutput($outfile);
 
 __END__
 
-=for stopwords rewritepdf.pl
+=for stopwords rewritepdf.pl unprotecting
 
 =head1 NAME
 
@@ -161,7 +163,7 @@ rewritepdf.pl - Rebuild a PDF file
 
 =head1 SYNOPSIS
 
- rewritepdf.pl [options] infile.pdf [outfile.pdf]\n";
+ rewritepdf.pl [options] infile.pdf [outfile.pdf] [password(s)]\n";
 
  Options:
    -c --cleanse        seek and destroy unreferenced metadata in the document
@@ -176,6 +178,21 @@ rewritepdf.pl - Rebuild a PDF file
 
    -p --pass opass upass              set a new owner and user password
    -P --prefs print modify copy add   set boolean permissions for the document
+
+The optional password arguments are needed to open password-protected
+PDF files.  Here's an example of password-protecting and then
+unprotecting it in sequence:
+
+  rewritepdf.pl --pass SecretPass SecretPass orig.pdf passworded.pdf
+  rewritepdf.pl --decrypt passworded.pdf unprotected.pdf SecretPass
+
+If you want to prevent people from being able to perform the latter
+step, then tighten your permissions:
+
+  rewritepdf.pl -p Secret Secret -P 1 0 0 0 orig.pdf passworded.pdf
+
+which means that users can print the passworded PDF, but not change
+it, copy-and-paste from it, or append to it.
 
 =head1 DESCRIPTION
 

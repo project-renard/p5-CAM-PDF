@@ -8,18 +8,18 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
+            sort       => 0,
             verbose    => 0,
-            order      => 0,
             help       => 0,
             version    => 0,
             );
 
 Getopt::Long::Configure('bundling');
-GetOptions('v|verbose'  => \$opts{verbose},
-           'o|order'    => \$opts{order},
+GetOptions('s|sort'     => \$opts{sort},
+           'v|verbose'  => \$opts{verbose},
            'h|help'     => \$opts{help},
            'V|version'  => \$opts{version},
            ) or pod2usage(1);
@@ -33,65 +33,53 @@ if ($opts{version})
    exit 0;
 }
 
-if (@ARGV < 2)
+if (@ARGV < 1)
 {
    pod2usage(1);
 }
 
 my $infile = shift;
-my $pagenums = shift;
-my $outfile = shift || q{-};
 
 my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
-if (!$doc->deletePages($pagenums))
+my @list = $doc->getFormFieldList();
+if ($opts{sort})
 {
-   die "Failed to delete a page\n";
+   @list = sort @list;
 }
-if ($opts{order})
+foreach my $name (@list)
 {
-   $doc->preserveOrder();
+   print $name, "\n";
 }
-if (!$doc->canModify())
-{
-   die "This PDF forbids modification\n";
-}
-$doc->cleanoutput($outfile);
 
 
 __END__
 
-=for stopwords deletepdfpage.pl
+=for stopwords listpdffields.pl
 
 =head1 NAME
 
-deletepdfpage.pl - Remove one or more pages from a PDF
+listpdffields.pl - Print the PDF form field names
 
 =head1 SYNOPSIS
 
- deletepdfpage.pl [options] infile.pdf <pagenums> [outfile.pdf]
+ listpdffields.pl [options] infile.pdf
 
  Options:
-   -o --order          preserve the internal PDF ordering for output
+   -s --sort           sort the output list alphabetically
    -v --verbose        print diagnostic messages
    -h --help           verbose help message
    -V --version        print CAM::PDF version
 
- <pagenums> is a comma-separated list of page numbers.
-      Ranges like '2-6' allowed in the list
-      Example: 4-6,2,12,8-9
-
 =head1 DESCRIPTION
 
-Remove the specified pages from a PDF document.  This may fail for
-very complex, annotated PDF files, for example ones that Adobe
-Illustrator emits.
+Outputs to STDOUT all of the field names for any forms in the PDF document.
 
 =head1 SEE ALSO
 
 CAM::PDF
 
-C<appendpdf.pl>
+F<fillpdffields.pl>
 
 =head1 AUTHOR
 

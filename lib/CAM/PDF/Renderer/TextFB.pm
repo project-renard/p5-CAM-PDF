@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =for stopwords framebuffer
 
@@ -73,7 +73,6 @@ sub add_string
       if (defined $fb->[$y]->[$x])
       {
          $fb->[$y]->[$x] .= $string;
-         #$fb->[$y]->[$x] = $string;
       }
       else
       {

@@ -4,11 +4,29 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =head1 NAME
 
 CAM::PDF::PageText - Extract text from PDF page tree
+
+=head1 SYNOPSIS
+
+   my $pdf = CAM::PDF->new($filename);
+   my $pageone_tree = $pdf->getPageContentTree(1);
+   print CAM::PDF::PageText->render($pageone_tree);
+
+=head1 DESCRIPTION
+
+This module attempts to extract sequential text from a PDF page.  This
+is not a robust process, as PDF text is graphically laid out in
+arbitrary order.  This module uses a few heuristics to try to guess
+what text goes next to what other text, but may be fooled easily by,
+say, subscripts, non-horizontal text, changes in font, form fields
+etc.
+
+All those disclaimers aside, it is useful for a quick dump of text
+from a simple PDF file.
 
 =head1 LICENSE
 

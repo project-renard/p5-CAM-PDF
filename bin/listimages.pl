@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             verbose    => 0,
@@ -78,55 +78,41 @@ for my $p (1..$pages)
          # "ID" and "EI" in order in the page (which happened in the
          # PDF reference doc, of course!
 
+       BI:
          while ($part =~ s/.*?\bBI\b\s*//xms)
          {
-            if ($part =~ s/\A(.*?)\s*\bEI\b\s*//xms)
+            my ($im) = $part =~ s/\A(.*?)\s*\bEI\b\s*//xms;
+            next BI if (!$im);
+
+            $im =~ s/\A.*\bBI\b//xms;  # this may get rid of a fake BI if there is one in the page
+            
+            # Easy tests:
+            next BI if ($im =~ m/ \A\) /xms);
+            next BI if ($im =~ m/ \(\z /xms);
+            next BI if ($im !~ m/ \bID\b /xms);
+
+            # make sure that there is an open paren before every close
+            # if not, then the "BI" was part of a string
+            my $test = $im;
+            $test =~ s/ \\[\(\)] //gxms; # get rid of escaped parens for the test
+            while ($test =~ s/ \A(.*?)\) //xms)
             {
-               my $im = $1;
-               $im =~ s/\A.*\bBI\b//xms;  # this may get rid of a fake BI if there is one in the page
-
-               # Easy tests:
-               next if ($im =~ m/ \A\) /xms);
-               next if ($im =~ m/ \(\z /xms);
-               next if ($im !~ m/ \bID\b /xms);
-
-               # this is getting complex in the heuristics!
-               # make sure that there is an open paren before every close
-               # if not, then the "BI" was part of a string
-               my $test = $im;
-               my $failed = 0;
-               $test =~ s/ \\[\(\)] //gxms; # get rid of escaped parens for the test
-               while ($test =~ s/ \A(.*?)\) //xms)
-               {
-                  my $bit = $1;
-                  if ($bit !~ m/ \( /xms)
-                  {
-                     $failed = 1;
-                     last;
-                  }
-               }
-               next if ($failed);
-
-               # old test: count that the parens add up
-               #my @o  = ($im =~ m/ (\()   /gxms);
-               #my @os = ($im =~ m/ (\\\() /gxms);
-               #my @c  = ($im =~ m/ (\))   /gxms);
-               #my @cs = ($im =~ m/ (\\\)) /gxms);
-               #next if ((@o-@os) != (@c-@cs));
-
-               $nimages++;
-               my $w = 0;
-               my $h = 0;
-               if ($im =~ m/ \/W(|idth)\s*(\d+) /xms)
-               {
-                  $w = $2;
-               }
-               if ($im =~ m/ \/H(|eight)\s*(\d+) /xms)
-               {
-                  $h = $2;
-               }
-               print "Image $nimages page $p, (w,h)=($w,$h), inline\n";
+               my $bit = $1;
+               next BI if ($bit !~ m/ \( /xms);
             }
+
+            $nimages++;
+            my $w = 0;
+            my $h = 0;
+            if ($im =~ m/ \/W(|idth)\s*(\d+) /xms)
+            {
+               $w = $2;
+            }
+            if ($im =~ m/ \/H(|eight)\s*(\d+) /xms)
+            {
+               $h = $2;
+            }
+            print "Image $nimages page $p, (w,h)=($w,$h), inline\n";
          }
       }
    }

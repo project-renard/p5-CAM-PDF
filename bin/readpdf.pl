@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             verbose    => 0,
@@ -47,9 +47,9 @@ my $doc = CAM::PDF->new($file, q{}, q{},
 
 if ($opts{decode})
 {
-   foreach my $obj (keys %{$doc->{xref}})
+   foreach my $objnode (keys %{$doc->{xref}})
    {
-      $doc->decodeObject($obj);
+      $doc->decodeObject($objnode);
    }
 }
 if ($opts{verbose})

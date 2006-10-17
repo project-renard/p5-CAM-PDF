@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             verbose     => 0,
@@ -50,8 +50,8 @@ if (!$doc->canModify())
 
 foreach my $objnum (keys %{$doc->{xref}})
 {
-   my $obj = $doc->dereference($objnum);
-   my $val = $obj->{value};
+   my $objnode = $doc->dereference($objnum);
+   my $val = $objnode->{value};
    if ($val->{type} eq 'dictionary')
    {
       my $dict = $val->{value};

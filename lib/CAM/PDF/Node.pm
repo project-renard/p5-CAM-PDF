@@ -4,11 +4,20 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =head1 NAME
 
 CAM::PDF::Node - PDF element
+
+=head1 SYNOPSIS
+
+   my $node = CAM::PDF::Node->new('number', 1.0);
+
+=head1 DESCRIPTION
+
+This is a simplistic internal class for representing arbitrary PDF
+data structures.
 
 =head1 LICENSE
 

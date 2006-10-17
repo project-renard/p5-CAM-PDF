@@ -5,7 +5,7 @@ use warnings;
 use strict;
 use base qw(CAM::PDF::GS);
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =head1 NAME
 
@@ -47,9 +47,6 @@ sub renderText
    my ($xd, $yd) = $self->userToDevice($xu, $yu);
 
    printf "(%7.2f,%7.2f) (%7.2f,%7.2f) %s\n", $xd,$yd,$xu,$yu, $string;
-
-   #my ($dxd, $dyd) = $self->textToDevice(@{$self->{moved}});
-   #printf "(%7.2f,%7.2f) -> (%7.2f,%7.2f) %s\n", $xd,$yd,$dxd,$dyd, $string;
    return;
 }
 

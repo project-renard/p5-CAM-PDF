@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =for stopwords inline
 
@@ -55,12 +55,12 @@ C<images> property with the original instance.
 
 sub clone
 {
-   my $obj = shift;
+   my $self = shift;
 
-   my $pkg = ref $obj;
-   my $self = $pkg->new();
-   $self->{images} = $obj->{images};
-   return $self;
+   my $pkg = ref $self;
+   my $new_self = $pkg->new();
+   $new_self->{images} = $self->{images};
+   return $new_self;
 }
 
 =item $self->Do(DATA...)

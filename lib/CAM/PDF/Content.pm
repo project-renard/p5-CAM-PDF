@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =for stopwords renderers
 
@@ -323,6 +323,7 @@ sub _parseBlock
 
    # Non-block operand?
 
+=for referencecode
    ## This is the REAL list
    #if (${$c} =~ m/ \G(
    #                    [bBcdfFgGhijJkKlmMnsSvwWy\'\"]|
@@ -330,6 +331,8 @@ sub _parseBlock
    #                    re|RG|rg|ri|sc|SC|scn|SCN|sh|T[cdDfJjLmrswz\*]|W\*
    #                   )\b\s*
    #               /cgxms)
+
+=cut
 
    ## This is a cheat version of the above
    if (${$c} =~ m/ \G([A-Za-z\'\"][\w\*]*)\s* /cgxms)
@@ -358,14 +361,12 @@ sub validate  ## no critic(Subroutines::ProhibitExcessComplexity)
 
    $self->_buildOpSyntax();
 
+ BLOCK:
    foreach my $block (@{$blocks})
    {
       if ($block->{type} eq 'block')
       {
-         if (!$self->validate($block->{value}))
-         {
-            return;
-         }
+         return if (!$self->validate($block->{value}));
       }
       elsif ($block->{type} ne 'op')
       {
@@ -382,6 +383,7 @@ sub validate  ## no critic(Subroutines::ProhibitExcessComplexity)
          if ($syntax->[0] && $syntax->[0] eq '...')
          {
             # variable args, skip
+            next BLOCK;
          }
          elsif (@{$block->{args}} != @{$syntax})
          {
@@ -391,47 +393,27 @@ sub validate  ## no critic(Subroutines::ProhibitExcessComplexity)
             }
             return;
          }
-         else
-         {
-            foreach my $i (0 .. $#{$syntax})
-            {
-               my $arg   = $block->{args}->[$i];
-               my $types = $syntax->[$i];
-               my $match = 0;
-               foreach my $type (split /\|/xms, $types)
-               {
-                  if ($type eq 'integer')
-                  {
-                     if ($arg->{type} eq 'number' && $arg->{value} =~ m/ \A\d+\z /xms)
-                     {
-                        $match = 1;
-                        last;
-                     }
-                  }
-                  elsif ($type eq 'string')
-                  {
-                     if ($arg->{type} eq 'string' || $arg->{type} eq 'hexstring')
-                     {
-                        $match = 1;
-                        last;
-                     }
-                  }
-                  elsif ($arg->{type} eq $type)
-                  {
-                     $match = 1;
-                     last;
-                  }
-               }
-               if (!$match)
-               {
-                  if ($self->{verbose})
-                  {
-                     carp "Expected '$types' argument for '$block->{name}' (got $arg->{type})";
-                  }
-                  return;
-               }
 
+       ARG:
+         foreach my $i (0 .. $#{$syntax})
+         {
+            my $arg   = $block->{args}->[$i];
+            my $types = $syntax->[$i];
+
+          ARGTYPE_OPT:
+            foreach my $type (split /\|/xms, $types)
+            {
+               # These are the successful match cases
+               next ARG if ($arg->{type} eq $type);
+               next ARG if ($type eq 'integer' && $arg->{type} eq 'number' && $arg->{value} =~ m/ \A\d+\z /xms);
+               next ARG if ($type eq 'string' && $arg->{type} eq 'hexstring');
             }
+
+            if ($self->{verbose})
+            {
+               carp "Expected '$types' argument for '$block->{name}' (got $arg->{type})";
+            }
+            return;
          }
       }
    }
@@ -540,23 +522,6 @@ sub traverse
             no strict 'refs'; ## no critic(ProhibitNoStrict)
             $newgs->$func(map {$_->{value}} @{$block->{args}});
          }
-
-         #use Data::Dumper;
-         #use Algorithm::Diff;
-         #$Data::Dumper::Sortkeys = 1;
-         #my $before = Dumper($gs);
-         #my $after  = Dumper($newgs);
-         #if ($before ne $after)
-         #{
-         #   print "diff: $block->{name}\n";
-         #   foreach my $hunk (Algorithm::Diff::diff([split /\n/xms, $before], [split /\n/xms, $after]))
-         #   {
-         #      foreach my $change (@{$hunk})
-         #      {
-         #         print STDERR $change->[0], $change->[2], "\n";
-         #      }
-         #   }
-         #}
 
          $gs = $newgs;
       }

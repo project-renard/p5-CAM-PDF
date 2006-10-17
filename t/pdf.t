@@ -85,9 +85,10 @@ foreach my $testdoc (@testdocs)
 
    {
       open my $fh, '<', $file or die;
+      binmode $fh;
       my $content = do{local $/=undef;<$fh>};
       close $fh;
-      is($doc->toPDF(), $content, 'toPDF');
+      ok($doc->toPDF() eq $content, 'toPDF');
    }
    
    is($doc->isLinearized() ? 1 : 0, $testdoc->{linear}, 'isLinearized');

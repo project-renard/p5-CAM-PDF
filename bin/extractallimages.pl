@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -107,41 +107,7 @@ foreach my $objnum (keys %{$doc->{xref}})
             next;
          }
 
-         my $isjpg = 0;
-         if ($im->{Filter})
-         {
-            my $f = $im->{Filter};
-            if ($f->{type} eq 'array')
-            {
-               foreach my $e (@{$f->{value}})
-               {
-                  my $name = $doc->getValue($e);
-                  if (ref $name)
-                  {
-                     $name = $name->{value};
-                  }
-                  #warn "Checking $name\n";
-                  if ($name eq 'DCTDecode')
-                  {
-                     $isjpg = 1;
-                     last;
-                  }
-               }
-            }
-            else
-            {
-               my $name = $doc->getValue($f);
-               if (ref $name)
-               {
-                  $name = $name->{value};
-               }
-               #warn "Checking $name\n";
-               if ($name eq 'DCTDecode')
-               {
-                  $isjpg = 1;
-               }
-            }
-         }
+         my $isjpg = _isjpg($im);
 
          my $oldsize = $doc->getValue($im->{Length});
          if (!$oldsize)
@@ -190,6 +156,29 @@ foreach my $objnum (keys %{$doc->{xref}})
 
 _inform("Extracted $rimages of $nimages images", $opts{verbose});
 
+
+sub _isjpg
+{
+   my $im = shift;
+   return if (!$im->{Filter});
+
+   my $f = $im->{Filter};
+   my @names = $f->{type} eq 'array' ? @{$f->{value}} : $f;
+   for my $e (@names)
+   {
+      my $name = $doc->getValue($e);
+      if (ref $name)
+      {
+         $name = $name->{value};
+      }
+      #warn "Checking $name\n";
+      if ($name eq 'DCTDecode')
+      {
+         return 1;
+      }
+   }
+   return;
+}
 
 sub _inform
 {

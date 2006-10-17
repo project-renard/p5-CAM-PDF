@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =head1 NAME
 
@@ -50,6 +50,7 @@ sub getCoords
 
    if ($node->{name} =~ m/ \A (TJ|Tj|quote|doublequote) \z /xms)
    {
+      ## no critic (Bangs::ProhibitNumberedNames)
       my ($x1,$y1) = $self->userToDevice(@{$self->{last}});
       my ($x2,$y2) = $self->userToDevice(@{$self->{current}});
       return ($x1,$y1,$x2,$y2);
@@ -75,11 +76,15 @@ sub textToUser
 
    return $self->dot($self->{Tm}, $x, $y);
 
+=for oldcode
    ## PDF Ref page 313
    #my $tf = [$self->{Tfs}*$self->{Tz}, 0,
    #          0,                        $self->{Tfs},
    #          0,                        $self->{Ts}];
    #return $self->dot($self->{Tm}, $self->dot($tf, $x, $y));
+
+=cut
+
 }
 
 =item $self->textToDevice($x, $y)

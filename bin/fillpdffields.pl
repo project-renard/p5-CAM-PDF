@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             triggerclear => 0,
@@ -61,10 +61,10 @@ if ($opts{triggerclear})
    my @names = map {$_ % 2 ? $list[$_] : ()} 0 .. $#list;
    for my $name (@names)
    {
-      my $obj = $doc->getFormField($name);
-      if ($obj)
+      my $objnode = $doc->getFormField($name);
+      if ($objnode)
       {
-         delete $obj->{value}->{value}->{AA};
+         delete $objnode->{value}->{value}->{AA};
       }
    }
 }

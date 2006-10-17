@@ -5,21 +5,20 @@ package main;
 use warnings;
 use strict;
 use CAM::PDF;
+use Data::Dumper;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 my %opts = (
             verbose    => 0,
-            order      => 0,
             help       => 0,
             version    => 0,
             );
 
 Getopt::Long::Configure('bundling');
 GetOptions('v|verbose'  => \$opts{verbose},
-           'o|order'    => \$opts{order},
            'h|help'     => \$opts{help},
            'V|version'  => \$opts{version},
            ) or pod2usage(1);
@@ -33,55 +32,58 @@ if ($opts{version})
    exit 0;
 }
 
-if (@ARGV < 2)
+if (@ARGV < 3)
 {
    pod2usage(1);
 }
 
-my $infile = shift;
-my $stampfile = shift;
-my $outfile = shift || q{-};
+my $file = shift;
+my $pagenum = shift;
+my $fontname = shift;
 
-my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
-
-my $stampdoc = CAM::PDF->new($stampfile) || die "$CAM::PDF::errstr\n";
-
-my $stamp = "q\n" . $stampdoc->getPageContent(1) . "Q\n";
-foreach my $p (1 .. $doc->numPages())
+if ($pagenum !~ m/\A\d+\z/xms || $pagenum < 1)
 {
-   $doc->appendPageContent($p, $stamp);
+   die "The page number must be an integer greater than 0\n";
 }
 
-if (!$doc->canModify())
+my $doc = CAM::PDF->new($file) || die "$CAM::PDF::errstr\n";
+
+my $font = $doc->getFont($pagenum, $fontname);
+if (!$font)
 {
-   die "This PDF forbids modification\n";
+   die "Font $fontname not found\n";
 }
-$doc->cleanoutput($outfile);
+
+if ($opts{verbose})
+{
+   print Data::Dumper->Dump([$font], ['font']);
+}
 
 
 __END__
 
-=for stopwords stamppdf.pl
+=for stopwords getpdffontobject.pl
 
 =head1 NAME
 
-stamppdf.pl - Apply a mark to each page of a PDF
+getpdffontobject.pl - Print the PDF form field names
 
 =head1 SYNOPSIS
 
- stamppdf.pl [options] infile.pdf stamp.pdf [outfile.pdf]
+ getpdffontobject.pl [options] infile.pdf pagenum fontname
 
  Options:
-   -o --order          preserve the internal PDF ordering for output
    -v --verbose        print diagnostic messages
    -h --help           verbose help message
    -V --version        print CAM::PDF version
 
 =head1 DESCRIPTION
 
-Add the contents of C<stamp.pdf> page 1 to each page of C<infile.pdf>.  If
-the two PDFs have different page sizes, this likely won't work very
-well.
+Retrieves the font metadata from the PDF.  If C<--verbose> is specified,
+the memory representation is dumped to STDOUT.  Otherwise, the program
+silently returns success or emits a failure message to STDERR.
+
+The leading C</> on the C<fontname> argument is optional.
 
 =head1 SEE ALSO
 

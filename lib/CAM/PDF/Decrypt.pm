@@ -10,7 +10,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 =head1 NAME
 
@@ -262,16 +262,16 @@ sub set_passwords
                                      O => CAM::PDF::Node->new('string', q{}),
                                      U => CAM::PDF::Node->new('string', q{}),
                                   });
-   my $obj = CAM::PDF::Node->new('object', $dict);
+   my $objnode = CAM::PDF::Node->new('object', $dict);
 
    my $objnum = $self->{EncryptBlock};
    if ($objnum)
    {
-      $doc->replaceObject($objnum, undef, $obj, 0);
+      $doc->replaceObject($objnum, undef, $objnode, 0);
    }
    else
    {
-      $objnum = $doc->appendObject(undef, $obj, 0);
+      $objnum = $doc->appendObject(undef, $objnode, 0);
    }
 
    if (!$doc->{trailer})
@@ -370,9 +370,6 @@ sub _crypt
       }
 
       croak 'gennum missing in crypt';
-      
-      # Unreachable
-      #$gennum = $doc->dereference($objnum)->{gennum};
    }
    
    return Crypt::RC4::RC4($self->_compute_key($objnum, $gennum), $content);
