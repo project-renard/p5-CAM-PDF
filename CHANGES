@@ -1,11 +1,19 @@
 Revision history for Perl module CAM::PDF
 
+1.09  ?? ??? 2007
+      [FIXES]
+      - Restore Perl 5.6.x compatibility which was broken in 1.08
+        (credit Brian Casey of rootlevelservices.com)
+      - Detect end-image tag accidentally embedded with an inline
+        image (credit Christian Drechsler)
+
 1.08  17 Oct 2006
       [FIXES]
       - Add binmode() for Windows (RT #22136)
       - Fix addFont() where there is no 'Font' property (RT #22049)
       [INTERNALS]
       - Compliance with Perl::Critic v0.21 and Bangs
+      - Moved the examples from scripts/ to bin/
 
 1.07  11 Jul 2006
       [ENHANCEMENTS]

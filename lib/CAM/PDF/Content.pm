@@ -5,8 +5,10 @@ use warnings;
 use strict;
 use Carp;
 use English qw(-no_match_vars);
+use CAM::PDF;
+use CAM::PDF::Node;
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 =for stopwords renderers
 
@@ -16,7 +18,7 @@ CAM::PDF::Content - PDF page layout parser
 
 =head1 LICENSE
 
-See CAM::PDF.
+Same as L<CAM::PDF>
 
 =head1 SYNOPSIS
 
@@ -616,6 +618,6 @@ __END__
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut

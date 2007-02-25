@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 ##no critic (Bangs::ProhibitNumberedNames)
 
@@ -539,6 +539,6 @@ __END__
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut

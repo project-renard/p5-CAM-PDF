@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 my %opts = (
             verbose     => 0,
@@ -59,8 +59,7 @@ foreach my $objnum (keys %{$doc->{xref}})
       foreach my $key (qw(Metadata
                           PieceInfo
                           LastModified
-                          Thumb
-                          Group))
+                          Thumb))
       {
          if (exists $dict->{$key})
          {
@@ -120,6 +119,6 @@ CAM::PDF
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut

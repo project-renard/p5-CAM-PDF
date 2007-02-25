@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 my %opts = (
             decode      => 0,
@@ -155,7 +155,7 @@ $doc->cleanoutput($outfile);
 
 __END__
 
-=for stopwords rewritepdf.pl unprotecting
+=for stopwords rewritepdf.pl unprotecting passworded
 
 =head1 NAME
 
@@ -213,6 +213,6 @@ CAM::PDF
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut

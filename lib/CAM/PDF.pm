@@ -3,12 +3,12 @@ package CAM::PDF;
 use 5.006;
 use warnings;
 use strict;
-use Carp;
+use Carp qw(croak cluck);
 use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -21,7 +21,9 @@ CAM::PDF - PDF manipulation library
 
 =head1 LICENSE
 
-Copyright 2006 Clotho Advanced Media, Inc., <cpan@clotho.com>
+Copyright 2002-2006 Clotho Advanced Media, Inc., L<http://www.clotho.com/>
+
+Copyright 2007 Chris Dolan
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
@@ -48,8 +50,8 @@ under the same terms as Perl itself.
     $pdf->cleanoutput('out1.pdf');
     print $pdf->toPDF();
 
-Many example scripts are included in this distribution to do useful
-tasks.  See the C<script> subdirectory.
+Many example programs are included in this distribution to do useful
+tasks.  See the C<bin> subdirectory.
 
 =head1 DESCRIPTION
 
@@ -730,11 +732,13 @@ sub parseObj
    my $self = shift;
    my $c = shift;
 
-   my ($objnum,$gennum) = ${$c} =~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms;
-   if (!$objnum)
+   if (${$c} !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms)
    {
       die "Expected object open tag\n" . $self->trimstr(${$c});
    }
+   # need to implement like this with explicit capture vars for 5.6.1
+   # compatibility
+   my ($objnum, $gennum) = ($1, $2); ##no critic(ProhibitCaptureWithoutTest)
 
    my $objnode;
    if (${$c} =~ m/ \G(.*?)endobj\s* /cgxms)
@@ -786,7 +790,7 @@ sub parseInlineImage
    $dict->{value}->{Type} = CAM::PDF::Node->new('label', 'XObject', $objnum, $gennum);
    $dict->{value}->{Subtype} = CAM::PDF::Node->new('label', 'Image', $objnum, $gennum);
    $dict->{value}->{StreamData} = $self->parseStream($c, $objnum, $gennum, $dict->{value},
-                                                     qr/ \s* /xms, qr/ \s*EI\b /xms);
+                                                     qr/ \s* /xms, qr/ \s*EI(?!\S) /xms);
    ${$c} =~ m/ \G\s+ /cgxms;
 
    return CAM::PDF::Node->new('object', $dict, $objnum, $gennum);
@@ -1342,7 +1346,7 @@ sub getValue
          my $objnum = $objnode->{value};
          $objnode = $self->dereference($objnum);
       }
-      if ($objnode->{type} eq 'object')
+      elsif ($objnode->{type} eq 'object')
       {
          $objnode = $objnode->{value};
       }
@@ -2110,7 +2114,7 @@ sub getPage
          if (! ref $node)
          {
             require Data::Dumper;
-            Carp::cluck Data::Dumper::Dumper($node);
+            cluck Data::Dumper::Dumper($node);
          }
       }
       
@@ -5120,121 +5124,100 @@ sub decodeOne
    my $changed = 0;
    my $streamdata = q{};
 
-   if ($objnode->{type} eq 'dictionary')
+   if ($objnode->{type} ne 'dictionary')
    {
-      my $dict = $objnode->{value};
+      return $save ? $changed : $streamdata;
+   }
 
-      $streamdata = $dict->{StreamData}->{value};
-      #warn 'decoding thing ' . ($dict->{StreamData}->{objnum} || '(unknown)') . "\n";
+   my $dict = $objnode->{value};
 
-      # Don't work on {F} since that's too common a word
-      #my $filtobj = $dict->{Filter} || $dict->{F};
-      my $filtobj = $dict->{Filter}; 
-
-      if (defined $filtobj)
+   $streamdata = $dict->{StreamData}->{value};
+   #warn 'decoding thing ' . ($dict->{StreamData}->{objnum} || '(unknown)') . "\n";
+   
+   # Don't work on {F} since that's too common a word
+   #my $filtobj = $dict->{Filter} || $dict->{F};
+   my $filtobj = $dict->{Filter}; 
+   
+   if (defined $filtobj)
+   {
+      my @filters = $filtobj->{type} eq 'array' ? @{$filtobj->{value}} : ($filtobj);
+      my $parmobj = $dict->{DecodeParms} || $dict->{DP};
+      my @parms;
+      if ($parmobj)
       {
-         my @filters;
-         if ($filtobj->{type} eq 'array')
+         @parms = $parmobj->{type} eq 'array' ? @{$parmobj->{value}} : ($parmobj);
+      }
+      
+      for my $filter (@filters)
+      {
+         if ($filter->{type} ne 'label')
          {
-            @filters = @{$filtobj->{value}};
+            warn "All filter names must be labels\n";
+            require Data::Dumper;
+            warn Data::Dumper->Dump([$filter], ['Filter']);
+            next;
          }
-         else
-         {
-            @filters = ($filtobj);
-         }
-         my $parmobj = $dict->{DecodeParms} || $dict->{DP};
-         my @parms;
-         if (!$parmobj)
-         {
-            @parms = ();
-         }
-         elsif ($parmobj->{type} eq 'array')
-         {
-            @parms = @{$parmobj->{value}};
-         }
-         else
-         {
-            @parms = ($parmobj);
-         }
-
-         for my $filter (@filters)
-         {
-            if ($filter->{type} ne 'label')
+         my $filtername = $filter->{value};
+         
+         # Make sure this is not an encrypt dict
+         next if ($filtername eq 'Standard');
+         
+         my $filt;
+         eval {
+            require Text::PDF::Filter;
+            my $package = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
+            $filt = $package->new;
+            if (!$filt)
             {
-               warn "All filter names must be labels\n";
-               require Data::Dumper;
-               warn Data::Dumper->Dump([$filter], ['Filter']);
-               next;
+               die;
             }
-            my $filtername = $filter->{value};
-
-            # Make sure this is not an encrypt dict
-            next if ($filtername eq 'Standard');
-
-            my $filt;
-            eval {
-               require Text::PDF::Filter;
-               my $package = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
-               $filt = $package->new;
-               if (!$filt)
-               {
-                  die;
-               }
-            };
-            if ($EVAL_ERROR)
+         };
+         if ($EVAL_ERROR)
+         {
+            warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
+            last;
+         }
+         
+         my $oldlength = length $streamdata;
+         
+         {
+            # Hack to turn off warnings in Filter library
+            no warnings; ## no critic(TestingAndDebugging::ProhibitNoWarnings)
+            $streamdata = $filt->infilt($streamdata, 1);
+         }
+         
+         $self->fixDecode(\$streamdata, $filtername, shift @parms);
+         my $length = length $streamdata;
+         
+         #warn "decoded length: $oldlength -> $length\n";
+         
+         if ($save)
+         {
+            my $objnum = $dict->{StreamData}->{objnum};
+            my $gennum = $dict->{StreamData}->{gennum};
+            if ($objnum)
             {
-               warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
-               last;
+               $self->{changes}->{$objnum} = 1;
             }
-
-            my $oldlength = length $streamdata;
-
+            $changed = 1;
+            $dict->{StreamData}->{value} = $streamdata;
+            if ($length != $oldlength)
             {
-               # Hack to turn off warnings in Filter library
-               no warnings; ## no critic(TestingAndDebugging::ProhibitNoWarnings)
-               $streamdata = $filt->infilt($streamdata, 1);
+               $dict->{Length} = CAM::PDF::Node->new('number', $length, $objnum, $gennum);
+               delete $dict->{L};
             }
-
-            $self->fixDecode(\$streamdata, $filtername, shift @parms);
-            my $length = length $streamdata;
-
-            #warn "decoded length: $oldlength -> $length\n";
-
-            if ($save)
-            {
-               my $objnum = $dict->{StreamData}->{objnum};
-               my $gennum = $dict->{StreamData}->{gennum};
-               if ($objnum)
-               {
-                  $self->{changes}->{$objnum} = 1;
-               }
-               $changed = 1;
-               $dict->{StreamData}->{value} = $streamdata;
-               if ($length != $oldlength)
-               {
-                  $dict->{Length} = CAM::PDF::Node->new('number', $length, $objnum, $gennum);
-                  delete $dict->{L};
-               }
-               
-               # These changes should happen later, but I prefer to do it
-               # redundantly near the changes hash
-               delete $dict->{Filter};
-               delete $dict->{F};
-               delete $dict->{DecodeParms};
-               delete $dict->{DP};
-            }
+            
+            # These changes should happen later, but I prefer to do it
+            # redundantly near the changes hash
+            delete $dict->{Filter};
+            delete $dict->{F};
+            delete $dict->{DecodeParms};
+            delete $dict->{DP};
          }
       }
    }
 
-   if ($save)
-   {
-      return $changed;
-   }
-   else
-   {
-      return $streamdata;
-   }
+   return $save ? $changed : $streamdata;
 }
 
 =item $doc->fixDecode($streamdata, $filter, $params)
@@ -5676,10 +5659,11 @@ sub rangeToArray
    my $max = shift;
    my @in_array = grep {defined $_} @_;
 
-   @in_array = map { 
+   for (@in_array) # modify in place
+   {
       s/ [^\d\-,] //gxms;   # clean
       m/ ([\d\-]+) /gxms;   # split on numbers and ranges
-   } @in_array;
+   }
 
    my @out_array;
    if (@in_array == 0)
@@ -5815,7 +5799,7 @@ sub cacheObjects
 =item $doc->asciify($string)
 
 Helper class/instance method to massage a string, cleaning up some
-non-ASCII problems.  This is a very ad-hoc list.  Specifically:
+non-ASCII problems.  This is a very incomplete list.  Specifically:
 
 =over
 
@@ -5848,7 +5832,7 @@ __END__
 =head1 COMPATIBILITY
 
 This library was primarily developed against the 3rd edition of the
-reference (PDF v1.4) with a few updates from 4th edition.  This
+reference (PDF v1.4) with a few updates from fourth edition.  This
 library focuses on PDF v1.2 features.  Nonetheless, it should be
 forward and backward compatible in the majority of cases.
 
@@ -5955,8 +5939,12 @@ whole document at read time.
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
-Primary developer: Chris Dolan
+=head1 ACKNOWLEDGMENTS
+
+Thanks to all the people who have submitted bug reports over the
+years!  I've belatedly started crediting people in the F<CHANGES>
+file.  Apologies to contributors I've overlooked...
 
 =cut

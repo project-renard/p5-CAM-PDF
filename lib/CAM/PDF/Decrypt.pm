@@ -9,8 +9,10 @@ use warnings;
 use strict;
 use Carp;
 use English qw(-no_match_vars);
+use CAM::PDF;
+use CAM::PDF::Node;
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 =head1 NAME
 
@@ -138,11 +140,11 @@ sub new
          {
             print STDERR 'Enter owner password: ';
             $opassword = <STDIN>;
-            chop $opassword;
+            chomp $opassword;
             
             print STDERR 'Enter user password: ';
             $upassword = <STDIN>;
-            chop $upassword;
+            chomp $upassword;
          }
          else
          {
@@ -480,6 +482,6 @@ __END__
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut

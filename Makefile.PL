@@ -2,9 +2,15 @@
 use ExtUtils::MakeMaker;
 WriteMakefile
 (
-          'PL_FILES' => {},
-          'INSTALLDIRS' => 'site',
           'NAME' => 'CAM::PDF',
+          'VERSION_FROM' => 'lib/CAM/PDF.pm',
+          'PREREQ_PM' => {
+                           'Crypt::RC4' => '2.02',
+                           'Digest::MD5' => '2.16',
+                           'Test::More' => '0',
+                           'Text::PDF' => '0.29'
+                         },
+          'INSTALLDIRS' => 'site',
           'EXE_FILES' => [
                            'bin/appendpdf.pl',
                            'bin/asciify',
@@ -36,12 +42,6 @@ WriteMakefile
                            'bin/stamppdf.pl',
                            'bin/uninlinepdfimages.pl'
                          ],
-          'VERSION_FROM' => 'lib/CAM/PDF.pm',
-          'PREREQ_PM' => {
-                           'Test::More' => 0,
-                           'Crypt::RC4' => '2.02',
-                           'Text::PDF' => '0.29',
-                           'Digest::MD5' => '2.16'
-                         }
+          'PL_FILES' => {}
         )
 ;

@@ -1,6 +1,13 @@
-#!perl -T
-
+#!perl
+use warnings;
+use strict;
 use Test::More;
-eval "use Test::Pod 1.14";
-plan skip_all => "Optional Test::Pod 1.14 not found -- no big deal" if $@;
+
+if ((!$ENV{AUTHOR_TEST} && !$ENV{AUTHOR_TEST_CDOLAN}) ||
+    $ENV{AUTOMATED_TESTING})
+{
+   plan skip_all => 'Author test';
+}
+eval 'use Test::Pod 1.14';
+plan skip_all => 'Optional Test::Pod 1.14 not found' if $@;
 all_pod_files_ok();

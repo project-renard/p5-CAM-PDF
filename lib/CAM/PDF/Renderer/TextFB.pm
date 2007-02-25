@@ -3,8 +3,9 @@ package CAM::PDF::Renderer::TextFB;
 use 5.006;
 use warnings;
 use strict;
+use CAM::PDF;
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 =for stopwords framebuffer
 
@@ -134,6 +135,6 @@ __END__
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut

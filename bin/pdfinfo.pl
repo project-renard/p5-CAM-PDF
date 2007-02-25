@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.08';
+our $VERSION = '1.09';
 
 my %opts = (
             verbose    => 0,
@@ -78,15 +78,20 @@ while (@ARGV > 0)
                         D:
                         (\d{4})(\d{2})(\d{2})
                         (\d{2})(\d{2})(\d{2})
-                        ([+-])(\d{2})
+                        ([+-Z])(\d{2})
                         \'(\d{2})\'
                         \z
                       /xms)
          {
             my ($Y,$M,$D,$h,$m,$s,$sign,$tzh,$tzm) = ($1,$2,$3,$4,$5,$6,$7,$8,$9);
+            if ($sign eq 'Z')
+            {
+               $sign = q{+};
+            }
             require Time::Local;
             my $time = Time::Local::timegm($s,$m,$h,$D,$M-1,$Y-1900);
-            $time += "$sign".($tzh*3600 + $tzm*60);
+            my $tzshift = $sign . ($tzh*3600 + $tzm*60);
+            $time += $tzshift;
             $val = localtime $time;
          }
          printf "%-13s %s\n", $key.q{:}, $val;
@@ -143,6 +148,6 @@ CAM::PDF
 
 =head1 AUTHOR
 
-Clotho Advanced Media Inc., I<cpan@clotho.com>
+See L<CAM::PDF>
 
 =cut
