@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.09';
+our $VERSION = '1.10';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -5662,8 +5662,9 @@ sub rangeToArray
    for (@in_array) # modify in place
    {
       s/ [^\d\-,] //gxms;   # clean
-      m/ ([\d\-]+) /gxms;   # split on numbers and ranges
    }
+   # split on numbers and ranges
+   @in_array = map {m/ ([\d\-]+) /gxms} @in_array;
 
    my @out_array;
    if (@in_array == 0)
@@ -5939,7 +5940,10 @@ whole document at read time.
 
 =head1 AUTHOR
 
-See L<CAM::PDF>
+Chris Dolan
+
+This module was originally developed by me at Clotho Advanced Media
+Inc.  Now I maintain it in my spare time.
 
 =head1 ACKNOWLEDGMENTS
 

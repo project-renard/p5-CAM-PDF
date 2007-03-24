@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use Carp;
 
-use Test::More tests => 31;
+use Test::More tests => 32;
 use_ok('CAM::PDF');
 
 is_deeply([CAM::PDF->rangeToArray(0,10)],
@@ -25,6 +25,8 @@ is_deeply([CAM::PDF->rangeToArray(10,20,'-3')],
           [], 'range test');
 is_deeply([CAM::PDF->rangeToArray(10,20,'25-')],
           [], 'range test');
+is_deeply([CAM::PDF->rangeToArray(1, 15, '1,3-5,12,9', '14-', '8 - 6, -2')],
+          [1,3,4,5,12,9,14,15,8,7,6,1,2], 'range test');
 
 is(CAM::PDF->new('nosuchfile.pdf'), undef, 'open non-existent file');
 

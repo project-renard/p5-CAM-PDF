@@ -1,11 +1,17 @@
 Revision history for Perl module CAM::PDF
 
-1.09  ?? ??? 2007
+1.10  24 Mar 2007
+      [FIXES]
+      - RT #25306, regression in rangeToArray
+
+1.09  25 Feb 2007
       [FIXES]
       - Restore Perl 5.6.x compatibility which was broken in 1.08
         (credit Brian Casey of rootlevelservices.com)
       - Detect end-image tag accidentally embedded with an inline
         image (credit Christian Drechsler)
+      [INTERNALS]
+      - Changed maintainer from CLOTHO@cpan.org to CDOLAN@cpan.org
 
 1.08  17 Oct 2006
       [FIXES]

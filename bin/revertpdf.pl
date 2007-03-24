@@ -7,7 +7,7 @@ use strict;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.09';
+our $VERSION = '1.10';
 
 my %opts = (
             count      => 0,
