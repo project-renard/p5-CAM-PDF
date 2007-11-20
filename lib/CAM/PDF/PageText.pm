@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 =head1 NAME
 
@@ -185,7 +185,7 @@ sub _Td
    my $str      = shift;
    my $args_ref = shift;
 
-   if (@{$args_ref} != 2 || 
+   if (@{$args_ref} != 2 ||
        $args_ref->[0]->{type} ne 'number' ||
        $args_ref->[1]->{type} ne 'number')
    {

@@ -6,7 +6,7 @@ use strict;
 use CAM::PDF::Renderer::TextFB;
 use base qw(CAM::PDF::GS);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 =for stopwords framebuffer
 
@@ -54,9 +54,9 @@ Calls the superclass constructor, and initializes the ASCII PDF page.
 
 sub new
 {
-   my $pkg = shift;
+   my ($pkg, @rest) = @_;
 
-   my $self = $pkg->SUPER::new(@_);
+   my $self = $pkg->SUPER::new(@rest);
    if ($self)
    {
       my $fw = ($self->{refs}->{mediabox}->[2] - $self->{refs}->{mediabox}->[0]) / $xdensity;

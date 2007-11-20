@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -100,7 +100,7 @@ foreach my $objnum (keys %{$doc->{xref}})
          $nimages++;
          _inform("Image $nimages, $ref = object $objnum, (w,h)=($w,$h)", $opts{verbose});
 
-         if (exists $opts{skip}->{$objnum} || 
+         if (exists $opts{skip}->{$objnum} ||
              (0 < scalar keys %{$opts{only}} && !exists $opts{only}->{$objnum}))
          {
             _inform("Skipping object $objnum", $opts{verbose});
@@ -116,11 +116,11 @@ foreach my $objnum (keys %{$doc->{xref}})
          }
          
          my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
-         
+
          # Get a handle on the needed data bits from the template
          my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
          my $rawpage = $tmpl->getPageContent(1);
-         
+
          $media_array->[2]->{value} = $w;
          $media_array->[3]->{value} = $h;
          my $page = $rawpage;
@@ -128,7 +128,7 @@ foreach my $objnum (keys %{$doc->{xref}})
          $page =~ s/yyy/$h/igxms;
          $tmpl->setPageContent(1, $page);
          $tmpl->replaceObject(9, $doc, $objnum, 1);
-         
+
          my $ofile = "/tmp/crunchjpg.$$";
          $tmpl->cleanoutput($ofile);
          

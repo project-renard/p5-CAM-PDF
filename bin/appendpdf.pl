@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             verbose    => 0,
@@ -76,7 +76,7 @@ if (!$opts{forms})
 {
    $docs[0]->clearAnnotations();
 }
-   
+
 if ($opts{order})
 {
    $docs[0]->preserveOrder();

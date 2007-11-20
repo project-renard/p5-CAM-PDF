@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -131,6 +131,8 @@ my %inlineabbrevs = (
  $self->cleansave()
  $self->output(filename | '-')
  $self->cleanoutput(filename | '-')
+ $self->previousRevision()
+ $self->allRevisions()
  $self->preserveOrder()
  $self->appendObject(olddoc, oldnum, [follow=(1|0)])
  $self->replaceObject(newnum, olddoc, oldnum, [follow=(1|0)])
@@ -264,7 +266,7 @@ successfully decrypted.
 
 =cut
 
-sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
+sub new  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
 {
    my $pkg = shift;
    my $content = shift;  # or a filename
@@ -290,7 +292,7 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
 
 
    my $pdfversion = '1.2';
-   if ($content =~ m/ \A%PDF-([\d\.]+) /xms)
+   if ($content =~ m/ \A%PDF-([\d.]+) /xms)
    {
       my $ver = $1;
       if ($ver && $ver > $pdfversion)
@@ -316,18 +318,20 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity)
          }
          else
          {
-            my $fh;
-            if (!open $fh, '<', $file)
+            if (open my $fh, '<', $file)
+            {
+               binmode $fh;
+               read $fh, $content, (-s $file);
+               close $fh;
+            }
+            else
             {
                $CAM::PDF::errstr = "Failed to open $file: $!\n";
                return;
             }
-            binmode $fh;
-            read $fh, $content, (-s $file);
-            close $fh;
          }
       }
-      if ($content =~ m/ \A%PDF-([\d\.]+) /xms)
+      if ($content =~ m/ \A%PDF-([\d.]+) /xms)
       {
          my $ver = $1;
          if ($ver && $ver > $pdfversion)
@@ -418,7 +422,7 @@ Implemented via Data::Dumper.
 
 =cut
 
-sub toString
+sub toString  ## no critic (Unpack)
 {
    my $self = shift;
    my @skip = @_ == 0 ? qw(content) : @_;
@@ -458,7 +462,7 @@ sub toString
 sub _startdoc
 {
    my $self = shift;
-   
+
    ### Parse the document metadata
 
    # Start by parsing out the location of the last xref block
@@ -732,7 +736,7 @@ sub parseObj
    my $self = shift;
    my $c = shift;
 
-   if (${$c} !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms)
+   if (${$c} !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms) ##no critic(ProhibitUnusedCapture)
    {
       die "Expected object open tag\n" . $self->trimstr(${$c});
    }
@@ -818,7 +822,7 @@ sub writeInlineImage
    my $stream = $dict->{StreamData}->{value};
    delete $dict->{StreamData};
    $self->abbrevInlineImage($dictobj);
-   
+
    my $str = $self->writeAny($dictobj);
    $str =~ s/ \A <<    /BI /xms;
    $str =~ s/    >> \z / ID/xms;
@@ -997,7 +1001,7 @@ sub parseLabel
    my $gennum = shift;
 
    my $label;
-   if (${$c} =~ m/ \G\/([^\s<>\/\[\]\(\)]+)\s* /cgxms)
+   if (${$c} =~ m{ \G/([^\s<>/\[\]()]+)\s* }cgxms)
    {
       $label = $1;
    }
@@ -1061,7 +1065,7 @@ sub parseNum
    my $gennum = shift;
 
    my $value;
-   if (${$c} =~ m/ \G([\d\.\-\+]+)\s* /cgxms)
+   if (${$c} =~ m/ \G([\d.+-]+)\s* /cgxms)
    {
       $value = $1;
    }
@@ -1093,19 +1097,19 @@ sub parseString
    my $gennum     = shift;
 
    my $value = q{};
-   if (${$c} =~ m/ \G\( /cgxms)
+   if (${$c} =~ m/ \G [(] /cgxms)
    {
       # TODO: use Text::Balanced or Regexp::Common from CPAN??
 
       my $depth = 1;
       while ($depth > 0)
       {
-         if (${$c} =~ m/ \G([^\(\)]*)([\(\)]) /cgxms)
+         if (${$c} =~ m/ \G ([^()]*) ([()]) /cgxms)
          {
             my $string = $1;
             my $delim  = $2;
             $value .= $string;
-            
+
             # Make sure this is not an escaped paren, OR an real paren
             # preceded by an escaped backslash!
             if ($string =~ m/ (\\+) \z/xms && 1 == (length $1) % 2)
@@ -1302,12 +1306,12 @@ sub parseAny
    my $gennum = shift;
 
    return ${$c} =~ m/ \G \d+\s+\d+\s+R\b /xms  ? $p->parseRef(      $c, $objnum, $gennum)
-        : ${$c} =~ m/ \G \/              /xms  ? $p->parseLabel(    $c, $objnum, $gennum)
+        : ${$c} =~ m{ \G /               }xms  ? $p->parseLabel(    $c, $objnum, $gennum)
         : ${$c} =~ m/ \G <<              /xms  ? $p->parseDict(     $c, $objnum, $gennum)
         : ${$c} =~ m/ \G \[              /xms  ? $p->parseArray(    $c, $objnum, $gennum)
-        : ${$c} =~ m/ \G \(              /xms  ? $p->parseString(   $c, $objnum, $gennum)
-        : ${$c} =~ m/ \G \<              /xms  ? $p->parseHexString($c, $objnum, $gennum)
-        : ${$c} =~ m/ \G [\d\.\-\+]+     /xms  ? $p->parseNum(      $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G [(]             /xms  ? $p->parseString(   $c, $objnum, $gennum)
+        : ${$c} =~ m/ \G <               /xms  ? $p->parseHexString($c, $objnum, $gennum)
+        : ${$c} =~ m/ \G [\d.+-]+        /xms  ? $p->parseNum(      $c, $objnum, $gennum)
         : ${$c} =~ m/ \G (true|false)    /ixms ? $p->parseBoolean(  $c, $objnum, $gennum)
         : ${$c} =~ m/ \G null            /ixms ? $p->parseNull(     $c, $objnum, $gennum)
         : die "Unrecognized type in parseAny:\n" . $p->trimstr(${$c});
@@ -1846,7 +1850,7 @@ sub _deEmbedFontObj
    my $self = shift;
    my $font = shift;
    my $basefont = shift;
-   
+
    if ($basefont)
    {
       $font->{BaseFont} = CAM::PDF::Node->new('label', $basefont);
@@ -1867,7 +1871,7 @@ Returns an array of strings wrapped to the specified width.
 
 =cut
 
-sub wrapString
+sub wrapString  ## no critic (Unpack)
 {
    my $self = shift;
    my $string = shift;
@@ -2070,7 +2074,7 @@ sub getPage
          {
             die "Error: \@kids is not an array\n";
          }
-         my $child = 0; 
+         my $child = 0;
          if (@{$kids} == 1)
          {
             # Do the simple case first:
@@ -2082,7 +2086,7 @@ sub getPage
             # search through all kids EXCEPT don't bother looking at
             # the last one because that is surely the right one if all
             # the others are wrong.
-            
+
             while ($child < $#{$kids})
             {
                # the first leaf of the kid is the page we want.  It
@@ -2117,7 +2121,7 @@ sub getPage
             cluck Data::Dumper::Dumper($node);
          }
       }
-      
+
       # Ok, now we've got the right page.  Store it.
       $self->{pagecache}->{$pagenum} = $node;
    }
@@ -2153,7 +2157,7 @@ sub getPageObjnum
    {
       return $anyobj->{objnum};
    }
-}   
+}
 
 =item $doc->getPageText($pagenum)
 
@@ -2526,10 +2530,10 @@ sub getFormField
    {
       my $kidlist;
       my $parent;
-      if ($fieldname =~ m/ \. /xms)
+      if ($fieldname =~ m/ [.] /xms)
       {
          my $parentname;
-         if ($fieldname =~ s/ \A(.*)\.([\.]+)\z /$2/xms)
+         if ($fieldname =~ s/ \A(.*)[.]([.]+)\z /$2/xms)
          {
             $parentname = $1;
          }
@@ -2667,8 +2671,7 @@ equivalent:
 
 sub setPrefs
 {
-   my $self = shift;
-   my @prefs = (@_);
+   my ($self, @prefs) = @_;
 
    my $p = $self->{crypt}->encode_permissions(@prefs[2..5]);
    $self->{crypt}->set_passwords($self, @prefs[0..1], $p);
@@ -2745,7 +2748,7 @@ sub pageAddName
    $self->_buildNameTable($pagenum);
    my $page = $self->getPage($pagenum);
    my ($objnum, $gennum) = $self->getPageObjnum($pagenum);
-   
+
    if (!exists $self->{NameObjects}->{$pagenum})
    {
       if ($objnum)
@@ -2763,7 +2766,7 @@ sub pageAddName
       }
       $self->{NameObjects}->{$pagenum} = $self->getValue($r->{XObject});
    }
-   
+
    $self->{NameObjects}->{$pagenum}->{$name} = CAM::PDF::Node->new('reference', $key, $objnum, $gennum);
    if ($objnum)
    {
@@ -2859,7 +2862,7 @@ lists, ranges (open or closed).
 
 =cut
 
-sub extractPages
+sub extractPages  ## no critic (Unpack)
 {
    my $self = shift;
    return $self if (@_ == 0); # no-work shortcut
@@ -2870,7 +2873,7 @@ sub extractPages
       croak 'Tried to delete all the pages';
    }
 
-   my %pages = map {$_,1} @pages; # eliminate duplicates
+   my %pages = map {$_ => 1} @pages; # eliminate duplicates
 
    # make a list that is the complement of the @pages list
    my @delete = grep {!$pages{$_}} 1..$self->numPages();
@@ -2886,7 +2889,7 @@ arguments, comma separated lists, ranges (open or closed).
 
 =cut
 
-sub deletePages
+sub deletePages  ## no critic (Unpack)
 {
    my $self = shift;
    return $self if (@_ == 0); # no-work shortcut
@@ -2894,7 +2897,7 @@ sub deletePages
 
    return $self if (@pages == 0); # no-work shortcut
 
-   my %pages = map {$_,1} @pages; # eliminate duplicates
+   my %pages = map {$_ => 1} @pages; # eliminate duplicates
 
    if ($self->numPages() == scalar keys %pages)
    {
@@ -2906,14 +2909,14 @@ sub deletePages
 
 sub _deletePages
 {
-   my $self = shift;
+   my ($self, @pages) = @_;
 
    # Pages should be reverse sorted since we need to delete from the
    # end to make the page numbers come out right.
    my @objnums;
-   for (reverse sort {$a <=> $b} @_)
+   for my $page (reverse sort {$a <=> $b} @pages)
    {
-      my $objnum = $self->_deletePage($_);
+      my $objnum = $self->_deletePage($page);
       if (!$objnum)
       {
          $self->_deleteRefsToPages(@objnums);  # emergency cleanup to prevent corruption
@@ -3073,8 +3076,8 @@ sub _deletePage
 
 sub _deleteRefsToPages
 {
-   my $self = shift;
-   my %objnums = map {$_,1} @_;
+   my ($self, @objnums) = @_;
+   my %objnums = map {$_ => 1} @objnums;
 
    my $root = $self->getRootDict();
    if ($root->{Names})
@@ -3159,11 +3162,11 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
    my $self = shift;
    my $dests = shift;
    my $objnums = shift;
-   
+
    ## Accumulate the nodes to delete
    my @deletes;
    my @stack = ([$dests]);
-   
+
    while (@stack > 0)
    {
       my $chain = pop @stack;
@@ -3205,20 +3208,20 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
 
       # Ascend chain...  $objnum gets overwritten
       my $child = $objnode;
-      
+
     CHAIN:
       for my $node (@{$chain})
       {
          last if (exists $node->{deleted});  # internal flag
-         
+
          my $node_objnum = [values %{$node}]->[0]->{objnum} || die;
-         
+
          if ($node->{Names})
          {
             my $pairs = $self->getValue($node->{Names});
             my $limits = $self->getValue($node->{Limits});
             my $redo_limits = 0;
-            
+
             # Find and remove child reference
             # iterate over keys of key-value array
             for (my $i=@{$pairs}-2; $i>=0; $i-=2) ## no critic(ControlStructures::ProhibitCStyleForLoops)
@@ -3254,7 +3257,7 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
          elsif ($node->{Kids})
          {
             my $list = $self->getValue($node->{Kids});
-            
+
             # Find and remove child reference
             for my $i (reverse 0 .. $#{$list})
             {
@@ -3263,7 +3266,7 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
                   splice @{$list}, $i, 1;
                }
             }
-            
+
             if (@{$list} > 0)
             {
                if ($node->{Limits})
@@ -3287,16 +3290,16 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
                last CHAIN;
             }
          }
-         
+
          else
          {
             die 'Internal error: found a parent node with neither Names nor Kids.  This should be impossible.';
          }
-         
+
          # If we got here, the node is empty, so delete it and move onward
          $self->deleteObject($node_objnum);
          $node->{deleted} = undef;  # internal flag
-         
+
          # Prepare for next iteration
          $child = $node;
          $objnum = $node_objnum;
@@ -3315,8 +3318,7 @@ useful if an operation has been performed that changes a page.
 
 sub decachePages
 {
-   my $self = shift;
-   my @pages = @_;
+   my ($self, @pages) = @_;
 
    for (@pages)
    {
@@ -3404,7 +3406,7 @@ sub addPageResources
             {
                die 'Internal error: procset entry is not a label';
             }
-            next if (grep {$_->{value} eq $proc->{value}} @{$page_r});
+            next if (grep {$_->{value} eq $proc->{value}} @{$page_r});  ## no critic(BuiltinFunctions::ProhibitBooleanGrep) -- TODO: use any() instead
             push @{$page_r}, CAM::PDF::Node->new('label', $proc->{value}, $objnum, $gennum);
             $self->{changes}->{$objnum} = 1;
          }
@@ -3519,8 +3521,8 @@ instead of at the end.
 
 sub prependPDF
 {
-   my $self = shift;
-   return $self->appendPDF(@_, 1);
+   my ($self, @args) = @_;
+   return $self->appendPDF(@args, 1);
 }
 
 =item $doc->duplicatePage($pagenum)
@@ -3658,37 +3660,37 @@ sub uninlineImages
                ## image and not just coincidental text
 
                # Fix easy cases of "BI text) BI ... ID"
-               $im =~ s/ \A .*\bBI\b //xms; 
+               $im =~ s/ \A .*\bBI\b //xms;
                # There should never be an EI inside of a BI ... ID
                next if ($im =~ m/ \bEI\b /xms);
-               
+
                # Easy tests: is this the beginning or end of a string?
                # (these aren't really good tests...)
-               next if ($im =~ m/ \A \)    /xms);
-               next if ($im =~ m/    \( \z /xms);
-               
+               next if ($im =~ m/ \A [)]    /xms);
+               next if ($im =~ m/    [(] \z /xms);
+
                # this is the most complex heuristic:
                # make sure that there is an open paren before every close
                # if not, then the "BI" or the "ID" was part of a string
                my $test = $im;  # make a copy we can scribble on
                my $failed = 0;
                # get rid of escaped parens for the test
-               $test =~ s/ \\[\(\)] //gxms; 
+               $test =~ s/ \\[()] //gxms;
                # Look for closing parens
-               while ($test =~ s/ \A(.*?)\) //xms)
+               while ($test =~ s/ \A(.*?)[)] //xms)
                {
                   # If there is NOT an opening paren before the
                   # closing paren we detected above, then the start of
                   # our string is INSIDE a paren pair, thus a failure.
                   my $bit = $1;
-                  if ($bit !~ m/ \( /xms)
+                  if ($bit !~ m/ [(] /xms)
                   {
                      $failed = 1;
                      last;
                   }
                }
                next if ($failed);
-               
+
                # End of heuristics.  This is likely a real embedded image.
                # Now do the replacement.
 
@@ -3696,7 +3698,7 @@ sub uninlineImages
                my $image = $self->parseInlineImage(\$part, undef);
                my $newlen = length $part;
                my $imagelen = $oldlen - $newlen;
-               
+
                # Construct a new image name like "I3".  Start with
                # "I1" and continue until we get an unused "I<n>"
                # (first, get the list of already-used labels)
@@ -3707,11 +3709,11 @@ sub uninlineImages
                {
                   $name = 'Im' . ++$i;
                }
-               
+
                $self->setName($image, $name);
                my $key = $self->appendObject(undef, $image, 0);
                $self->pageAddName($pagenum, $name, $key);
-               
+
                $c = (substr $c, 0, $pos) . "/$name Do" . (substr $c, $pos+$imagelen);
                $changes++;
             }
@@ -3980,7 +3982,7 @@ Specify the background color for the text field.
 
 =cut
 
-sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
+sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
 {
    my $self = shift;
    my $opts = ref $_[0] ? shift : {};
@@ -4026,7 +4028,7 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
          }
          if (!$dict->{AP}->{value}->{N})
          {
-            my $newobj = CAM::PDF::Node->new('object', 
+            my $newobj = CAM::PDF::Node->new('object',
                                             CAM::PDF::Node->new('dictionary',{}),
                                             );
             my $num = $self->appendObject(undef, $newobj, 0);
@@ -4085,12 +4087,12 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
             $da = $self->getValue($propdict->{DA});
 
             # Try to pull out all of the resources used in the text object
-            @rsrcs = ($da =~ m/ \/([^\s<>\/\[\]\(\)]+) /gxms);
+            @rsrcs = ($da =~ m{ /([^\s<>/\[\]()]+) }gxms);
 
             # Try to pull out the font size, if any.  If more than
             # one, pick the last one.  Font commands look like:
             # "/<fontname> <size> Tf"
-            if ($da =~ m/ \s*\/(\w+)\s+(\d+)\s+Tf.*? \z /xms)
+            if ($da =~ m{ \s*/(\w+)\s+(\d+)\s+Tf.*? \z }xms)
             {
                $fontname = $1;
                $fontsize = $2;
@@ -4114,7 +4116,7 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity)
             # Just decode the ones we actually care about
             # PDF ref, 3rd ed pp 532,543
             my $ff = $self->getValue($propdict->{Ff});
-            my @flags = split //xms, unpack 'b*', pack 'V', $ff;
+            my @flags = split m//xms, unpack 'b*', pack 'V', $ff;
             $flags{ReadOnly}        = $flags[0];
             $flags{Required}        = $flags[1];
             $flags{NoExport}        = $flags[2];
@@ -4283,9 +4285,9 @@ happen.
 
 sub clearFormFieldTriggers
 {
-   my $self = shift;
+   my ($self, @fieldnames) = @_;
 
-   for my $fieldname (@_)
+   for my $fieldname (@fieldnames)
    {
       my $objnode = $self->getFormField($fieldname);
       if ($objnode)
@@ -4349,7 +4351,7 @@ sub clearAnnotations
                die 'Internal error: annotation is not a dictionary';
             }
             # Copy all text field values into the page, if present
-            if ($annot->{Subtype} && 
+            if ($annot->{Subtype} &&
                 $annot->{Subtype}->{value} eq 'Widget' &&
                 $annot->{FT} &&
                 $annot->{FT}->{value} eq 'Tx' &&
@@ -4383,6 +4385,55 @@ sub clearAnnotations
    return;
 }
 
+=item $doc->previousRevision()
+
+If this PDF was previously saved in append mode (that is, if
+C<clean()> was not invoked on it), return a new instance representing
+that previous version.  Otherwise return void.  If this is an
+encrypted PDF, this method assumes that previous revisions were
+encrypted with the same password, which may be an incorrect
+assumption.
+
+=cut
+
+sub previousRevision {
+   my $self = shift;
+
+   my $content = \$self->{content};
+   return if !${$content};  # already wiped...
+
+   # Figure out line end character                                              
+   my ($lineend) = ${$content} =~ m/ (.)%%EOF.*?\z /xms;
+   return if !$lineend; # Corrupt PDF: Cannot find the end-of-file marker
+
+   my $eof = $lineend.'%%EOF';
+   my $i = rindex ${$content}, $eof;
+   my $j = rindex ${$content}, $eof, $i-1;
+   return if $j < 0; # just one revision
+
+   my $prev_content = (substr ${$content}, 0, $j) . $eof . $lineend;
+   # assume the passwords were the same in the previous rev
+   my ($opass, $upass, @perms) = $self->getPrefs;
+
+   return __PACKAGE__->new($prev_content, $opass, $upass);
+}
+
+=item $doc->allRevisions()
+
+Accumulate CAM::PDF instances returned by C<previousRevision> until
+there are no more previous revisions.  Returns a list of instances
+from newest to oldest including this instance as the newest.
+
+=cut
+
+sub allRevisions {
+   my ($self) = @_;
+   my @revs;
+   for (my $pdf = $self; $pdf; $pdf = $pdf->previous_revision) {  ## no critic(ProhibitCStyleForLoops)
+      push @revs, $pdf;
+   }
+   return @revs;
+}
 
 ################################################################################
 
@@ -4639,7 +4690,7 @@ sub save
             # Add an entry to the free list
             # On $key == 0, this blows away the above definition of
             # the head of the free block list, but that's no big deal.
-            $blocks{$key} = sprintf "%010d %05d f \n", 
+            $blocks{$key} = sprintf "%010d %05d f \n",
                                     $prevfreeblock, ($key == 0 ? 65_535 : 1);
             $prevfreeblock = $key;
          }
@@ -4795,11 +4846,11 @@ sub writeString
    # Divide the string into manageable pieces, which will be
    # re-concatenated with "\" continuation characters at the end of
    # their lines
-   
+
    # -- This code used to do concatenation by juxtaposing multiple
    # -- "(<fragment>)" compenents, but this breaks many PDF
    # -- implementations (incl Acrobat5 and XPDF)
-   
+
    # Break the string into pieces of length $maxstr.  Note that an
    # artifact of this usage of split returns empty strings between
    # the fragments, so grep them out
@@ -4808,14 +4859,14 @@ sub writeString
    my @strs = grep {$_ ne q{}} split /(.{$maxstr}})/xms, $string;
    for (@strs)
    {
-      s/ \\       /\\\\/gxms;  # escape escapes -- this line must come first!
-      s/ ([\(\)]) /\\$1/gxms;  # escape parens
-      s/ \n       /\\n/gxms;
-      s/ \r       /\\r/gxms;
-      s/ \t       /\\t/gxms;
-      s/ \f       /\\f/gxms;
+      s/ \\     /\\\\/gxms;  # escape escapes -- this line must come first!
+      s/ ([()]) /\\$1/gxms;  # escape parens
+      s/ \n     /\\n/gxms;
+      s/ \r     /\\r/gxms;
+      s/ \t     /\\t/gxms;
+      s/ \f     /\\f/gxms;
       # TODO: handle backspace char
-      #s/ ???      /\\b/gxms;
+      #s/ ???    /\\b/gxms;
    }
    return '(' . (join "\\\n", @strs) . ')';
 }
@@ -4921,7 +4972,7 @@ sub _writeDictionary
             next;
          }
          # This is a stream way down deep in the data...  Probably due to a solidifyObject
-         
+
          # First, try to handle the easy case:
          if (2 == scalar keys %{$val} && (exists $val->{Length} || exists $val->{L}))
          {
@@ -4930,13 +4981,13 @@ sub _writeDictionary
             my $unpacked = unpack 'H' . $len*2, $str;
             return $self->writeAny(CAM::PDF::Node->new('hexstring', $unpacked, $objnode->{objnum}, $objnode->{gennum}));
          }
-         
+
          # TODO: Handle more complex streams ...
          die "This stream is too complex for me to write... Giving up\n";
-         
+
          next; ## no critic(ControlStructures::ProhibitUnreachableCode)
       }
-      
+
       my $newstr = "/$dictkey " . $self->writeAny($val->{$dictkey});
       if ($str ne q{})
       {
@@ -5133,11 +5184,11 @@ sub decodeOne
 
    $streamdata = $dict->{StreamData}->{value};
    #warn 'decoding thing ' . ($dict->{StreamData}->{objnum} || '(unknown)') . "\n";
-   
+
    # Don't work on {F} since that's too common a word
    #my $filtobj = $dict->{Filter} || $dict->{F};
-   my $filtobj = $dict->{Filter}; 
-   
+   my $filtobj = $dict->{Filter};
+
    if (defined $filtobj)
    {
       my @filters = $filtobj->{type} eq 'array' ? @{$filtobj->{value}} : ($filtobj);
@@ -5147,7 +5198,7 @@ sub decodeOne
       {
          @parms = $parmobj->{type} eq 'array' ? @{$parmobj->{value}} : ($parmobj);
       }
-      
+
       for my $filter (@filters)
       {
          if ($filter->{type} ne 'label')
@@ -5158,10 +5209,10 @@ sub decodeOne
             next;
          }
          my $filtername = $filter->{value};
-         
+
          # Make sure this is not an encrypt dict
          next if ($filtername eq 'Standard');
-         
+
          my $filt;
          eval {
             require Text::PDF::Filter;
@@ -5177,20 +5228,20 @@ sub decodeOne
             warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
             last;
          }
-         
+
          my $oldlength = length $streamdata;
-         
+
          {
             # Hack to turn off warnings in Filter library
             no warnings; ## no critic(TestingAndDebugging::ProhibitNoWarnings)
             $streamdata = $filt->infilt($streamdata, 1);
          }
-         
+
          $self->fixDecode(\$streamdata, $filtername, shift @parms);
          my $length = length $streamdata;
-         
+
          #warn "decoded length: $oldlength -> $length\n";
-         
+
          if ($save)
          {
             my $objnum = $dict->{StreamData}->{objnum};
@@ -5206,7 +5257,7 @@ sub decodeOne
                $dict->{Length} = CAM::PDF::Node->new('number', $length, $objnum, $gennum);
                delete $dict->{L};
             }
-            
+
             # These changes should happen later, but I prefer to do it
             # redundantly near the changes hash
             delete $dict->{Filter};
@@ -5243,7 +5294,7 @@ sub fixDecode
    {
       die "DecodeParms must be a dictionary.\n";
    }
-   if ($filter eq 'FlateDecode' || $filter eq 'Fl' || 
+   if ($filter eq 'FlateDecode' || $filter eq 'Fl' ||
        $filter eq 'LZWDecode' || $filter eq 'LZW')
    {
       if (exists $d->{Predictor})
@@ -5604,7 +5655,7 @@ sub _changeStringCB
    {
       for my $key (keys %{$changelist})
       {
-         if ($key =~ m/ \A regex\((.*)\) \z /xms)
+         if ($key =~ m/ \A regex[(](.*)[)] \z /xms)
          {
             my $regex = $1;
             my $res;
@@ -5654,10 +5705,8 @@ becomes
 
 sub rangeToArray
 {
-   my $pkg_or_doc = shift;
-   my $min = shift;
-   my $max = shift;
-   my @in_array = grep {defined $_} @_;
+   my ($pkg_or_doc, $min, $max, @range_parts) = @_;
+   my @in_array = grep {defined $_} @range_parts;
 
    for (@in_array) # modify in place
    {
@@ -5677,45 +5726,45 @@ sub rangeToArray
       {
          if (m/ (\d*)-(\d*) /xms)
          {
-            my $a = $1;
-            my $b = $2;
-            if ($a eq q{})
+            my $aa = $1;
+            my $bb = $2;
+            if ($aa eq q{})
             {
-               $a = $min-1;
+               $aa = $min-1;
             }
-            if ($b eq q{})
+            if ($bb eq q{})
             {
-               $b = $max+1;
+               $bb = $max+1;
             }
-            
+
             # Check if these are possible
-            next if ($a < $min && $b < $min);
-            next if ($a > $max && $b > $max);
-            
-            if ($a < $min)
+            next if ($aa < $min && $bb < $min);
+            next if ($aa > $max && $bb > $max);
+
+            if ($aa < $min)
             {
-               $a = $min;
+               $aa = $min;
             }
-            if ($b < $min)
+            if ($bb < $min)
             {
-               $b = $min;
+               $bb = $min;
             }
-            if ($a > $max)
+            if ($aa > $max)
             {
-               $a = $max;
+               $aa = $max;
             }
-            if ($b > $max)
+            if ($bb > $max)
             {
-               $b = $max;
+               $bb = $max;
             }
-            
-            if ($a > $b)
+
+            if ($aa > $bb)
             {
-               push @out_array, reverse $b .. $a;
+               push @out_array, reverse $bb .. $aa;
             }
             else
             {
-               push @out_array, $a .. $b;
+               push @out_array, $aa .. $bb;
             }
          }
          elsif ($_ >= $min && $_ <= $max)
@@ -5734,7 +5783,7 @@ handling nulls and non-Unix line endings.
 
 =cut
 
-sub trimstr
+sub trimstr  ## no critic (Unpack)
 {
    my $pkg_or_doc = shift;
    my $s = $_[0];
@@ -5772,8 +5821,7 @@ sub copyObject
    eval $d->Dump(); ## no critic(BuiltinFunctions::ProhibitStringyEval)
 
    return $objnode;
-}   
-
+}
 
 =item $doc->cacheObjects()
 

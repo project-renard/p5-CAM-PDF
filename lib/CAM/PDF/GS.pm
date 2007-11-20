@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 =head1 NAME
 
@@ -43,12 +43,14 @@ superclass.
 
 =cut
 
+my %text_cmds = map {$_ => 1} qw(TJ Tj quote doublequote);
+
 sub getCoords
 {
    my $self = shift;
    my $node = shift;
 
-   if ($node->{name} =~ m/ \A (TJ|Tj|quote|doublequote) \z /xms)
+   if ($text_cmds{$node->{name}})
    {
       ## no critic (Bangs::ProhibitNumberedNames)
       my ($x1,$y1) = $self->userToDevice(@{$self->{last}});
@@ -301,7 +303,7 @@ sub _Tj
    my @parts;
    if ($self->{mode} eq 'c' || $self->{wm} == 1)
    {
-      @parts = split //xms, $string;
+      @parts = split m//xms, $string;
    }
    else
    {
@@ -379,9 +381,9 @@ sub doublequote
 
 sub Tm
 {
-   my $self = shift;
+   my ($self, @tm) = @_;
    
-   @{$self->{Tm}} = @{$self->{Tlm}} = @_;
+   @{$self->{Tm}} = @{$self->{Tlm}} = @tm;
    return;
 }
 

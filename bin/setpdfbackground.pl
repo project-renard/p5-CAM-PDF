@@ -6,7 +6,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
    order      => 0,
@@ -42,15 +42,15 @@ my $outfile  = shift || q{-};
 
 my ($red, $blue, $green);
 
-if ($bgcolor =~ m/ \A [0-9a-fA-F]{3} \z /xms)
+if ($bgcolor =~ m/ \A [\da-fA-F]{3} \z /xms)
 {
    # For example, "f60" becomes "ff6600"
-   my $r = substr $bgcolor, 0, 1;
-   my $g = substr $bgcolor, 1, 1;
-   my $b = substr $bgcolor, 2, 1;
-   $bgcolor = "$r$r$g$g$b$b";
+   my $rd = substr $bgcolor, 0, 1;
+   my $gr = substr $bgcolor, 1, 1;
+   my $bl = substr $bgcolor, 2, 1;
+   $bgcolor = "$rd$rd$gr$gr$bl$bl";
 }
-if ($bgcolor =~ m/ \A [0-9a-fA-F]{6} \z /xms)
+if ($bgcolor =~ m/ \A [\da-fA-F]{6} \z /xms)
 {
    $red   = hex substr $bgcolor, 0, 2;
    $green = hex substr $bgcolor, 2, 2;
@@ -64,7 +64,7 @@ else
 my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 my ($x,$y,$w,$h) = $doc->getPageDimensions($pagenum);
 
-my $bg = 
+my $bg =
     'q ' .                    # Start a new graphics state
     "$red $blue $green rg " . # Set the fill color
     "$x $y $w $h re " .       # Mark a rectangle the size of the page

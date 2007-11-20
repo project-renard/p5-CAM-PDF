@@ -7,8 +7,9 @@ use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+use English qw(-no_match_vars);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             verbose    => 0,
@@ -48,12 +49,12 @@ my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 my $content;
 if ($pagetext eq q{-})
 {
-   $content = join q{}, <STDIN>;
+   $content = do { local $RS = undef; <STDIN>; }; ## no critic(InputOutput::ProhibitExplicitStdin)
 }
 else
 {
    open my $in_fh, '<', $pagetext or die "Failed to open $pagetext: $!\n";
-   $content = join q{}, <$in_fh>;
+   $content = do { local $RS = undef; <$in_fh>; };
    close $in_fh;
 }
 

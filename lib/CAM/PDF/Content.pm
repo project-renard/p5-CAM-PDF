@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 =for stopwords renderers
 
@@ -337,7 +337,7 @@ sub _parseBlock
 =cut
 
    ## This is a cheat version of the above
-   if (${$c} =~ m/ \G([A-Za-z\'\"][\w\*]*)\s* /cgxms)
+   if (${$c} =~ m/ \G([A-Za-z\'\"][*\w]*)\s* /cgxms) ## no critic (ProhibitEnumeratedClasses,ProhibitEscapedMetacharacters)
    {
       my $op = $1;
       return _b('op', $op);
@@ -403,7 +403,7 @@ sub validate  ## no critic(Subroutines::ProhibitExcessComplexity)
             my $types = $syntax->[$i];
 
           ARGTYPE_OPT:
-            foreach my $type (split /\|/xms, $types)
+            foreach my $type (split /[|]/xms, $types)
             {
                # These are the successful match cases
                next ARG if ($arg->{type} eq $type);
@@ -512,7 +512,7 @@ sub traverse
 
       # Enact the GS change performed by this operation
       my $func = $block->{name};
-      $func =~ s/ \* /star/gxms;
+      $func =~ s/ [*] /star/gxms;
       $func =~ s/ \' /quote/gxms;
       $func =~ s/ \" /doublequote/gxms;
 
@@ -583,30 +583,30 @@ sub toString
 
 sub _b
 {
-   my $type = shift;
+   my ($type, @args) = @_;
    if ($type eq 'block')
    {
       return {
          type => $type,
-         name => shift,
-         value => shift,
-         args => [@_],
+         name => shift @args,
+         value => shift @args,
+         args => \@args,
       };
    }
    elsif ($type eq 'op')
    {
       return {
          type => $type,
-         name => shift,
-         args => [@_],
+         name => shift @args,
+         args => \@args,
       };
    }
    else
    {
       return {
          type => $type,
-         value => shift,
-         args => [@_],
+         value => shift @args,
+         args => \@args,
       };
    }
 }

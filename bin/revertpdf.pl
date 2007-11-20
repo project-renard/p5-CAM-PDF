@@ -6,8 +6,9 @@ use warnings;
 use strict;
 use Getopt::Long;
 use Pod::Usage;
+use English qw(-no_match_vars);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             count      => 0,
@@ -41,12 +42,19 @@ if (@ARGV < 1)
 my $infile = shift;
 my $outfile = shift || q{-};
 
-open my $in_fh, '<', $infile
-    or die "Failed to read file $infile\n";
-my $content = join q{}, <$in_fh>;
-close $in_fh;
+my $content;
+if ($infile eq q{-})
+{
+   $content = do { local $RS = undef; <STDIN>; }; ## no critic(InputOutput::ProhibitExplicitStdin)
+}
+else
+{
+   open my $in_fh, '<', $infile or die "Failed to read file $infile\n";
+   $content = do { local $RS = undef; <$in_fh>; };
+   close $in_fh;
+}
 
-my @matches = ($content =~ m/ [\r\n]%%EOF *[\r\n] /gxms);
+my @matches = ($content =~ m/ [\015\012]%%EOF *[\015\012] /gxms);
 my $revs = @matches;
 
 if ($opts{count})
@@ -98,7 +106,7 @@ revertpdf.pl - Remove the last edits to a PDF document
 
 =head1 SYNOPSIS
 
- revertpdf.pl [options] infile.pdf [outfile.pdf]\n";
+ revertpdf.pl [options] infile.pdf [outfile.pdf]
 
  Options:
    -c --count          just print the number of revisions and exits
@@ -114,7 +122,7 @@ This makes it possible to recover previous versions of a document.
 This is only possible if the editor writes out an 'unoptimized'
 version of the PDF.
 
-This program remove the last layer of edits from the PDF document.  If
+This program removes the last layer of edits from the PDF document.  If
 there is just one revision, we emit a message and abort.
 
 The C<--count> option just prints the number of generations the document

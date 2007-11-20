@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -117,11 +117,11 @@ for my $p (1..$pages)
             }
 
             my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
-            
+
             # Get a handle on the needed data bits from the template
             my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
             my $rawpage = $tmpl->getPageContent(1);
-            
+
             $media_array->[2]->{value} = $w;
             $media_array->[3]->{value} = $h;
             my $page = $rawpage;

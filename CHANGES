@@ -1,5 +1,11 @@
 Revision history for Perl module CAM::PDF
 
+1.11  20 Nov 2007
+      [ENHANCEMENTS]
+      - added previousRevision() and allRevisions() [invented in Fuse::PDF]
+      [INTERNALS]
+      - Compliance with Perl::Critic v1.080
+
 1.10  24 Mar 2007
       [FIXES]
       - RT #25306, regression in rangeToArray
@@ -77,6 +83,7 @@ Revision history for Perl module CAM::PDF
       - Fix an artificial limitation of the encryption module
 
 0.99  22 Apr 2005
+      First CPAN release
       [INCOMPATIBLE]
       - Relicence from GPL-only to GPL+Artistic
       [FIXES]

@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             verbose    => 0,
@@ -85,20 +85,20 @@ for my $p (1..$pages)
             next BI if (!$im);
 
             $im =~ s/\A.*\bBI\b//xms;  # this may get rid of a fake BI if there is one in the page
-            
+
             # Easy tests:
-            next BI if ($im =~ m/ \A\) /xms);
-            next BI if ($im =~ m/ \(\z /xms);
+            next BI if ($im =~ m/ \A [)] /xms);
+            next BI if ($im =~ m/ [(] \z /xms);
             next BI if ($im !~ m/ \bID\b /xms);
 
             # make sure that there is an open paren before every close
             # if not, then the "BI" was part of a string
             my $test = $im;
-            $test =~ s/ \\[\(\)] //gxms; # get rid of escaped parens for the test
-            while ($test =~ s/ \A(.*?)\) //xms)
+            $test =~ s/ \\[()] //gxms; # get rid of escaped parens for the test
+            while ($test =~ s/ \A(.*?) [)] //xms)
             {
                my $bit = $1;
-               next BI if ($bit !~ m/ \( /xms);
+               next BI if ($bit !~ m/ [(] /xms);
             }
 
             $nimages++;

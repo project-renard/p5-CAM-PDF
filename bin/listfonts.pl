@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             sort       => 0,
@@ -56,9 +56,9 @@ for my $p (1 .. $doc->numPages())
       my $font = $doc->getFont($p, $fontname);
 
       # Collect a list of all fields, so we can list the unhandled ones at the end
-      my %fields = map {$_,1} keys %{$font};
+      my %fields = map {$_ => 1} keys %{$font};
       delete $fields{Type}; # delete the fields as we handle them
-      
+
       # Font name, if present
       my $name = $fontname;
       if ($font->{Name})
@@ -71,18 +71,18 @@ for my $p (1 .. $doc->numPages())
          }
       }
       my $desc = "  Name: $name\n";
-      
+
       # Font subtype (required)
       delete $fields{Subtype};
       $desc .= '    Type: '.$doc->getValue($font->{Subtype})."\n";
-      
+
       # Base font
       if ($font->{BaseFont})
       {
          delete $fields{BaseFont};
          $desc .= '    BaseFont: '.$doc->getValue($font->{BaseFont})."\n";
       }
-      
+
       # Font encoding
       delete $fields{Encoding};
       if ($font->{Encoding})
@@ -93,7 +93,7 @@ for my $p (1 .. $doc->numPages())
             # Handle encoding here.  If it's not an encoding, no big deal
             $desc .= "    Encoding:\n";
             my $ref = $doc->getValue($font->{Encoding});
-            my %efields = map {$_,1} keys %{$ref};
+            my %efields = map {$_ => 1} keys %{$ref};
             delete $efields{Type};
             if ($ref->{BaseEncoding})
             {
@@ -119,7 +119,7 @@ for my $p (1 .. $doc->numPages())
             $desc .= '    Encoding: '.$doc->getValue($font->{Encoding})."\n";
          }
       }
-      
+
       # Font widths
       delete $fields{Widths};
       $desc .= '    Widths: '. ($font->{Widths} ? 'yes' : 'no') . "\n";
@@ -129,11 +129,11 @@ for my $p (1 .. $doc->numPages())
          delete $fields{LastChar};
          $desc .= '      Characters: '.$doc->getValue($font->{FirstChar}) . q{-} . $doc->getValue($font->{LastChar}) . "\n";
       }
-      
+
       # Embedding info
       delete $fields{FontDescriptor};
       $desc .= '    Embedded: '. ($font->{FontDescriptor} ? 'yes' : 'no') . "\n";
-      
+
       # Remaining fields
       my @others = sort keys %fields;
       if (@others > 0)
@@ -141,7 +141,7 @@ for my $p (1 .. $doc->numPages())
          my $other = join ', ', @others;
          $desc .= "    Other fields: $other\n";
       }
-      
+
       # Output, or defer until the end of all PDF pages
       if ($opts{sort})
       {

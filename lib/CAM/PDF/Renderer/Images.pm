@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 =for stopwords inline
 
@@ -71,8 +71,8 @@ Record an indirect image node.
 
 sub Do
 {
-   my $self = shift;
-   my $value = [@_];
+   my ($self, @rest) = @_;
+   my $value = [@rest];
 
    push @{$self->{images}}, {
       type => 'Do',
@@ -89,8 +89,8 @@ Record an inline image node.
 
 sub BI
 {
-   my $self = shift;
-   my $value = [@_];
+   my ($self, @rest) = @_;
+   my $value = [@rest];
 
    push @{$self->{images}}, {
       type => 'BI',

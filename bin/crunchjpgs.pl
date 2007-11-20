@@ -7,8 +7,9 @@ use strict;
 use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
+use English qw(-no_match_vars);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             # Hardcoded:
@@ -25,7 +26,7 @@ my %opts = (
             verbose    => 0,
             order      => 0,
             help       => 0,
-            version    => 0, 
+            version    => 0,
 
             # Temporary values:
             onlyval    => [],
@@ -196,11 +197,11 @@ for my $p (1..$pages)
             $oldtotsize += $oldsize;
 
             my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
-            
+
             # Get a handle on the needed data bits from the template
             my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
             my $rawpage = $tmpl->getPageContent(1);
-            
+
             $media_array->[2]->{value} = $w;
             $media_array->[3]->{value} = $h;
             my $page = $rawpage;
@@ -212,9 +213,9 @@ for my $p (1..$pages)
             my $ofile = "/tmp/crunchjpg.$$";
             $tmpl->cleanoutput($ofile);
 
-            my $cmd = ('convert ' . 
+            my $cmd = ('convert ' .
                        ($opts{scale} && $w > $opts{scalemin} && $h > $opts{scalemin} ?
-                        "-scale '$opts{scale}' " : q{}) . 
+                        "-scale '$opts{scale}' " : q{}) .
                        "-quality $opts{quality} " .
                        '-density 72x72 ' .
                        "-page ${w}x$h " .
@@ -226,8 +227,8 @@ for my $p (1..$pages)
             # TODO: this should use IPC::Open3 or the like
             open my $pipe, $cmd  ## no critic
                 or die "Failed to convert object $objnum to a jpg and back\n";
-            my $content = join q{}, <$pipe>;
-            close $pipe 
+            my $content = do { local $RS = undef; <$pipe>; };
+            close $pipe
                 or die "Failed to convert object $objnum to a jpg and back\n";
 
             my $jpg = CAM::PDF->new($content) || die "$CAM::PDF::errstr\n";

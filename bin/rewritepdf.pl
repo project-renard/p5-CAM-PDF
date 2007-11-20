@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             decode      => 0,
@@ -34,7 +34,7 @@ my %opts = (
             );
 
 Getopt::Long::Configure('bundling');
-GetOptions('1|2|3|4|5|6|7|8|9' => sub {$opts{newversion} = '1'.$_[0]}, 
+GetOptions('1|2|3|4|5|6|7|8|9' => sub {$opts{newversion} = '1'.$_[0]},
            'c|cleanse'     => \$opts{cleanse},
            'd|decode'      => \$opts{decode},
            'f|filter=s'    => \@{$opts{filters}},
@@ -71,7 +71,7 @@ if ($opts{version})
    exit 0;
 }
 
-@ARGV = @{$opts{otherargs}};
+local @ARGV = @{$opts{otherargs}};
 
 if (@ARGV < 1)
 {

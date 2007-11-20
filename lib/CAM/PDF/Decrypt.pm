@@ -12,7 +12,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 =head1 NAME
 
@@ -37,13 +37,13 @@ module.
 
 # These constants come from the Adobe PDF Reference document, IIRC
 my $padding = pack 'C*',
-    0x28, 0xbf, 0x4e, 0x5e, 
-    0x4e, 0x75, 0x8a, 0x41, 
-    0x64, 0x00, 0x4e, 0x56, 
-    0xff, 0xfa, 0x01, 0x08, 
-    0x2e, 0x2e, 0x00, 0xb6, 
-    0xd0, 0x68, 0x3e, 0x80, 
-    0x2f, 0x0c, 0xa9, 0xfe, 
+    0x28, 0xbf, 0x4e, 0x5e,
+    0x4e, 0x75, 0x8a, 0x41,
+    0x64, 0x00, 0x4e, 0x56,
+    0xff, 0xfa, 0x01, 0x08,
+    0x2e, 0x2e, 0x00, 0xb6,
+    0xd0, 0x68, 0x3e, 0x80,
+    0x2f, 0x0c, 0xa9, 0xfe,
     0x64, 0x53, 0x69, 0x7a;
 
 
@@ -98,18 +98,18 @@ sub new
          # it's location so we don't accidentally encrypt it.
          $self->{EncryptBlock} = $doc->{trailer}->{Encrypt}->{value};
       }
-   
+
       require Digest::MD5;
       require Crypt::RC4;
-      
+
       my $dict = $doc->getValue($doc->{trailer}->{Encrypt});
-      
+
       if ($dict->{Filter}->{value} ne 'Standard' || $dict->{V}->{value} != 1)
       {
          $CAM::PDF::errstr = "CAM::PDF only supports Version 1 of the Standard encryption filter.  This PDF uses something else.\n";
          return;
       }
-      
+
       foreach my $key ('O', 'U', 'P')
       {
          if (exists $dict->{$key})
@@ -139,11 +139,11 @@ sub new
          elsif ($prompt)
          {
             print STDERR 'Enter owner password: ';
-            $opassword = <STDIN>;
+            $opassword = <STDIN>; ## no critic(InputOutput::ProhibitExplicitStdin)
             chomp $opassword;
-            
+
             print STDERR 'Enter user password: ';
-            $upassword = <STDIN>;
+            $upassword = <STDIN>; ## no critic(InputOutput::ProhibitExplicitStdin)
             chomp $upassword;
          }
          else
@@ -179,8 +179,8 @@ sub decode_permissions
    my $self = shift;
    my $p = shift;
 
-   my $b = unpack 'b*', pack 'V', $p;
-   return split //xms, substr $b, 2, 4;
+   my $bytes = unpack 'b*', pack 'V', $p;
+   return split //xms, substr $bytes, 2, 4;
 }
 
 =item $self->encode_permissions($print, $modify, $copy, $add)
@@ -209,21 +209,21 @@ sub encode_permissions
    # endian-appropriately
 
    my $perms = join q{}, $allow{print}, $allow{modify}, $allow{copy}, $allow{add};
-   my $b = '00' . $perms . '11'; # 8 bits: 2 pad, 4 data, 2 pad
+   my $bytes = '00' . $perms . '11'; # 8 bits: 2 pad, 4 data, 2 pad
    # Pad to 32 bits with the right endian-ness
    my $binary = unpack 'B16', pack 's', 255;
    if ('1' eq substr $binary, 0, 1)
    {
       # little endian
-      $b .= '11111111' x 3;
+      $bytes .= '11111111' x 3;
    }
    else
    {
       # big endian
-      $b = ('11111111' x 3) . $b;
+      $bytes = ('11111111' x 3) . $bytes;
    }
    # Make a signed 32-bit number (NOTE: should this really be signed???  need to check spec...)
-   my $p = unpack 'l', pack 'b32', $b;
+   my $p = unpack 'l', pack 'b32', $bytes;
 
    return $p;
 }
@@ -325,8 +325,8 @@ Encrypt the scalar using the passwords previously specified.
 
 sub encrypt
 {
-   my $self = shift;
-   return $self->_crypt(@_);
+   my ($self, @rest) = @_;
+   return $self->_crypt(@rest);
 }
 
 =item $self->decrypt($doc, $string)
@@ -337,8 +337,8 @@ Decrypt the scalar using the passwords previously specified.
 
 sub decrypt
 {
-   my $self = shift;
-   return $self->_crypt(@_);
+   my ($self, @rest) = @_;
+   return $self->_crypt(@rest);
 }
 
 # INTERNAL FUNCTION
@@ -359,7 +359,7 @@ sub _crypt
    {
       die 'Trying to crypt data with non-scalar obj/gennum or content';
    }
-   
+
    # DO NOT encrypt the encryption block!!  :-)
    return $content if ($objnum && $self->{EncryptBlock} && $objnum == $self->{EncryptBlock});
 
@@ -373,7 +373,7 @@ sub _crypt
 
       croak 'gennum missing in crypt';
    }
-   
+
    return Crypt::RC4::RC4($self->_compute_key($objnum, $gennum), $content);
 }
 
@@ -410,8 +410,8 @@ sub _compute_hash
    $pass = $self->_format_pass($pass);
 
    my $p = pack 'L', $self->{P}+0;
-   my $b = unpack 'b32', $p;
-   if (1 == substr $b, 0, 1)
+   my $bytes = unpack 'b32', $p;
+   if (1 == substr $bytes, 0, 1)
    {
       # big endian, so byte swap
       $p = (substr $p,3,1).(substr $p,2,1).(substr $p,1,1).(substr $p,0,1);

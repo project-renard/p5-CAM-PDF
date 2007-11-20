@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 my %opts = (
             verbose    => 0,
@@ -70,18 +70,17 @@ while (@ARGV > 0)
    print "Pages:        $pages\n";
    if ($pdfinfo)
    {
+      my $date = qr/(\d{4})(\d{2})(\d{2})/xms;
+      my $time = qr/(\d{2})(\d{2})(\d{2})/xms;
+      my $tz = qr/([+-Z])(\d{2})\'(\d{2})\'/xms;
       foreach my $key (sort keys %{$pdfinfo})
       {
          my $val = $pdfinfo->{$key}->{value};
-         if ($pdfinfo->{$key}->{type} eq 'string' && $val && 
-             $val =~ m/ \A
-                        D:
-                        (\d{4})(\d{2})(\d{2})
-                        (\d{2})(\d{2})(\d{2})
-                        ([+-Z])(\d{2})
-                        \'(\d{2})\'
+         if ($pdfinfo->{$key}->{type} eq 'string' && $val &&
+             $val =~ m{ \A
+                        D: $date $time $tz
                         \z
-                      /xms)
+                      }xms)
          {
             my ($Y,$M,$D,$h,$m,$s,$sign,$tzh,$tzm) = ($1,$2,$3,$4,$5,$6,$7,$8,$9);
             if ($sign eq 'Z')

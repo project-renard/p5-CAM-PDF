@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.10';
+our $VERSION = '1.11';
 
 ##no critic (Bangs::ProhibitNumberedNames)
 
@@ -209,13 +209,16 @@ handles line-drawing nodes.
 
 =cut
 
+my %path_cmds  = map {$_ => 1} qw(m l h c v y re);
+my %paint_cmds = map {$_ => 1} qw(S s F f f* B B* b b* n);
+
 sub getCoords
 {
    my $self = shift;
    my $node = shift;
 
    my ($x1,$y1,$x2,$y2);
-   if ($node->{name} =~ m/ \A (?:m|l|h|c|v|y|re) \z /xms)
+   if ($path_cmds{$node->{name}})
    {
       ($x1,$y1) = $self->userToDevice(@{$self->{last}});
       ($x2,$y2) = $self->userToDevice(@{$self->{current}});
@@ -235,11 +238,11 @@ sub nodeType
    my $self = shift;
    my $node = shift;
 
-   return $node->{type} eq 'block'                                    ? 'block'
-        : $node->{name} =~ / \A (?:m|l|h|c|v|y|re)            \z /xms ? 'path'
-        : $node->{name} =~ / \A (?:S|s|F|f|f\*|B|B\*|b|b\*|n) \z /xms ? 'paint'
-        : $node->{name} =~ / \A T                                /xms ? 'text'
-        :                                                               'op';
+   return $node->{type} eq 'block'     ? 'block'
+        : $path_cmds{$node->{name}}    ? 'path'
+        : $paint_cmds{$node->{name}}   ? 'paint'
+        : $node->{name} =~ / \A T /xms ? 'text'
+        :                                'op';
 }
 
 =back
@@ -314,11 +317,11 @@ sub G
 sub rg
 {
    my $self = shift;
-   my $r = shift;
-   my $g = shift;
-   my $b = shift;
+   my $rd = shift;
+   my $gr = shift;
+   my $bl = shift;
 
-   $self->{rg} = [$r, $g, $b];
+   $self->{rg} = [$rd, $gr, $bl];
    $self->{device} = 'DeviceRGB';
    return;
 }
@@ -330,11 +333,11 @@ sub rg
 sub RG
 {
    my $self = shift;
-   my $r = shift;
-   my $g = shift;
-   my $b = shift;
+   my $rd = shift;
+   my $gr = shift;
+   my $bl = shift;
 
-   $self->{RG} = [$r, $g, $b];
+   $self->{RG} = [$rd, $gr, $bl];
    $self->{Device} = 'DeviceRGB';
    return;
 }
@@ -394,9 +397,9 @@ sub gs
 
 sub cm
 {
-   my $self = shift;
+   my ($self, @mtx) = @_;
    
-   $self->applyMatrix([@_], $self->{cm});
+   $self->applyMatrix([@mtx], $self->{cm});
    return;
 }
 
@@ -465,7 +468,7 @@ sub h
 
 =cut
 
-sub c
+sub c  ## no critic (ProhibitManyArgs)
 {
    my $self = shift;
    my $x1 = shift;
