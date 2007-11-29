@@ -1,5 +1,12 @@
 Revision history for Perl module CAM::PDF
 
+1.12  27 Nov 2007
+      [FIXES]
+      - I just realized that CAM::PDF::Renderer::Text was useless
+        because it just printed to STDOUT.  Fixed to offer a
+        toString() method instead.  Fuse::PDF wants this feature.
+      - Fixed a typo in the Synopsis of CAM::PDF::Content
+
 1.11  20 Nov 2007
       [ENHANCEMENTS]
       - added previousRevision() and allRevisions() [invented in Fuse::PDF]

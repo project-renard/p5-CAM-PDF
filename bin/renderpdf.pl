@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 my %opts = (
             density    => undef,

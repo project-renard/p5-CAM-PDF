@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 =for stopwords renderers
 
@@ -27,7 +27,7 @@ Same as L<CAM::PDF>
     
     my $contentTree = $pdf->getPageContentTree(4);
     $contentTree->validate() || die 'Syntax error';
-    print $contentTree->render('CAM::PDF::Render::Text');
+    print $contentTree->render('CAM::PDF::Renderer::Text');
     $pdf->setPageContent(5, $contentTree->toString());
 
 =head1 DESCRIPTION
@@ -307,9 +307,8 @@ sub _parseBlock
    }
 
    # Inline image?
-   if (${$c} =~ m/ \G(BI)\b /xms)
+   if (${$c} =~ m/ \G BI \b /xms)
    {
-      my $op = $1;
       my $img = CAM::PDF->parseInlineImage($c);
       if (!$img)
       {
@@ -319,8 +318,8 @@ sub _parseBlock
          }
          return;
       }
-      my $block = _b('op', $op, _b('image', $img->{value}));
-      return $block;
+      my $blockimage = _b('op', 'BI', _b('image', $img->{value}));
+      return $blockimage;
    }
 
    # Non-block operand?

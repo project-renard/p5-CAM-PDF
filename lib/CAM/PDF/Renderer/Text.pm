@@ -6,7 +6,7 @@ use strict;
 use CAM::PDF::Renderer::TextFB;
 use base qw(CAM::PDF::GS);
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 =for stopwords framebuffer
 
@@ -87,6 +87,17 @@ sub renderText
    $self->{refs}->{framebuffer}->add_string($x, $y, $string);
    #print "($x,$y) $string\n";
    return;
+}
+
+=item $self->toString()
+
+Serializes the framebuffer into a single string that can be easily printed.
+
+=cut
+
+sub toString {
+   my $self = shift;
+   return $self->{refs}->{framebuffer}->toString();
 }
 
 1;

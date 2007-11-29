@@ -5,7 +5,7 @@ use warnings;
 use strict;
 use CAM::PDF;
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 =for stopwords framebuffer
 
@@ -90,18 +90,19 @@ sub add_string
    return;
 }
 
-=item $self->DESTROY()
+=item $self->toString()
 
-Prints the framebuffer to STDOUT just before it is destroyed.
+Serializes the framebuffer into a single string that can be easily printed.
 
 =cut
 
-sub DESTROY
+sub toString
 {
    my $self = shift;
 
+   my @str;
    my $fb = $self->{fb};
-   for my $r (reverse 0 .. $#{$fb})
+   for my $r (reverse 0 .. $#{$fb})   # PDF is bottom to top, we want top to bottom
    {
       my $row = $fb->[$r];
       if ($row)
@@ -115,7 +116,7 @@ sub DESTROY
             {
                $str = q{ };
             }
-            print $str;
+            push @str, $str;
          }
       }
       else
@@ -123,9 +124,9 @@ sub DESTROY
          #print "r $r c 0\n";
          #print '>';
       }
-      print "\n";
+      push @str, "\n";
    }
-   return;
+   return join q{}, @str;
 }
 
 1;

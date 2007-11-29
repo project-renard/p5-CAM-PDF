@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 my %opts = (
             sort       => 0,
@@ -154,7 +154,7 @@ for my $p (1 .. $doc->numPages())
    }
 }
 
-# Only if if $opts{sort} is set
+# No-op unless $opts{sort} is set
 foreach my $fontname (sort keys %fonts)
 {
    $fonts{$fontname} =~ s/ ^[ ][ ] //gxms;

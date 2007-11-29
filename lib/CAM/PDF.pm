@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.11';
+our $VERSION = '1.12';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
