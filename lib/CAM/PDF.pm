@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -23,7 +23,7 @@ CAM::PDF - PDF manipulation library
 
 Copyright 2002-2006 Clotho Advanced Media, Inc., L<http://www.clotho.com/>
 
-Copyright 2007 Chris Dolan
+Copyright 2007-2008 Chris Dolan
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
@@ -1194,9 +1194,10 @@ sub parseHexString
    my $gennum = shift;
 
    my $str = q{};
-   if (${$c} =~ m/ \G<([\da-fA-F]*)>\s* /cgxms)
+   if (${$c} =~ m/ \G<([\da-fA-F\s]*)>\s* /cgxms)
    {
       $str = $1;
+      $str =~ s/\s+//gxms;
       my $len = length $str;
       if ($len % 2 == 1)
       {
@@ -4138,7 +4139,7 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
             $text =~ s/ [^\n] /*/gxms;  # Asterisks for password characters
          }
 
-         if ($fontmetrics && (!$fontsize))
+         if ($fontmetrics && ! $fontsize)
          {
             # Fix autoscale fonts
             $stringwidth = 0;
@@ -4154,19 +4155,19 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
             }
             $lines ||= 1;
             # Initial guess
-            $fontsize = ($dy - 2 * $border)/($lines * 1.5);
-            my $fontwidth = $fontsize*$stringwidth;
+            $fontsize = ($dy - 2 * $border) / ($lines * 1.5);
+            my $fontwidth = $fontsize * $stringwidth;
             my $maxwidth = $dx - 2 * $border;
             if ($fontwidth > $maxwidth)
             {
-               $fontsize *= $maxwidth/$fontwidth;
+               $fontsize *= $maxwidth / $fontwidth;
             }
             $da =~ s/ \/$fontname\s+0\s+Tf\b /\/$fontname $fontsize Tf/gxms;
          }
          if ($fontsize)
          {
             # This formula is TOTALLY empirical.  It's probably wrong.
-            $ty = $border + 2 + (9-$fontsize)*0.4;
+            $ty = $border + 2 + (9 - $fontsize) * 0.4;
          }
 
 

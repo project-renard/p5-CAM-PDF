@@ -1,5 +1,10 @@
 Revision history for Perl module CAM::PDF
 
+1.13  23 Apr 2008
+      [FIXES]
+      - setpdfbackground.pl computed RGB values incorrectly.  Thanks to
+        Andrew Cadman for finding the bug and suggesting a fix
+
 1.12  27 Nov 2007
       [FIXES]
       - I just realized that CAM::PDF::Renderer::Text was useless

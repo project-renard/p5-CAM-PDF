@@ -6,7 +6,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.12';
+our $VERSION = '1.13';
 
 my %opts = (
    order      => 0,
@@ -55,6 +55,10 @@ if ($bgcolor =~ m/ \A [\da-fA-F]{6} \z /xms)
    $red   = hex substr $bgcolor, 0, 2;
    $green = hex substr $bgcolor, 2, 2;
    $blue  = hex substr $bgcolor, 4, 2;
+
+   $red   /= 256.0;
+   $green /= 256.0;
+   $blue  /= 256.0;
 }
 else
 {

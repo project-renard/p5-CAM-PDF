@@ -5,7 +5,7 @@ LICENSE
 
 Copyright 2002-2006 Clotho Advanced Media, Inc., L<http://www.clotho.com/>
 
-Copyright 2007 Chris Dolan
+Copyright 2007-2008 Chris Dolan
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
@@ -14,7 +14,9 @@ under the same terms as Perl itself.
 ABOUT CLOTHO
 
 "CAM" stands for Clotho Advanced Media Inc. (www.clotho.com) which
-originally developed this module.
+originally sponsored the development of this module.  Clotho no longer
+has anything to do with this module and simply forwards inquiries to
+me.
 
 
 INSTALLATION
@@ -68,6 +70,3 @@ is optimized for reading and manipulating existing PDF documents.
 We use CAM::PDF in production Linux environments to customize template
 PDF documents that were often created by non-programmers using
 standard tools.
-
-We have a couple of older demonstrations of the dynamic document
-functionality at http://www.clotho.com/pdfdemo/
