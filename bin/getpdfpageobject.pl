@@ -9,7 +9,7 @@ use Data::Dumper;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.13';
+our $VERSION = '1.20';
 
 my %opts = (
             decode     => 0,

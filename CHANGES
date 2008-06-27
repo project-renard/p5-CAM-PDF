@@ -1,5 +1,13 @@
 Revision history for Perl module CAM::PDF
 
+1.20  26 Jun 2008
+      [ENHANCEMENTS]
+      - Support for Type 2 encryption (just reading, not writing)
+      - Support for reading PDFs where the owner and user passwords
+        are different
+      - Improvement to performance of node traversal, inspired by
+        RT #35555 (credit Eric Hall and his anonymous employee).
+
 1.13  23 Apr 2008
       [FIXES]
       - setpdfbackground.pl computed RGB values incorrectly.  Thanks to

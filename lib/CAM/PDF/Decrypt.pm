@@ -12,7 +12,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.13';
+our $VERSION = '1.20';
 
 =head1 NAME
 
@@ -89,71 +89,95 @@ sub new
    {
       # This PDF doc is not encrypted.  Return an empty object
       $self->{noop} = 1;
+      return $self;
    }
-   else
+
+   if (!$doc->{ID})
    {
-      if ($doc->{trailer}->{Encrypt}->{type} eq 'reference')
+      $CAM::PDF::errstr = "This PDF lacks an ID.  The document cannot be decrypted.\n";
+      return;
+   }
+
+   return $self->_init($doc, $opassword, $upassword, $prompt);
+}
+
+sub _init
+{
+   my $self   = shift;
+   my $doc    = shift;
+   my $opassword = shift;
+   my $upassword = shift;
+   my $prompt = shift;
+
+   if ($doc->{trailer}->{Encrypt}->{type} eq 'reference')
+   {
+      # If the encryption block is an indirect reference, store
+      # it's location so we don't accidentally encrypt it.
+      $self->{EncryptBlock} = $doc->{trailer}->{Encrypt}->{value};
+   }
+
+   my $dict = $doc->getValue($doc->{trailer}->{Encrypt});
+
+   if ($dict->{Filter}->{value} ne 'Standard' || ($dict->{V}->{value} != 1 && $dict->{V}->{value} != 2))
+   {
+      $CAM::PDF::errstr = "CAM::PDF only supports Version 1 and 2 of the Standard encryption filter.  This PDF uses something else.\n";
+      return;
+   }
+
+   # V == 1 means MD5+RC4, keylength == 40
+   # V == 2 means MD5+RC4, keylength == {40, 48, 56, 64, ..., 128}
+   # See PDF Ref 1.5 p93
+   $self->{keylength} = $dict->{V}->{value} == 1 ? 40 : $dict->{Length} ? $dict->{Length}->{value} : 40;
+   if (40 > $self->{keylength} || 128 < $self->{keylength} || 0 != $self->{keylength} % 8)
+   {
+      $CAM::PDF::errstr = "Invalid key length $self->{keylength}.  The document cannot be decrypted.\n";
+      return;
+   }
+
+   # PDF Ref 1.5 pp. 97-98
+   foreach my $key ('R', 'O', 'U', 'P')
+   {
+      if (exists $dict->{$key})
       {
-         # If the encryption block is an indirect reference, store
-         # it's location so we don't accidentally encrypt it.
-         $self->{EncryptBlock} = $doc->{trailer}->{Encrypt}->{value};
+         $self->{$key} = $dict->{$key}->{value};
       }
-
-      require Digest::MD5;
-      require Crypt::RC4;
-
-      my $dict = $doc->getValue($doc->{trailer}->{Encrypt});
-
-      if ($dict->{Filter}->{value} ne 'Standard' || $dict->{V}->{value} != 1)
+      else
       {
-         $CAM::PDF::errstr = "CAM::PDF only supports Version 1 of the Standard encryption filter.  This PDF uses something else.\n";
+         $CAM::PDF::errstr = "Requred decryption datum $key is missing.  The document cannot be decrypted.\n";
          return;
       }
+   }
 
-      foreach my $key ('O', 'U', 'P')
+   require Digest::MD5;
+   require Crypt::RC4;
+
+   while (1)
+   {
+      if ($self->_check_opass($opassword, $upassword))
       {
-         if (exists $dict->{$key})
-         {
-            $self->{$key} = $dict->{$key}->{value};
-         }
-         else
-         {
-            $CAM::PDF::errstr = "Requred decryption datum $key is missing.  The document cannot be decrypted.\n";
-            return;
-         }
+         $self->{code} = $self->_compute_hash($doc->{ID}, $opassword);
+         last;
       }
-
-      if (!$doc->{ID})
+      elsif ($self->_check_upass($doc->{ID}, $upassword))
       {
-         $CAM::PDF::errstr = "This PDF lacks an ID.  The document cannot be decrypted.\n";
+         $self->{code} = $self->_compute_hash($doc->{ID}, $upassword);
+         last;
+      }
+      elsif ($prompt)
+      {
+         print {*STDERR} 'Enter owner password: ';
+         $opassword = <STDIN>; ## no critic(InputOutput::ProhibitExplicitStdin)
+         chomp $opassword;
+
+         print {*STDERR} 'Enter user password: ';
+         $upassword = <STDIN>; ## no critic(InputOutput::ProhibitExplicitStdin)
+         chomp $upassword;
+      }
+      else
+      {
+         $CAM::PDF::errstr = "Incorrect password(s).  The document cannot be decrypted.\n";
          return;
       }
-
-      my $success = 0;
-      while (!$success)
-      {
-         if ($self->_check_pass($doc->{ID}, $opassword, $upassword))
-         {
-            $success = 1;
-         }
-         elsif ($prompt)
-         {
-            print STDERR 'Enter owner password: ';
-            $opassword = <STDIN>; ## no critic(InputOutput::ProhibitExplicitStdin)
-            chomp $opassword;
-
-            print STDERR 'Enter user password: ';
-            $upassword = <STDIN>; ## no critic(InputOutput::ProhibitExplicitStdin)
-            chomp $upassword;
-         }
-         else
-         {
-            $CAM::PDF::errstr = "Incorrect password(s).  The document cannot be decrypted.\n";
-            return;
-         }
-      }
-
-      $self->{code} = $self->_compute_hash($doc->{ID}, $opassword);
    }
 
    $self->{opass} = $opassword;
@@ -239,6 +263,9 @@ PERMISSIONS is an optional scalar of the form that decode_permissions
 can understand.  If not specified, the existing values will be
 retained.
 
+Note: we only support writing using encryption version 1, even though
+we can read encryption version 2 as well.
+
 =cut
 
 sub set_passwords
@@ -283,8 +310,6 @@ sub set_passwords
 
    # This may overwrite an existing ref, but that's no big deal, just a tiny bit inefficient
    $doc->{trailer}->{Encrypt} = CAM::PDF::Node->new('reference', $objnum);
-   $doc->{EncryptBlock} = $objnum;
-
    #  if no ID, create it
    if (!$doc->{ID})
    {
@@ -293,9 +318,10 @@ sub set_passwords
    }
    #else { print 'old ID: '.unpack('h*',$doc->{ID}) . ' (' . length($doc->{ID}) . ")\n"; }
 
-   #  record data
-   $self->{opass} = $opass;
-   $self->{upass} = $upass;
+   # Recompute O and U
+   # To do so, we must set up a couple of dependent variables first:
+   $self->{R} = 2;
+   $self->{keylength} = 40;
    $self->{P} = $p;
 
    #  set O  (has to be first because U uses O)
@@ -344,7 +370,6 @@ sub decrypt
 # INTERNAL FUNCTION
 # The real work behind encrpyt/decrypt
 
-my %tried;
 sub _crypt
 {
    my $self    = shift;
@@ -394,7 +419,12 @@ sub _compute_key
 
       my $hash = Digest::MD5::md5($self->{code} . $objpadding . $genpadding);
 
-      $self->{keycache}->{$id} = substr $hash, 0, 10;
+      # size(bytes) = nbits/8 + 3 for objnum + 2 for gennum; max of 16;  PDF ref 1.5 pp 94-95
+      my $size = ($self->{keylength} >> 3) + 5;
+      if ($size > 16) {
+         $size = 16;
+      }
+      $self->{keycache}->{$id} = substr $hash, 0, $size;
    }
    return $self->{keycache}->{$id};
 }
@@ -420,17 +450,45 @@ sub _compute_hash
    my $id = substr $doc_id, 0, 16;
 
    my $input = $pass . $self->{O} . $p . $id;
-   return substr Digest::MD5::md5($input), 0, 5;
+
+   if ($self->{R} == 3) {
+      # I don't know how to decide this.  Maybe not applicable with Standard filter?
+      #if document metadata is not encrypted
+      # input .= pack 'L', 0xFFFFFFFF;
+   }
+
+   my $hash = Digest::MD5::md5($input);
+
+   if ($self->{R} == 3)
+   {
+      for my $iter (1..50) {
+         $hash = Digest::MD5::md5($hash);
+      }
+   }
+
+   # desired number of bytes for the key
+   # for V==1, size == 5
+   # for V==2, 5 < size < 16
+   my $size = $self->{keylength} >> 3;
+   return substr $hash, 0, $size;
 }
 
 sub _compute_u
 {
-   my $self  = shift;
-   my $doc_id   = shift;
-   my $upass = shift;
+   my $self   = shift;
+   my $doc_id = shift;
+   my $upass  = shift;
 
    my $hash = $self->_compute_hash($doc_id, $upass);
-   return Crypt::RC4::RC4($hash, $padding);
+   if ($self->{R} == 3) {
+      my $id = substr $doc_id, 0, 16;
+      my $input = $padding . $id;
+      my $code = Digest::MD5::md5($input);
+      $code = substr $code, 0, 16;
+      return $self->_do_iter_crypt($hash, $code) . substr $padding, 0, 16;
+   } else {
+      return Crypt::RC4::RC4($hash, $padding);
+   }
 }
 
 sub _compute_o
@@ -438,28 +496,76 @@ sub _compute_o
    my $self  = shift;
    my $opass = shift;
    my $upass = shift;
+   my $backward = shift;
 
    my $o = $self->_format_pass($opass);
    my $u = $self->_format_pass($upass);
 
-   my $code = substr Digest::MD5::md5($o), 0, 5;
-   return Crypt::RC4::RC4($code, $u);
+   my $hash = Digest::MD5::md5($o);
+
+   if ($self->{R} == 3) {
+      for my $iter (1..50) {
+         $hash = Digest::MD5::md5($hash);
+      }
+   }
+
+   my $size = $self->{keylength} >> 3;
+   my $code = substr $hash, 0, $size;
+   return $self->_do_iter_crypt($code, $u, $backward);
 }
 
-sub _check_pass
+sub _do_iter_crypt {
+   my $self = shift;
+   my $code = shift;
+   my $pass = shift;
+   my $backward = shift;
+
+   if ($self->{R} == 3) {
+      my @steps = 0..19;
+      if ($backward) {
+         @steps = reverse @steps;
+      }
+      my $size = $self->{keylength} >> 3;
+      for my $iter (@steps) {
+         my $xor = chr($iter) x $size;
+         my $itercode = $code ^ $xor;
+         $pass = Crypt::RC4::RC4($itercode, $pass);
+      }
+   } else {
+      $pass = Crypt::RC4::RC4($code, $pass);
+   }
+   return $pass;
+}
+
+sub _check_opass
 {
    my $self    = shift;
-   my $doc_id  = shift;
    my $opass   = shift;
    my $upass   = shift;
 
-   my $crypto = $self->_compute_o($opass, $upass);
+   my $crypto = $self->_compute_o($opass, $upass, 1);
+
+   #printf "O: %s\n%s\n vs.\n%s\n", defined $opass ? $opass : '(undef)', _hex($crypto), _hex($self->{O});
+
+   return $crypto eq $self->{O};
+}
+
+sub _check_upass
+{
+   my $self    = shift;
+   my $doc_id  = shift;
+   my $upass   = shift;
+
    my $cryptu = $self->_compute_u($doc_id, $upass);
 
-   #print 'O: '.(defined $opass ? $opass : '(undef)')."\n$crypto\n vs.\n$self->{O}\n";
-   #print 'U: '.(defined $upass ? $upass : '(undef)')."\n$cryptu\n vs.\n$self->{U}\n";
+   #printf "U: %s\n%s\n vs.\n%s\n", defined $upass ? $upass : '(undef)', _hex($cryptu), _hex($self->{U});
 
-   return $crypto eq $self->{O} && $cryptu eq $self->{U};
+   return $cryptu eq $self->{U};
+}
+
+sub _hex {
+   my $val = shift;
+   return join q{}, map {sprintf '%08x', $_} unpack 'N*', $val;
 }
 
 sub _format_pass

@@ -43,6 +43,13 @@ my @testdocs = filter_testdocs(
       linear => 1,
       pages => [ map { +{ } } 1..1172 ],  # I don't know how many images per page
    },
+   {
+      # This one has Type 2 encryption, but I don't own it so I can't include it in the CPAN upload
+      filename => 't/Sample5500.pdf',
+      linear => 0,
+      pages => [ map { +{ } } 1..3 ],  # no images
+      permissions => [1,0,0,1], # no modify, no copy
+   },
 );
 
 {
@@ -191,12 +198,12 @@ foreach my $testdoc (@testdocs)
    is($doc->getPageContent(1), $doc->getPageContent($doc->numPages()), 'duplicate page check');
 
    my @passwords = ('foo', 'bar');
-   my @prefs = (1,0,1,0);
-   is_deeply([$doc->getPrefs()], [undef, undef, 1,1,1,1], 'getPrefs');
-   ok($doc->canPrint(),  'canPrint');
-   ok($doc->canModify(), 'canModify');
-   ok($doc->canCopy(),   'canCopy');
-   ok($doc->canAdd(),    'canAdd');
+   my @initial_permissions = @{ $testdoc->{permissions} || [1,1,1,1] };
+   is_deeply([$doc->getPrefs()], [undef, undef, @initial_permissions], 'getPrefs');
+   is($doc->canPrint(),  $initial_permissions[0], 'canPrint');
+   is($doc->canModify(), $initial_permissions[1], 'canModify');
+   is($doc->canCopy(),   $initial_permissions[2], 'canCopy');
+   is($doc->canAdd(),    $initial_permissions[3], 'canAdd');
    $doc->setPrefs(@passwords);
    is_deeply([$doc->getPrefs()], [@passwords, 0,0,0,0], 'getPrefs');
    ok(!$doc->canPrint(),  'canPrint');
@@ -204,6 +211,7 @@ foreach my $testdoc (@testdocs)
    ok(!$doc->canCopy(),   'canCopy');
    ok(!$doc->canAdd(),    'canAdd');
 
+   my @prefs = (1,0,1,0);
    $doc->setPrefs(@passwords, @prefs);
    $doc->setPrefs(@passwords, @prefs);
    is_deeply([$doc->getPrefs()], [@passwords, @prefs], 'getPrefs');

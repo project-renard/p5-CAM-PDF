@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.13';
+our $VERSION = '1.20';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -3838,10 +3838,11 @@ sub replaceObject
          my $newkey = $self->appendObject($otherdoc, $oldrefkey, 0);
          $newrefkeys{$oldrefkey} = $newkey;
       }
-      $self->changeRefKeys($objnode, \%newrefkeys);
+      my $already_changed = {}; # hash used by traverse() to avoid repeats
+      $self->changeRefKeys($objnode, \%newrefkeys, $already_changed);
       for my $newkey (values %newrefkeys)
       {
-         $self->changeRefKeys($self->dereference($newkey), \%newrefkeys);
+         $self->changeRefKeys($self->dereference($newkey), \%newrefkeys, $already_changed);
       }
    }
    return (%newrefkeys);
@@ -5063,6 +5064,11 @@ One of the most important parameters is the first: the C<$dereference>
 boolean.  If true, the traversal follows reference Nodes.  If false,
 it does not descend into reference Nodes.
 
+Optionally, you can pass in a hashref as a final argument to reduce
+redundant traversing across multiple calls.  Just pass in an empty
+hashref the first time and pass in the same hashref each time.  See
+C<changeRefKeys()> for an example.
+
 =cut
 
 sub traverse
@@ -5072,8 +5078,8 @@ sub traverse
    my $objnode = shift;
    my $func = shift;
    my $funcdata = shift;
+   my $traversed = shift || {};
 
-   my $traversed = {};
    my @stack = ($objnode);
 
    my $i = 0;
@@ -5538,10 +5544,11 @@ sub changeRefKeys
    my $self = shift;
    my $objnode = shift;
    my $newrefkeys = shift;
+   my $traversed = shift; # optional
 
    my $follow = shift || 0;   # almost always false
 
-   $self->traverse($follow, $objnode, \&_changeRefKeysCB, $newrefkeys);
+   $self->traverse($follow, $objnode, \&_changeRefKeysCB, $newrefkeys, $traversed);
    return;
 }
 

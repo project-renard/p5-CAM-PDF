@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.13';
+our $VERSION = '1.20';
 
 ##no critic (Bangs::ProhibitNumberedNames)
 
