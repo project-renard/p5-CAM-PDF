@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.20';
+our $VERSION = '1.21';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -466,7 +466,24 @@ sub _startdoc
    ### Parse the document metadata
 
    # Start by parsing out the location of the last xref block
-   my ($startxref) = $self->{content} =~ m/ startxref\s*(\d+)\s*%%EOF\s*\z /xms;
+
+   # Implementation note: The PDF spec says "The last line of the file
+   # contains only the end-of-file marker, %%EOF." but it also says
+   # "Acrobat viewers require only that the %%EOF marker appear
+   # somewhere within the last 1024 bytes of the file."
+   # So, we follow the latter more lenient rule.
+
+   my $doc_length = length $self->{content};
+   my $startxref;
+   if ($doc_length > 1024)
+   {
+      ($startxref) = (substr $self->{content}, $doc_length - 1024, 1024) =~ m/ startxref\s*(\d+)\s*%%EOF.*?\z /xms;
+   }
+   else
+   {
+      ($startxref) = $self->{content} =~ m/ startxref\s*(\d+)\s*%%EOF.*?\z /xms;
+   }
+
    if (!$startxref)
    {
       $CAM::PDF::errstr = "Cannot find the index in the PDF content\n";

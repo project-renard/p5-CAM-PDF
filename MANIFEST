@@ -46,6 +46,7 @@ MANIFEST
 META.yml
 README
 t/basic.t
+t/bugreports.t
 t/inlineimage.pdf
 t/pdf.t
 t/pod-coverage.t
