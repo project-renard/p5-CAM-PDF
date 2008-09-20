@@ -50,6 +50,12 @@ my @testdocs = filter_testdocs(
       pages => [ map { +{ } } 1..3 ],  # no images
       permissions => [1,0,0,1], # no modify, no copy
    },
+   {
+      # This is a crazy one that uses PDF v1.5 object streams and cross-reference streams and annotations
+      filename => 't/pdf15.pdf',
+      linear => 1,
+      pages => [ +{ } ],
+   },
 );
 
 {
@@ -182,10 +188,9 @@ foreach my $testdoc (@testdocs)
    }
 
    $doc->cleansave();
-   is($doc->numPages(), $pages*4, 'append pages');
+   is($doc->numPages(), $pages * 4, 'append pages');
    is($doc->isLinearized(), undef, 'isLinearized');
-
-   ok($doc->extractPages($pages+1,$pages*3+1), 'extract pages');
+   ok($doc->extractPages($pages + 1, $pages * 3 + 1), 'extract pages');
    $doc->cleansave();
    is($doc->numPages(), 2, 'extract page check');
 

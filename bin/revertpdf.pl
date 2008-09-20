@@ -8,7 +8,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 my %opts = (
             count      => 0,
@@ -49,9 +49,9 @@ if ($infile eq q{-})
 }
 else
 {
-   open my $in_fh, '<', $infile or die "Failed to read file $infile\n";
+   open my $in_fh, '<', $infile or die "Failed to open file $infile: $!\n";
    $content = do { local $RS = undef; <$in_fh>; };
-   close $in_fh;
+   close $in_fh or die "Failed to read $infile: $!\n";
 }
 
 my @matches = ($content =~ m/ [\015\012]%%EOF *[\015\012] /gxms);
@@ -89,9 +89,9 @@ else
    }
    else
    {
-      open my $fh, '>', $outfile or die "Cannot write to $outfile\n";
+      open my $fh, '>', $outfile or die "Cannot write to $outfile: $!\n";
       print {$fh} $content;
-      close $fh;
+      close $fh or die "Failed to write $outfile: $!\n";
    }
 }
 

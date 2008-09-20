@@ -5,7 +5,7 @@ use warnings;
 use strict;
 use CAM::PDF;
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 =for stopwords framebuffer
 

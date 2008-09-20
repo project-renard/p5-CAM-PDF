@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 my %opts = (
             verbose    => 0,
@@ -55,7 +55,7 @@ else
 {
    open my $in_fh, '<', $pagetext or die "Failed to open $pagetext: $!\n";
    $content = do { local $RS = undef; <$in_fh>; };
-   close $in_fh;
+   close $in_fh or die "Failed to read $pagetext: $!\n";
 }
 
 $doc->setPageContent($pagenum, $content);

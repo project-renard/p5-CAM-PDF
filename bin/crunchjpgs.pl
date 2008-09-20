@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 my %opts = (
             # Hardcoded:
@@ -135,7 +135,7 @@ my $pages = $doc->numPages();
 my $nimages = 0;
 my $rimages = 0;
 
-my %doneobjs = ();
+my %doneobjs;
 
 my $oldcontentsize = $doc->{contentlength};
 my $oldtotsize = 0;

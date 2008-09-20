@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 my %opts = (
             sort       => 0,
@@ -42,7 +42,7 @@ my $infile = shift;
 
 my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
-my %fonts = ();
+my %fonts;
 for my $p (1 .. $doc->numPages())
 {
    if (!$opts{sort})

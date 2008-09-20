@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 ##no critic (Bangs::ProhibitNumberedNames)
 
@@ -424,7 +424,7 @@ Move path.
 
 =cut
 
-sub m
+sub m    ##no critic (Homonym)
 {
    my $self = shift;
    my $x = shift;
@@ -504,7 +504,7 @@ sub v
 
 =cut
 
-sub y
+sub y    ##no critic (Homonym)
 {
    my $self = shift;
    my $x1 = shift;

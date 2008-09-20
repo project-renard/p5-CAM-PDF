@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 my %opts = (
             follow     => 0,
@@ -40,9 +40,9 @@ if (@ARGV < 4)
    pod2usage(1);
 }
 
-my @files = ();
-my @nums = ();
-my @docs = ();
+my @files;
+my @nums;
+my @docs;
 
 push @files, shift;
 push @nums, shift;

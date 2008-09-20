@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -68,7 +68,7 @@ my $doc = CAM::PDF->new($infile) || die "$CAM::PDF::errstr\n";
 
 my $nimages = 0;
 my $rimages = 0;
-my %doneobjs = ();
+my %doneobjs;
 
 foreach my $objnum (keys %{$doc->{xref}})
 {

@@ -8,12 +8,12 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.21';
+our $VERSION = '1.50';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
 
-=for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding
+=for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding 4th
 
 =head1 NAME
 
@@ -60,12 +60,17 @@ specification generously provided by Adobe at
 L<http://partners.adobe.com/public/developer/pdf/index_reference.html>
 (link last checked Oct 2005).
 
-The file format is well-supported, with the exception of the
-"linearized" or "optimized" output format, which this module can read
-but not write.  Many specific aspects of the document model are not
-manipulable with this package (like fonts), but if the input document
-is correctly written, then this module will preserve the model
-integrity.
+The file format through PDF 1.5 is well-supported, with the exception
+of the "linearized" or "optimized" output format, which this module
+can read but not write.  Many specific aspects of the document model
+are not manipulable with this package (like fonts), but if the input
+document is correctly written, then this module will preserve the
+model integrity.
+
+The PDF writing feature saves as PDF 1.4-compatible.  That means that
+we cannot write compressed object streams.  The consequence is that
+reading and then writing a PDF 1.5+ document may enlarge the resulting
+file by a fair margin.
 
 This library grants you some power over the PDF security model.  Note
 that applications editing PDF documents via this library MUST respect
@@ -310,7 +315,7 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
             $content = q{};
             my $offset = 0;
             my $step = 4096;
-            binmode STDIN;
+            binmode STDIN; ##no critic (Syscalls)
             while ($step == read STDIN, $content, $step, $offset)
             {
                $offset += $step;
@@ -320,9 +325,16 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
          {
             if (open my $fh, '<', $file)
             {
-               binmode $fh;
-               read $fh, $content, (-s $file);
-               close $fh;
+               binmode $fh; ##no critic (Syscalls)
+               my $size = -s $file;
+               if ($size != read $fh, $content, $size) {
+                  $CAM::PDF::errstr = "Failed to read $file bytes\n";
+                  return;
+               }
+               if (!close $fh) {
+                  $CAM::PDF::errstr = "Failed to close reading $file\n";
+                  return;
+               }
             }
             else
             {
@@ -427,7 +439,7 @@ sub toString  ## no critic (Unpack)
    my $self = shift;
    my @skip = @_ == 0 ? qw(content) : @_;
 
-   my %hold = ();
+   my %hold;
    for my $key (@skip)
    {
       $hold{$key} = delete $self->{$key};
@@ -492,10 +504,19 @@ sub _startdoc
 
    # Parse the hierarchy of xref blocks
    $self->{startxref} = $startxref;
-   $self->{trailer} = $self->_buildxref($self->{startxref}, $self->{xref}, $self->{versions});
+   my @objstreamrefs;
+   $self->{trailer} = $self->_buildxref($self->{startxref}, $self->{xref}, $self->{versions}, \@objstreamrefs);
    if (!defined $self->{trailer})
    {
       return;
+   }
+   $self->_buildendxref();
+   for my $objstreamref (@objstreamrefs)
+   {
+      if (!$self->_index_objstream($objstreamref))
+      {
+         return;
+      }
    }
 
    ### Cache some page content descriptors
@@ -541,6 +562,251 @@ sub _startdoc
 #  read document index
 
 sub _buildxref
+{
+   my $self = shift;
+   my $startxref = shift;
+   my $index = shift;
+   my $versions = shift;
+   my $objstreamrefs = shift;
+
+   my $trailer;
+   if ('xref' eq substr $self->{content}, $startxref, 4)
+   {
+      $trailer = $self->_buildxref_pdf14($startxref, $index, $versions);
+      if ($trailer && exists $trailer->{XRefStm})
+      {
+         if (!$self->_buildxref_pdf15($trailer->{XRefStm}->{value}, $index, $versions, $objstreamrefs))
+         {
+            return;
+         }
+      }
+   }
+   else
+   {
+      $trailer = $self->_buildxref_pdf15($startxref, $index, $versions, $objstreamrefs);
+   }
+
+   if ($trailer && exists $trailer->{Prev})
+   {
+      if (!$self->_buildxref($trailer->{Prev}->{value}, $index, $versions, $objstreamrefs))
+      {
+         return;
+      }
+   }
+
+   return $trailer;
+}
+
+sub _buildxref_pdf15
+{
+   my $self = shift;
+   my $startxref = shift;
+   my $index = shift;
+   my $versions = shift;
+   my $objstreamrefs = shift;
+
+   my ($trailer, $stream) = $self->_buildxref_pdf15_getstream($startxref);
+   if (!$trailer) {
+      return;
+   }
+
+   #my @b = unpack 'C*', $stream;
+   #print "       0 1 2 3  4 5 6 7  8 9 a b  c d e f";
+   #for my $i (0 .. $#b) {
+   #   if (0 == $i % 15) {
+   #      printf "\n%04x: ", $i;
+   #   } elsif (0 == $i % 3) {
+   #      print STDOUT " ";
+   #   }
+   #   printf '%02x', $b[$i];
+   #}
+   #print STDOUT "\n";
+
+   my $entry_format = q{};
+   my $entry_size = 0;
+   my @entry_key;
+   {
+      my @byte_pattern = map {$_->{value}} @{$trailer->{W}->{value}};
+      my @field_names = qw(type major minor);
+      my %pack_format_map = (0 => q{}, 1 => 'C', 2 => 'n', 4 => 'N');
+      my $n = 0;
+      for my $i (0 .. $#byte_pattern)
+      {
+         my $byte_len = $byte_pattern[$i];
+         my $pack_item = $pack_format_map{$byte_len};
+         if (!defined $pack_item)
+         {
+            $CAM::PDF::errstr = 'Unsupported xref stream field size: ' . $byte_len;
+            return;
+         }
+         $entry_format .= $pack_item;
+         $entry_size += $byte_len;
+         if ($byte_len > 0)
+         {
+            push @entry_key, $field_names[$i];
+         }
+      }
+   }
+   #print STDOUT "pack: [@{[map {$_->{value}} @{$trailer->{W}->{value}}]}] => $entry_size, $entry_format\n";
+
+   my @objstreamrefs;
+   {
+      my @pairs = (0, $trailer->{Size}->{value});
+      if (exists $trailer->{Index})
+      {
+         @pairs = map {$_->{value}} @{$trailer->{Index}->{value}};
+      }
+      #print STDOUT "Pairs: (Index,Size)=@pairs; size of stream=",length($stream)," ?= $entry_size x ",(length($stream)/$entry_size),"\n";
+
+      my $i = 0;
+      while (@pairs)
+      {
+         my $start = shift @pairs;
+         my $len = shift @pairs;
+         my $end = $start + $len;
+         for my $objnum ($start .. $end - 1)
+         {
+            next if (exists $index->{$objnum}); # keep only latest revision
+
+            my $entry = substr $stream, $i++ * $entry_size, $entry_size;
+            my %values = (type => 1, major => 0, minor => 0);
+            my @fields = unpack $entry_format, $entry;
+            @values{@entry_key} = @fields;
+
+            my %strs = (
+               0 => {str=>'free', major=>'objnext', minor=>'gennum'},
+               1 => {str=>'raw', major=>'byte', minor=>'gennum'},
+               2 => {str=>'zip', major=>'stream', minor=>'index'},
+            );
+            my $type_def = $strs{$values{type}};
+            my $type_str = $type_def ? $type_def->{str} : 'unk';
+            my $major_str = $type_def ? $type_def->{major} : 'unk';
+            my $minor_str = $type_def ? $type_def->{minor} : 'unk';
+            #print STDOUT "xref $objnum = $values{type}=$type_str $major_str=$values{major}(",
+            #     sprintf('%04x',$values{major}),") $minor_str=$values{minor}(",
+            #     sprintf('%02x',$values{minor}),")\n";
+
+            # Ignore type 0
+            if ($values{type} == 1)
+            {
+               $index->{$objnum} = $values{major};
+               $versions->{$objnum} = $values{minor};
+            }
+            elsif ($values{type} == 2)
+            {
+               push @{$objstreamrefs}, {objnum => $objnum, streamnum => $values{major}, indx => $values{minor}};
+            }
+         }
+         if ($end - 1 > $self->{maxobj})
+         {
+            $self->{maxobj} = $end - 1;
+         }
+      }
+   }
+   return $trailer;
+}
+
+sub _buildxref_pdf15_getstream
+{
+   my $self = shift;
+   my $startxref = shift;
+
+   # Don't slurp in the whole file
+   my @content = (substr $self->{content}, $startxref, 1024);
+   while ($content[-1] && $content[-1] !~ m/endstream/xms) {
+      push @content, substr $self->{content}, $startxref + 1024 * @content, 1024;
+   }
+   my $content = join q{}, @content;
+
+   my $xrefstream = $self->parseObj(\$content);
+   if (!$xrefstream)
+   {
+      $CAM::PDF::errstr = 'Failed to locate the xref stream';
+      return;
+   }
+   my $trailer = $xrefstream->{value}->{value}; # dict hash
+   if (!$trailer)
+   {
+      $CAM::PDF::errstr = 'Invalid xref stream: no trailer';
+      return;
+   }
+   if ('HASH' ne ref $trailer)
+   {
+      $CAM::PDF::errstr = 'Invalid xref stream: trailer is not a dictionary';
+      return;
+   }
+   #print STDOUT "Trailer: @{[sort keys %{$trailer}]}, $trailer->{Type}->{value}\n";
+   if (!exists $trailer->{Type} || 'XRef' ne $trailer->{Type}->{value})
+   {
+      $CAM::PDF::errstr = 'Invalid xref stream: type is not XRef';
+      return;
+   }
+
+   my $stream = $self->decodeOne($xrefstream->{value});
+   if (!$stream)
+   {
+      $CAM::PDF::errstr = 'Invalid xref stream: could not decode the stream';
+      return;
+   }
+
+   return ($trailer, $stream);
+}
+
+sub _index_objstream
+{
+   my $self = shift;
+   my $objstreamref = shift;
+
+   my $objstream = $self->dereference($objstreamref->{streamnum});
+   if (!$objstream)
+   {
+      $CAM::PDF::errstr = 'Failed to read object stream ' . $objstreamref->{streamnum};
+      return;
+   }
+   if ($objstream->{_indexed}++)
+   {
+      return 1;
+   }
+   my $stream = $self->decodeOne($objstream->{value});
+   if (!$stream)
+   {
+      $CAM::PDF::errstr = 'Invalid xref stream: could not decode objstream ' . $objstreamref->{streamnum};
+      return;
+   }
+   my $dict = $objstream->{value}->{value};
+   my $n = $dict->{N}->{value};
+   my $first = $dict->{First}->{value};
+   my $lookup = substr $stream, 0, $first;
+   my @objs;
+   my $streamholder = {stream => $stream};
+   for my $i (0 .. $n-1)
+   {
+      if ($lookup =~ m/\G\s*(\d+)\s+(\d+)/cgxms)
+      {
+         my ($objnum, $offset) = ($1, $2);
+         my $pos = {objstream => $streamholder, start => $first + $offset};
+         push @objs, $pos;
+         next if exists $self->{xref}->{$objnum}; # keep only latest revision
+         #print "objnum $objnum at pos $offset of objstream $objstreamref->{streamnum}\n";
+         $self->{xref}->{$objnum} = $pos;
+         $self->{versions}->{$objnum} = 0;
+      }
+      else
+      {
+         $CAM::PDF::errstr = 'Failed to read the objstream index for ' . $objstreamref->{streamnum};
+         return;
+      }
+   }
+   for my $i (0 .. $#objs-1)
+   {
+      $objs[$i]->{end} = $objs[$i+1]->{start};
+   }
+   $objs[-1]->{end} = length $stream;
+
+   return 1;
+}
+
+sub _buildxref_pdf14
 {
    my $self = shift;
    my $startxref = shift;
@@ -611,13 +877,6 @@ sub _buildxref
       return;
    }
    my $trailer = $self->parseDict(\$end)->{value};
-   if (exists $trailer->{Prev})
-   {
-      if (!$self->_buildxref($trailer->{Prev}->{value}, $index, $versions))
-      {
-         return;
-      }
-   }
    return $trailer;
 }
 
@@ -630,16 +889,18 @@ sub _buildendxref
 {
    my $self = shift;
 
+   my $x = $self->{xref}; # shorthand
+   # make a list of objnums sorted by file position.  Ignore objects inside objstreams.
+   my @keys = sort {$x->{$a} <=> $x->{$b}} grep {!ref $x->{$_}} keys %{$x};
+
    my $r = {};
-   my %rev = reverse %{$self->{xref}};
-   my @pos = sort keys %rev;
-   for my $i (0 .. $#pos-1)
+   for my $i (0 .. $#keys-1)
    {
       # set the end of each object to be the beginning of the next object
-      $r->{$rev{$pos[$i]}} = $pos[$i+1];
+      $r->{$keys[$i]} = $x->{$keys[$i+1]};
    }
    # The end of the last object is the end of the file
-   $r->{$rev{$pos[-1]}} = $self->{contentlength};
+   $r->{$keys[-1]} = $self->{contentlength};
 
    $self->{endxref} = $r;
    return;
@@ -661,7 +922,7 @@ sub _buildNameTable
       {
          $self->_buildNameTable($p);
       }
-      my %n = ();
+      my %n;
       for my $objnode (values %{$self->{objcache}})
       {
          if ($objnode->{value}->{type} eq 'dictionary')
@@ -1402,7 +1663,7 @@ sub getObjValue
 
 I<For INTERNAL use>
 
-Dereference a data object, return a PDF object as an node.  This
+Dereference a data object, return a PDF object as a node.  This
 function makes heavy use of the internal object cache.  Most (if not
 all) object requests should go through this function.
 
@@ -1442,34 +1703,29 @@ sub dereference
          return;
       }
 
-=for oldcode
-      ## This is the old method.  It is slow.  Below is faster.
-      #my $end = substr $self->{content}, $pos;
-
-=for oldcode
-      ## This is faster, but disastrous if 'endobj' is a string in the obj!!!
-      #$endpos = index $self->{content}, 'endobj', $pos;
-      #if ($endpos == -1)
-      #{
-      #   die "Didn't find endobj after obj\n";
-      #}
-
-=cut
-
-      # This is fastest and safest
-      if (!exists $self->{endxref})
+      my $content_fragment;
+      if (ref $pos)
       {
-         $self->_buildendxref();
+         $content_fragment = substr $pos->{objstream}->{stream}, $pos->{start}, $pos->{end};
+         $content_fragment = "$key 0 obj\n$content_fragment\nendobj\n";
       }
-      my $endpos = $self->{endxref}->{$key};
-      if (!defined $endpos || $endpos < $pos)
+      else
       {
-         # really slow, but a totally safe fallback
-         $endpos = $self->{contentlength};
-      }
+         # This is fastest and safest
+         if (!exists $self->{endxref})
+         {
+            $self->_buildendxref();
+         }
+         my $endpos = $self->{endxref}->{$key};
+         if (!defined $endpos || $endpos < $pos)
+         {
+            # really slow, but a totally safe fallback
+            $endpos = $self->{contentlength};
+         }
 
-      my $end = substr $self->{content}, $pos, $endpos - $pos + 6;
-      $self->{objcache}->{$key} = $self->parseObj(\$end, $key);
+         $content_fragment = substr $self->{content}, $pos, $endpos - $pos;
+      }
+      $self->{objcache}->{$key} = $self->parseObj(\$content_fragment, $key);
    }
 
    return $self->{objcache}->{$key};
@@ -2495,7 +2751,7 @@ sub getFormFieldList
       $kidlist = $self->getValue($parent->{Fields});
    }
 
-   my @list = ();
+   my @list;
    for my $kid (@{$kidlist})
    {
       if ((! ref $kid) || (ref $kid) ne 'CAM::PDF::Node' || $kid->{type} ne 'reference')
@@ -2986,9 +3242,55 @@ sub _deletePage
       croak 'Tried to delete a non-existent page';
    }
 
+   $self->_deletePage_backPointers($objnum);
+   $self->_deletePage_removeFromPageTree($pagenum);
+
+   # Removing the page is easy:
+   $self->deleteObject($objnum);
+
+   # Caches are now bad for all pages from this one
+   $self->decachePages($pagenum .. $self->numPages());
+
+   $self->{PageCount}--;
+
+   return $objnum;
+}
+
+
+sub _deletePage_backPointers
+{
+   my $self = shift;
+   my $objnum = shift;
+
+   # Delete pointer from annotation back to the page
+   my $page = $self->dereference($objnum);
+   my $pagedict = $page->{value}->{value};
+   if ($pagedict->{Annots})
+   {
+      my $annots = $self->getValue($pagedict->{Annots});
+      if ($annots)
+      {
+         for my $annotref (@{$annots})
+         {
+            my $annot = $self->getValue($annotref);
+            if ($annot)
+            {
+               delete $annot->{P};
+            }
+         }
+      }
+   }
+   return;
+}
+
+sub _deletePage_removeFromPageTree
+{
+   my $self = shift;
+   my $pagenum = shift;
+
    # Removing references to the page is hard:
    # (much of this code is lifted from getPage)
-   my $parentdict = undef;
+   my $parentdict;
    my $node = $self->dereference($self->getRootDict()->{Pages}->{value});
    my $nodedict = $node->{value}->{value};
    my $nodestart = 1;
@@ -3080,16 +3382,7 @@ sub _deletePage
          }
       }
    }
-
-   # Removing the page is easy:
-   $self->deleteObject($objnum);
-
-   # Caches are now bad for all pages from this one
-   $self->decachePages($pagenum .. $self->numPages());
-
-   $self->{PageCount}--;
-
-   return $objnum;
+   return;
 }
 
 sub _deleteRefsToPages
@@ -3424,7 +3717,10 @@ sub addPageResources
             {
                die 'Internal error: procset entry is not a label';
             }
-            next if (grep {$_->{value} eq $proc->{value}} @{$page_r});  ## no critic(BuiltinFunctions::ProhibitBooleanGrep) -- TODO: use any() instead
+            {
+               ## no critic(BuiltinFunctions::ProhibitBooleanGrep) -- TODO: use any() instead
+               next if (grep {$_->{value} eq $proc->{value}} @{$page_r});
+            }
             push @{$page_r}, CAM::PDF::Node->new('label', $proc->{value}, $objnum, $gennum);
             $self->{changes}->{$objnum} = 1;
          }
@@ -3490,7 +3786,7 @@ sub appendPDF
    if ($otherroot->{AcroForm})
    {
       my $forms = $otherdoc->getValue($otherdoc->getValue($otherroot->{AcroForm})->{Fields});
-      my @newforms = ();
+      my @newforms;
       for my $reference (@{$forms})
       {
          if ($reference->{type} ne 'reference')
@@ -3898,13 +4194,16 @@ sub cleanse
 {
    my $self = shift;
 
+   delete $self->{trailer}->{XRefStm}; # can't write this
+   delete $self->getRootDict()->{PieceInfo}; # can't handle this one, too complicated
+
    my $base = CAM::PDF::Node->new('dictionary', $self->{trailer});
    my @list = sort {$a<=>$b} $self->getRefList($base);
    #print join(',', @list), "\n";
 
    for my $i (1 .. $self->{maxobj})
    {
-      if (@list > 0 && $list[0] == $i)
+      if (@list && $list[0] == $i)
       {
          shift @list;
       }
@@ -3951,9 +4250,9 @@ sub createID
    {
       if (open my $fh, '<', '/dev/urandom')
       {
-         read $fh, $self->{ID}, $addbytes, 32-$addbytes;
-         close $fh;
-         $addbytes = 0;
+         my $bytes_read = read $fh, $self->{ID}, $addbytes, 32-$addbytes;
+         close $fh;  ##no critic(Syscalls)
+         $addbytes -= $bytes_read;
       }
    }
    # If that failed, use Perl's random number generator
@@ -4476,9 +4775,8 @@ sub preserveOrder
    # If called, then any new file will try to preserve the original order
    my $self = shift;
 
-   my %positions = reverse %{$self->{xref}};
-   $self->{order} = [map {($positions{$_})} sort {$a<=>$b} keys %positions];
-   #print 'Wrote order ' . join(q{,},@{$self->{order}}) . "\n";
+   my $x = $self->{xref}; # shorthand
+   $self->{order} = [sort {$x->{$a} <=> $x->{$b}} grep {!ref $x->{$_}} keys %{$x}];
    return;
 }
 
@@ -4500,12 +4798,11 @@ sub isLinearized
    }
    else
    {
-      my %revxref = reverse %{$self->{xref}};
-      ($first) = sort {$a <=> $b} keys %revxref;
-      $first = $revxref{$first};
+      my $x = $self->{xref}; # shorthand
+      ($first) = sort {$x->{$a} <=> $x->{$b}} grep {!ref $x->{$_}} keys %{$x};
    }
 
-   my $linearized = undef; # false
+   my $linearized; # false
    my $objnode = $self->dereference($first);
    if ($objnode && $objnode->{value}->{type} eq 'dictionary')
    {
@@ -4541,10 +4838,8 @@ sub delinearize
    }
    else
    {
-      # Sort by doc byte offset, select smallest
-      my %revxref = reverse %{$self->{xref}};
-      ($first) = sort {$a <=> $b} keys %revxref;
-      $first = $revxref{$first};
+      my $x = $self->{xref}; # shorthand
+      ($first) = sort {$x->{$a} <=> $x->{$b}} grep {!ref $x->{$_}} keys %{$x};
    }
 
    my $objnode = $self->dereference($first);
@@ -4599,7 +4894,23 @@ sub clean
    $self->{startxref} = 0;
    $self->{content} = q{};
    $self->{contentlength} = 0;
-   delete $self->{trailer}->{Prev};
+
+   my $trailer = $self->{trailer};
+   delete $trailer->{Prev};
+   delete $trailer->{XRefStm};
+   if (exists $trailer->{Type} && $trailer->{Type}->{value} eq 'XRef') {
+      delete $trailer->{Type};
+      delete $trailer->{Size};
+      delete $trailer->{Index};
+      delete $trailer->{W};
+      delete $trailer->{Length};
+      delete $trailer->{L};
+      delete $trailer->{StreamData};
+      delete $trailer->{Filter};
+      delete $trailer->{F};
+      delete $trailer->{DecodeParms};
+      delete $trailer->{DP};
+   }
    return;
 }
 
@@ -4650,11 +4961,12 @@ sub save
 
    my %allobjs = (%{$self->{changes}}, %{$self->{xref}});
    my @objects = sort {$a<=>$b} keys %allobjs;
-   if ($self->{order}) {
+   if ($self->{order})
+   {
 
       # Sort in the order in $self->{order} array, with the rest later
       # in objnum order
-      my %o = ();
+      my %o;
       my $n = @{$self->{order}};
       for my $i (0 .. $n-1)
       {
@@ -4664,7 +4976,7 @@ sub save
    }
    delete $self->{order};
 
-   my %newxref = ();
+   my %newxref;
    for my $key (@objects)
    {
       next if (!$self->{changes}->{$key});
@@ -4804,15 +5116,15 @@ sub output
 
    if ($file eq q{-})
    {
-      binmode STDOUT;
+      binmode STDOUT; ##no critic(RequireCheckedSysCalls)
       print $self->{content};
    }
    else
    {
       open my $fh, '>', $file or die "Failed to write file $file\n";
-      binmode $fh;
+      binmode $fh or die "Failed to set binmode for file $file\n";
       print {$fh} $self->{content};
-      close $fh;
+      close $fh or die "Failed to write file $file\n";
    }
    return $self;
 }
@@ -5238,16 +5550,13 @@ sub decodeOne
          next if ($filtername eq 'Standard');
 
          my $filt;
-         eval {
+         my $eval_result = eval {
             require Text::PDF::Filter;
             my $package = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
             $filt = $package->new;
-            if (!$filt)
-            {
-               die;
-            }
+            1;
          };
-         if ($EVAL_ERROR)
+         if (!$eval_result)
          {
             warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
             last;
@@ -5321,29 +5630,85 @@ sub fixDecode
    if ($filter eq 'FlateDecode' || $filter eq 'Fl' ||
        $filter eq 'LZWDecode' || $filter eq 'LZW')
    {
-      if (exists $d->{Predictor})
+      my $p = exists $d->{Predictor} ? $self->getValue($d->{Predictor}) : 1;
+      if ($p == 2)
       {
-         my $p = $self->getValue($d->{Predictor});
-         if ($p >= 10 && $p <= 15)
-         {
-            #warn "Fix PNG\n";
-            if (exists $d->{Columns})
-            {
-               my $c       = $self->getValue($d->{Columns});
-               my $len     = length ${$streamdata};
-               my $newdata = q{};
+         $self->_fixDecodeTIFF($streamdata, $d);
+      }
+      elsif ($p >= 10)
+      {
+         $self->_fixDecodePNG($streamdata, $d);
+      }
+      # else no fix needed
+   }
+   return;
+}
 
-               my $i = 1;
-               while ($i < $len)
-               {
-                  $newdata .= substr ${$streamdata}, $i, $c;
-                  $i += $c+1;
-               }
-               ${$streamdata} = $newdata;
-            }
+sub _fixDecodeTIFF
+{
+   my $self = shift;
+   my $streamdata = shift;
+   my $d = shift;
+
+   die 'The TIFF image predictor is not supported';
+}
+
+sub _fixDecodePNG
+{
+   my $self = shift;
+   my $streamdata = shift;
+   my $d = shift;
+
+   # PNG differencing algorithms  http://www.w3.org/TR/PNG-Filters.html
+   my $colors = exists $d->{Colors} ? $self->getValue($d->{Colors}) : 1;
+   my $columns = exists $d->{Columns} ? $self->getValue($d->{Columns}) : 1;
+   my $bpc = exists $d->{BitsPerComponent} ? $self->getValue($d->{BitsPerComponent}) : 8;
+   if (0 != $bpc % 8) {
+      die 'Color samples that are not multiples of 8 bits are not supported';
+   }
+   my $width = 1 + $colors * $columns * ($bpc >> 3); # size of a row in bytes, including the 1-byte predictor
+   my $len = length ${$streamdata};
+   if (0 != $len % $width) {
+      die 'The stream data is not evenly divisible into rows';
+   }
+   my $rows = $len / $width;
+   my $newdata = q{};
+   my $prev_row = [(0) x ($width - 1)];
+   for my $irow (0 .. $rows - 1)
+   {
+      my ($row_pred, @row) = unpack 'C' . $width, substr ${$streamdata}, $irow * $width, $width;
+      if ($row_pred == 1) {   ##no critic (IfElse)
+         for my $i (1 .. $width-2) {
+            $row[$i] = ($row[$i-1] + $row[$i]) & 0xff;
+         }
+      } elsif ($row_pred == 2) {
+         for my $i (0 .. $width-2) {
+            $row[$i] = ($prev_row->[$i] + $row[$i]) & 0xff;
+         }
+      } elsif ($row_pred == 3) {
+         $row[0] = (($prev_row->[0] >> 1) + $row[0]) & 0xff;
+         for my $i (1 .. $width-2) {
+            $row[$i] = ((($row[$i-1] + $prev_row->[$i]) >> 1) + $row[$i]) & 0xff;
+         }
+      } elsif ($row_pred == 4) {
+         # Paeth reduces to up for first column
+         $row[0] = ($prev_row->[0] + $row[0]) & 0xff;
+         for my $i (1 .. $width-2) {
+            my $a = $row[$i-1];
+            my $b = $prev_row->[$i];
+            my $c = $prev_row->[$i-1];
+            my $p = $a + $b - $c;
+            my $pa = abs $p - $a;
+            my $pb = abs $p - $b;
+            my $pc = abs $p - $c;
+            my $paeth = $pa <= $pb && $pa <= $pc ? $a : $pb <= $pc ? $b : $c;
+            $row[$i] = ($paeth + $row[$i]) & 0xff;
          }
       }
+      $newdata .= pack 'C*', @row;
+      $prev_row = \@row;
    }
+   ${$streamdata} = $newdata;
    return;
 }
 
@@ -5396,17 +5761,12 @@ sub encodeOne  ## no critic(Subroutines::ProhibitExcessComplexity)
          $filtername = 'FlateDecode';
          warn "LZWDecode filter not supported for encoding.  Using $filtername instead\n";
       }
-      my $filt;
-      eval {
+      my $filt = eval {
          require Text::PDF::Filter;
-         my $package = "Text::PDF::$filtername";
-         $filt = $package->new;
-         if (!$filt)
-         {
-            die;
-         }
+         my $pkg = "Text::PDF::$filtername";
+         $pkg->new;
       };
-      if ($EVAL_ERROR)
+      if (!$filt)
       {
          warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
          return 0;
@@ -5684,10 +6044,11 @@ sub _changeStringCB
          {
             my $regex = $1;
             my $res;
-            eval {
+            my $eval_result = eval {
                $res = ($objnode->{value} =~ s/ $regex /$changelist->{$key}/gxms);
+               1;
             };
-            if ($EVAL_ERROR)
+            if (!$eval_result)
             {
                die "Failed regex search/replace: $EVAL_ERROR\n";
             }
@@ -5843,8 +6204,7 @@ sub copyObject
    require Data::Dumper;
    my $d = Data::Dumper->new([$objnode],['objnode']);
    $d->Purity(1)->Indent(0);
-   eval $d->Dump(); ## no critic(BuiltinFunctions::ProhibitStringyEval)
-
+   $objnode = eval $d->Dump(); ## no critic(ProhibitStringyEval)
    return $objnode;
 }
 
@@ -5906,23 +6266,25 @@ __END__
 =head1 COMPATIBILITY
 
 This library was primarily developed against the 3rd edition of the
-reference (PDF v1.4) with a few updates from fourth edition.  This
-library focuses on PDF v1.2 features.  Nonetheless, it should be
-forward and backward compatible in the majority of cases.
+reference (PDF v1.4) with several important updates from 4th edition
+(PDF v1.5).  This library focuses most deeply on PDF v1.2 features.
+Nonetheless, it should be forward and backward compatible in the
+majority of cases.
 
 =head1 PERFORMANCE
 
 This module is written with good speed and flexibility in mind, often
 at the expense of memory consumption.  Entire PDF documents are
 typically slurped into RAM.  As an example, simply calling
-C<new('PDFReference15_v15.pdf')> (the 14 MB Adobe PDF Reference V1.5
-document) pushes Perl to consume 84 MB of RAM on my development
+C<new('PDFReference15_v15.pdf')> (the 13.5 MB Adobe PDF Reference V1.5
+document) pushes Perl to consume 89 MB of RAM on my development
 machine.
 
 =head1 SEE ALSO
 
 There are several other PDF modules on CPAN.  Below is a brief
-description of a few of them.
+description of a few of them.  If these comments are out of date,
+please inform me.
 
 =over
 
@@ -5948,7 +6310,8 @@ feature).  This has not been developed since 2003.
 As of v0.32, Artistic/GPL license, like Perl itself.
 
 This library is not object oriented, so it can only process one PDF at
-a time, while storing all data in global variables.
+a time, while storing all data in global variables.  I'm not fond of
+it, but it's quite popular, so don't take my word for it!
 
 =back
 

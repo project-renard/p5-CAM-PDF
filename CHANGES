@@ -1,5 +1,16 @@
 Revision history for Perl module CAM::PDF
 
+1.50  20 Sep 2008
+      [ENHANCEMENTS]
+      - Support for reading PDF 1.5 compressed object streams and cross reference streams.
+        (we cannot write this style, but we can append to it)
+      [FIXES]
+      - Decompression of PNG-filtered streams was totally broken.
+      - Deleting pages now also deletes back references from annotations on that page.
+      - cleanse() now removes PieceInfo data.  I have no idea what
+        PieceInfo does, but it had a whole bunch of page back links
+        that broke page deletion.
+
 1.21  13 Aug 2008
       [FIXES]
       - Permit comments after the %%EOF, like Adobe Reader does.  Thanks to
