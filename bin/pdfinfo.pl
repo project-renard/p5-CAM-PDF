@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 my %opts = (
             verbose    => 0,
@@ -88,10 +88,10 @@ while (@ARGV > 0)
                $sign = q{+};
             }
             require Time::Local;
-            my $time = Time::Local::timegm($s,$m,$h,$D,$M-1,$Y-1900);
+            my $timegm = Time::Local::timegm($s,$m,$h,$D,$M-1,$Y-1900);
             my $tzshift = $sign . ($tzh*3600 + $tzm*60);
-            $time += $tzshift;
-            $val = localtime $time;
+            $timegm += $tzshift;
+            $val = localtime $timegm;
          }
          printf "%-13s %s\n", $key.q{:}, $val;
       }

@@ -8,7 +8,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 my %opts = (
             count      => 0,

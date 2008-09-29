@@ -1,5 +1,10 @@
 Revision history for Perl module CAM::PDF
 
+1.51  28 Sep 2008
+      [FIXES]
+      - Support PDFs with 24-bit offsets in the xref stream (PDF v1.5 only)
+        (thanks to Dan Richman for reporting the problem and providing an example)
+
 1.50  20 Sep 2008
       [ENHANCEMENTS]
       - Support for reading PDF 1.5 compressed object streams and cross reference streams.

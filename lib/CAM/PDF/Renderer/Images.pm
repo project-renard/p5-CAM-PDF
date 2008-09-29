@@ -4,7 +4,7 @@ use 5.006;
 use warnings;
 use strict;
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 =for stopwords inline
 

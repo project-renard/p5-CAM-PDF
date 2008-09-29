@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -597,6 +597,25 @@ sub _buildxref
    return $trailer;
 }
 
+# Just for debugging
+sub __dump_binary_stream {
+   my $stream = shift;
+
+   my @b = unpack 'C*', $stream;
+   print '       0 1 2 3  4 5 6 7  8 9 a b  c d e f';
+   for my $i (0 .. $#b) {
+      if (0 == $i % 15) {
+         printf "\n%04x: ", $i;
+      } elsif (0 == $i % 3) {
+         print q{ };
+      }
+      printf '%02x', $b[$i];
+   }
+   print "\n";
+
+   return;
+}
+
 sub _buildxref_pdf15
 {
    my $self = shift;
@@ -610,44 +629,11 @@ sub _buildxref_pdf15
       return;
    }
 
-   #my @b = unpack 'C*', $stream;
-   #print "       0 1 2 3  4 5 6 7  8 9 a b  c d e f";
-   #for my $i (0 .. $#b) {
-   #   if (0 == $i % 15) {
-   #      printf "\n%04x: ", $i;
-   #   } elsif (0 == $i % 3) {
-   #      print STDOUT " ";
-   #   }
-   #   printf '%02x', $b[$i];
-   #}
-   #print STDOUT "\n";
+   #__dump_binary_stream($stream);
 
-   my $entry_format = q{};
-   my $entry_size = 0;
-   my @entry_key;
-   {
-      my @byte_pattern = map {$_->{value}} @{$trailer->{W}->{value}};
-      my @field_names = qw(type major minor);
-      my %pack_format_map = (0 => q{}, 1 => 'C', 2 => 'n', 4 => 'N');
-      my $n = 0;
-      for my $i (0 .. $#byte_pattern)
-      {
-         my $byte_len = $byte_pattern[$i];
-         my $pack_item = $pack_format_map{$byte_len};
-         if (!defined $pack_item)
-         {
-            $CAM::PDF::errstr = 'Unsupported xref stream field size: ' . $byte_len;
-            return;
-         }
-         $entry_format .= $pack_item;
-         $entry_size += $byte_len;
-         if ($byte_len > 0)
-         {
-            push @entry_key, $field_names[$i];
-         }
-      }
-   }
-   #print STDOUT "pack: [@{[map {$_->{value}} @{$trailer->{W}->{value}}]}] => $entry_size, $entry_format\n";
+   my @byte_pattern = map {$_->{value}} @{$trailer->{W}->{value}};
+   my $entry_size = $byte_pattern[0] + $byte_pattern[1] + $byte_pattern[2];
+   #print STDOUT "pack: [@byte_pattern] => total size $entry_size\n";
 
    my @objstreamrefs;
    {
@@ -666,22 +652,33 @@ sub _buildxref_pdf15
          my $end = $start + $len;
          for my $objnum ($start .. $end - 1)
          {
+            my @byte = unpack 'C*', substr $stream, $i++ * $entry_size, $entry_size;
+            my %values = (type => 1, major => 0, minor => 0);
+            my @w = @byte_pattern;
+            my $pos = 0;
+            my $w = 0;
+            for my $key (qw(type major minor)) {
+               $w += shift @w;
+               if ($w > $pos) {
+                  my $val = 0;
+                  for (; $pos < $w; ++$pos) {  ## no critic (ProhibitCStyleForLoops)
+                      $val = ($val << 8) + $byte[$pos];
+                  }
+                  $values{$key} = $val;
+               }
+            }
+
             next if (exists $index->{$objnum}); # keep only latest revision
 
-            my $entry = substr $stream, $i++ * $entry_size, $entry_size;
-            my %values = (type => 1, major => 0, minor => 0);
-            my @fields = unpack $entry_format, $entry;
-            @values{@entry_key} = @fields;
-
-            my %strs = (
-               0 => {str=>'free', major=>'objnext', minor=>'gennum'},
-               1 => {str=>'raw', major=>'byte', minor=>'gennum'},
-               2 => {str=>'zip', major=>'stream', minor=>'index'},
-            );
-            my $type_def = $strs{$values{type}};
-            my $type_str = $type_def ? $type_def->{str} : 'unk';
-            my $major_str = $type_def ? $type_def->{major} : 'unk';
-            my $minor_str = $type_def ? $type_def->{minor} : 'unk';
+            #my %strs = (
+            #   0 => {str=>'free', major=>'objnext', minor=>'gennum'},
+            #   1 => {str=>'raw', major=>'byte', minor=>'gennum'},
+            #   2 => {str=>'zip', major=>'stream', minor=>'index'},
+            #);
+            #my $type_def = $strs{$values{type}};
+            #my $type_str = $type_def ? $type_def->{str} : 'unk';
+            #my $major_str = $type_def ? $type_def->{major} : 'unk';
+            #my $minor_str = $type_def ? $type_def->{minor} : 'unk';
             #print STDOUT "xref $objnum = $values{type}=$type_str $major_str=$values{major}(",
             #     sprintf('%04x',$values{major}),") $minor_str=$values{minor}(",
             #     sprintf('%02x',$values{minor}),")\n";
@@ -695,6 +692,8 @@ sub _buildxref_pdf15
             elsif ($values{type} == 2)
             {
                push @{$objstreamrefs}, {objnum => $objnum, streamnum => $values{major}, indx => $values{minor}};
+               $index->{$objnum} = {}; # will be overwritten later
+               $versions->{$objnum} = 0;
             }
          }
          if ($end - 1 > $self->{maxobj})
@@ -786,7 +785,11 @@ sub _index_objstream
          my ($objnum, $offset) = ($1, $2);
          my $pos = {objstream => $streamholder, start => $first + $offset};
          push @objs, $pos;
-         next if exists $self->{xref}->{$objnum}; # keep only latest revision
+         if (exists $self->{xref}->{$objnum}) {
+            # keep only latest revision
+            next if !ref $self->{xref}->{$objnum};
+            next if $self->{xref}->{$objnum}->{objstream};
+         }
          #print "objnum $objnum at pos $offset of objstream $objstreamref->{streamnum}\n";
          $self->{xref}->{$objnum} = $pos;
          $self->{versions}->{$objnum} = 0;
@@ -3360,8 +3363,9 @@ sub _deletePage_removeFromPageTree
             }
             else
             {
-               my $count = $self->getValue($subdict->{Count});
-               if ($nodestart + $count - 1 >= $pagenum)
+               # Type=='Pages' node
+               my $child_count = $self->getValue($subdict->{Count});
+               if ($nodestart + $child_count - 1 >= $pagenum)
                {
                   # The page we want is in this kid.  Descend.
                   $parentdict = $nodedict;
@@ -3372,7 +3376,7 @@ sub _deletePage_removeFromPageTree
                else
                {
                   # Not in this kid.  Move on.
-                  $nodestart += $count;
+                  $nodestart += $child_count;
                }
             }
             if ($child == $#{$kids})
@@ -3518,7 +3522,6 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
       $self->deleteObject($objnum);
 
       # Ascend chain...  $objnum gets overwritten
-      my $child = $objnode;
 
     CHAIN:
       for my $node (@{$chain})
@@ -3612,7 +3615,6 @@ sub _deleteDests  ## no critic(Subroutines::ProhibitExcessComplexity)
          $node->{deleted} = undef;  # internal flag
 
          # Prepare for next iteration
-         $child = $node;
          $objnum = $node_objnum;
       }
    }
@@ -5307,9 +5309,9 @@ sub _writeDictionary
          # First, try to handle the easy case:
          if (2 == scalar keys %{$val} && (exists $val->{Length} || exists $val->{L}))
          {
-            my $str = $val->{$dictkey}->{value};
-            my $len = length $str;
-            my $unpacked = unpack 'H' . $len*2, $str;
+            my $binary = $val->{$dictkey}->{value};
+            my $len = length $binary;
+            my $unpacked = unpack 'H' . $len*2, $binary;
             return $self->writeAny(CAM::PDF::Node->new('hexstring', $unpacked, $objnode->{objnum}, $objnode->{gennum}));
          }
 
@@ -5404,12 +5406,12 @@ sub traverse
 {
    my $self = shift;
    my $deref = shift;
-   my $objnode = shift;
+   my $startnode = shift;
    my $func = shift;
    my $funcdata = shift;
    my $traversed = shift || {};
 
-   my @stack = ($objnode);
+   my @stack = ($startnode);
 
    my $i = 0;
    while ($i < @stack)
@@ -5600,6 +5602,7 @@ sub decodeOne
          }
       }
    }
+   #else { use Data::Dumper; print Dumper($dict); }
 
    return $save ? $changed : $streamdata;
 }

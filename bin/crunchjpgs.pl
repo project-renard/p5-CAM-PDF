@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 my %opts = (
             # Hardcoded:
@@ -225,7 +225,7 @@ for my $p (1..$pages)
             _inform($cmd, $opts{Verbose});
 
             # TODO: this should use IPC::Open3 or the like
-            open my $pipe, $cmd  ## no critic
+            open my $pipe, $cmd  ## no critic (ProhibitTwoArgOpen)
                 or die "Failed to convert object $objnum to a jpg and back\n";
             my $content = do { local $RS = undef; <$pipe>; };
             close $pipe

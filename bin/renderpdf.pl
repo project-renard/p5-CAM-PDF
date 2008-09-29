@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 my %opts = (
             density    => undef,
@@ -48,8 +48,7 @@ if (defined $opts{density})
 }
 if (defined $opts{xdensity} || defined $opts{ydensity})
 {
-   eval "require $opts{renderer}";  ## no critic for string eval
-   if ($EVAL_ERROR)
+   if (!eval "require $opts{renderer}")  ## no critic (StringyEval)
    {
       die $EVAL_ERROR;
    }

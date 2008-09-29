@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -138,7 +138,7 @@ for my $p (1..$pages)
                require File::Path;
                File::Path::mkpath($outdir);
             }
-            `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;  ## no critic
+            `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;  ## no critic (Backtick)
 
             $doneobjs{$objnum} = 1;
             $rimages++;

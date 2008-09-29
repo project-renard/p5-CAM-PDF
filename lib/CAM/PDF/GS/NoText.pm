@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 ##no critic (Bangs::ProhibitNumberedNames)
 
@@ -120,8 +120,7 @@ sub clone
    # don't clone references, just point to them
    my $refs = delete $self->{refs};
 
-   eval Data::Dumper->Dump([$self], ['newself']);  ## no critic for string eval
-   if ($EVAL_ERROR)
+   if (!eval Data::Dumper->Dump([$self], ['newself']))  ## no critic (StringyEval)
    {
       die 'Error in '.__PACKAGE__."::clone() - $EVAL_ERROR";
    }

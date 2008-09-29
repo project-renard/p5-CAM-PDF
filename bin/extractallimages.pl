@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -139,12 +139,12 @@ foreach my $objnum (keys %{$doc->{xref}})
          }
          if ($isjpg)
          {
-            my $result = `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;  ## no critic
+            my $result = `convert -quality 50 -density 72x72 -page ${w}x$h pdf:$ofile jpg:$outdir/$objnum.jpg`;  ## no critic (Backtick)
             _inform($result, $opts{verbose});
          }
          else
          {
-            my $result = `convert -density 72x72 -page ${w}x$h pdf:$ofile gif:$outdir/$objnum.gif`;  ## no critic
+            my $result = `convert -density 72x72 -page ${w}x$h pdf:$ofile gif:$outdir/$objnum.gif`;  ## no critic (Backtick)
             _inform($result, $opts{verbose});
          }
 

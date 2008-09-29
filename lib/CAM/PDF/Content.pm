@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.50';
+our $VERSION = '1.51';
 
 =for stopwords renderers
 
@@ -439,8 +439,7 @@ sub render
 
    if (!$loaded{$renderer})
    {
-      eval "require $renderer";   ## no critic for string eval
-      if ($EVAL_ERROR)
+      if (!eval "require $renderer")   ## no critic (StringyEval)
       {
          die $EVAL_ERROR;
       }
