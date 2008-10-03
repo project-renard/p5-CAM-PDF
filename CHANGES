@@ -1,5 +1,10 @@
 Revision history for Perl module CAM::PDF
 
+1.52  02 Oct 2008
+      [FIXES]
+      - Better handling of failures during filter loading
+        (rlane10 via http://www.nntp.perl.org/group/perl.cpan.testers/2008/10/msg2361238.html)
+
 1.51  28 Sep 2008
       [FIXES]
       - Support PDFs with 24-bit offsets in the xref stream (PDF v1.5 only)

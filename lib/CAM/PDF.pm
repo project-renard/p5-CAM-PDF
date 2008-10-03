@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.51';
+our $VERSION = '1.52';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -5552,13 +5552,13 @@ sub decodeOne
          next if ($filtername eq 'Standard');
 
          my $filt;
-         my $eval_result = eval {
+         eval {
             require Text::PDF::Filter;
             my $package = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
             $filt = $package->new;
             1;
          };
-         if (!$eval_result)
+         if (!$filt)
          {
             warn "Failed to open filter $filtername (Text::PDF::$filtername)\n";
             last;

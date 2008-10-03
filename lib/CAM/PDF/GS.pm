@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.51';
+our $VERSION = '1.52';
 
 =head1 NAME
 

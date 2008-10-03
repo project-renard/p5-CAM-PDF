@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.51';
+our $VERSION = '1.52';
 
 =for stopwords renderers
 

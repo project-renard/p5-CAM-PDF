@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.51';
+our $VERSION = '1.52';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
