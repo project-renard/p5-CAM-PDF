@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 ##no critic (Bangs::ProhibitNumberedNames)
 
@@ -397,7 +397,7 @@ sub gs
 sub cm
 {
    my ($self, @mtx) = @_;
-   
+
    $self->applyMatrix([@mtx], $self->{cm});
    return;
 }

@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 my %opts = (
             verbose    => 0,
@@ -43,7 +43,7 @@ while (@ARGV > 0)
 
    # prompt for password
    my $doc = CAM::PDF->new($file, q{}, q{}, 1) || die "$CAM::PDF::errstr\n";
-   
+
    if ($file eq q{-})
    {
       $file = 'STDIN';

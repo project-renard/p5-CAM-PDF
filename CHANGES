@@ -1,5 +1,16 @@
 Revision history for Perl module CAM::PDF
 
+1.53  26 Mar 2011
+      [FIXES]
+      - Handle PDF 1.5 case where "endstream" token crosses a 1024-byte boundary
+        Thanks to Charlie Katz for a sample PDF
+      - Allow whitespace after the 'stream' token for better interoperability
+        http://rt.cpan.org/Ticket/Display.html?id=42819
+        Credit to Vonne 'Robert' Bannavong
+      - Fix broken crunchjpgs.pl, patch submitted by George Greer
+      - Tolerate leading zeros on objnums and gennums
+        http://www.cpanforum.com/posts/11494
+
 1.52  02 Oct 2008
       [FIXES]
       - Better handling of failures during filter loading

@@ -8,12 +8,12 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
 
-=for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding 4th
+=for stopwords eval'ed CR-NL PDFLib defiltered prefill indices inline de-embedding 4th linearized viewable decrypted
 
 =head1 NAME
 
@@ -338,7 +338,7 @@ sub new  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
             }
             else
             {
-               $CAM::PDF::errstr = "Failed to open $file: $!\n";
+               $CAM::PDF::errstr = "Failed to open $file: $ERRNO\n";
                return;
             }
          }
@@ -711,9 +711,17 @@ sub _buildxref_pdf15_getstream
    my $startxref = shift;
 
    # Don't slurp in the whole file
-   my @content = (substr $self->{content}, $startxref, 1024);
+   my $chunk_size = 1024;
+   my @content = (substr $self->{content}, $startxref, $chunk_size);
+   # warning: this doesn't account for the case where "endstream" crosses a 1024-byte boundary
+   # instead, we hit the end of file and find it after concatenation -- a hack but it works
    while ($content[-1] && $content[-1] !~ m/endstream/xms) {
-      push @content, substr $self->{content}, $startxref + 1024 * @content, 1024;
+      my $offset = $startxref + $chunk_size * @content;
+      if ($offset >= length $self->{content}) {
+         # end of file
+         last;
+      }
+      push @content, substr $self->{content}, $offset, $chunk_size;
    }
    my $content = join q{}, @content;
 
@@ -1024,6 +1032,8 @@ sub parseObj
    # need to implement like this with explicit capture vars for 5.6.1
    # compatibility
    my ($objnum, $gennum) = ($1, $2); ##no critic(ProhibitCaptureWithoutTest)
+   $objnum = int $objnum;
+   $gennum = int $gennum;
 
    my $objnode;
    if (${$c} =~ m/ \G(.*?)endobj\s* /cgxms)
@@ -1132,7 +1142,7 @@ sub parseStream
    my $gennum = shift;
    my $dict   = shift;
 
-   my $begin = shift || qr/ stream\r?\n /xms;
+   my $begin = shift || qr/ stream[ \t]*\r?\n /xms;
    my $end   = shift || qr/ \s*endstream\s* /xms;
 
    if (${$c} !~ m/ \G$begin /cgxms)
@@ -1316,7 +1326,7 @@ sub parseRef
    my $newobjnum;
    if (${$c} =~ m/ \G(\d+)\s+\d+\s+R\s* /cgxms)
    {
-      $newobjnum = $1;
+      $newobjnum = int $1;
    }
    else
    {
@@ -1694,6 +1704,7 @@ sub dereference
       $key = $key->{value};
    }
 
+   $key = int $key;
    if (!exists $self->{objcache}->{$key})
    {
       #print "Filling cache for obj \#$key...\n";
@@ -5029,7 +5040,7 @@ sub save
          }
       }
    }
-   
+
    my $currblock = q{};
    my $currnum   = 0;
    my $currstart = 0;
@@ -5358,7 +5369,7 @@ sub _writeObject
    {
       $stream = $val->{value}->{StreamData}->{value};
       my $length = length $stream;
-      
+
       my $l = $val->{value}->{Length} || $val->{value}->{L};
       my $oldlength = $self->getValue($l);
       if ($length != $oldlength)
@@ -5554,8 +5565,8 @@ sub decodeOne
          my $filt;
          eval {
             require Text::PDF::Filter;
-            my $package = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
-            $filt = $package->new;
+            my $pkg = 'Text::PDF::' . ($filterabbrevs{$filtername} || $filtername);
+            $filt = $pkg->new;
             1;
          };
          if (!$filt)
@@ -5859,7 +5870,7 @@ sub setObjNum
    my $objnode = shift;
    my $objnum = shift;
    my $gennum = shift;
-   
+
    $self->traverse(0, $objnode, \&_setObjNumCB, [$objnum, $gennum]);
    return;
 }
@@ -5871,7 +5882,7 @@ sub _setObjNumCB
    my $self = shift;
    my $objnode = shift;
    my $nums = shift;
-   
+
    $objnode->{objnum} = $nums->[0];
    $objnode->{gennum} = $nums->[1];
    return;
@@ -5889,7 +5900,7 @@ sub getRefList
 {
    my $self = shift;
    my $objnode = shift;
-   
+
    my $list = {};
    $self->traverse(1, $objnode, \&_getRefListCB, $list);
 
@@ -5903,7 +5914,7 @@ sub _getRefListCB
    my $self = shift;
    my $objnode = shift;
    my $list = shift;
-   
+
    if ($objnode->{type} eq 'reference')
    {
       $list->{$objnode->{value}} = 1;
@@ -5939,7 +5950,7 @@ sub _changeRefKeysCB
    my $self = shift;
    my $objnode = shift;
    my $newrefkeys = shift;
-   
+
    if ($objnode->{type} eq 'reference')
    {
       if (exists $newrefkeys->{$objnode->{value}})

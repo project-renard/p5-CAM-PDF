@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 my %opts = (
             verbose    => 0,
@@ -47,7 +47,7 @@ foreach my $p (split /\D+/xms, $pagenum)
    {
       die "The page number must be an integer greater than 0\n";
    }
-   
+
    print $doc->getPageContent($p);
 }
 

@@ -5,7 +5,9 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
+
+=for stopwords subclasses
 
 =head1 NAME
 
@@ -195,7 +197,7 @@ sub Tadvance
 sub BT
 {
    my $self = shift;
-  
+
    @{$self->{Tm}} = (1, 0, 0, 1, 0, 0);
    @{$self->{Tlm}} = (1, 0, 0, 1, 0, 0);
    return;
@@ -254,7 +256,7 @@ sub Td
    my $self = shift;
    my $x = shift;
    my $y = shift;
-   
+
    $self->applyMatrix([1,0,0,1,$x,$y], $self->{Tlm});
    @{$self->{Tm}} = @{$self->{Tlm}};
    return;
@@ -382,7 +384,7 @@ sub doublequote
 sub Tm
 {
    my ($self, @tm) = @_;
-   
+
    @{$self->{Tm}} = @{$self->{Tlm}} = @tm;
    return;
 }

@@ -9,7 +9,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 my %opts = (
             # Hardcoded:
@@ -232,18 +232,22 @@ for my $p (1..$pages)
                 or die "Failed to convert object $objnum to a jpg and back\n";
 
             my $jpg = CAM::PDF->new($content) || die "$CAM::PDF::errstr\n";
+            my $jpgim   = $jpg->getObjValue(8);
+            my $jpgsize = $jpg->getValue($jpgim->{Length});
 
-            $doc->replaceObject($objnum, $jpg, 9, 1);
+            if ($jpgsize < $oldsize) {
+              $doc->replaceObject($objnum, $jpg, 8, 1);
 
-            my $newim = $doc->getObjValue($objnum);
-            my $newsize = $doc->getValue($newim->{Length});
-            $newtotsize += $newsize;
+              $newtotsize += $jpgsize;
 
-            my $percent = sprintf '%.1f', 100 * ($oldsize - $newsize) / $oldsize;
-            _inform("compressed $oldsize -> $newsize ($percent%)", $opts{verbose});
-
+              my $percent = sprintf '%.1f', 100 * ($oldsize - $jpgsize) / $oldsize;
+              _inform("\tcompressed $oldsize -> $jpgsize ($percent%)", $opts{verbose});
             $doneobjs{$objnum} = 1;
             $rimages++;
+            } else {
+              _inform("\tskipped $oldsize -> $jpgsize", $opts{verbose});
+            }
+
          }
       }
    }
@@ -300,7 +304,7 @@ sub _inform
 
 __END__
 
-=for stopwords crunchjpgs.pl ImageMagick JPG
+=for stopwords crunchjpgs.pl ImageMagick JPG rescaling
 
 =head1 NAME
 

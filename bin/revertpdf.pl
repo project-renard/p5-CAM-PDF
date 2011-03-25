@@ -8,7 +8,7 @@ use Getopt::Long;
 use Pod::Usage;
 use English qw(-no_match_vars);
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 my %opts = (
             count      => 0,
@@ -49,9 +49,9 @@ if ($infile eq q{-})
 }
 else
 {
-   open my $in_fh, '<', $infile or die "Failed to open file $infile: $!\n";
+   open my $in_fh, '<', $infile or die "Failed to open file $infile: $ERRNO\n";
    $content = do { local $RS = undef; <$in_fh>; };
-   close $in_fh or die "Failed to read $infile: $!\n";
+   close $in_fh or die "Failed to read $infile: $ERRNO\n";
 }
 
 my @matches = ($content =~ m/ [\015\012]%%EOF *[\015\012] /gxms);
@@ -89,16 +89,16 @@ else
    }
    else
    {
-      open my $fh, '>', $outfile or die "Cannot write to $outfile: $!\n";
+      open my $fh, '>', $outfile or die "Cannot write to $outfile: $ERRNO\n";
       print {$fh} $content;
-      close $fh or die "Failed to write $outfile: $!\n";
+      close $fh or die "Failed to write $outfile: $ERRNO\n";
    }
 }
 
 
 __END__
 
-=for stopwords revertpdf.pl
+=for stopwords revertpdf.pl unoptimized
 
 =head1 NAME
 

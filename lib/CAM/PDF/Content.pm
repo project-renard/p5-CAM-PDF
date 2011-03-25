@@ -8,9 +8,9 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
-=for stopwords renderers
+=for stopwords renderers unvalidated
 
 =head1 NAME
 
@@ -466,7 +466,7 @@ sub computeGS
 {
    my $self      = shift;
    my $skip_text = shift;
-   
+
    return $self->render('CAM::PDF::GS' . ($skip_text ? '::NoText' : q{}));
 }
 
@@ -480,7 +480,7 @@ references, according to the CAM::PDF::Renderer::Images renderer.
 sub findImages
 {
    my $self = shift;
-   
+
    return $self->render('CAM::PDF::Renderer::Images');
 }
 

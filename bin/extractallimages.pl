@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 my %opts = (
             template   => 'crunchjpg_tmpl.pdf',
@@ -114,7 +114,7 @@ foreach my $objnum (keys %{$doc->{xref}})
          {
             die "PDF error: Failed to get size of image\n";
          }
-         
+
          my $tmpl = CAM::PDF->new($opts{template}) || die "$CAM::PDF::errstr\n";
 
          # Get a handle on the needed data bits from the template
@@ -131,7 +131,7 @@ foreach my $objnum (keys %{$doc->{xref}})
 
          my $ofile = "/tmp/crunchjpg.$$";
          $tmpl->cleanoutput($ofile);
-         
+
          if (!-d $outdir)
          {
             require File::Path;

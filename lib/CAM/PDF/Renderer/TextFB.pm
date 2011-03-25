@@ -5,7 +5,7 @@ use warnings;
 use strict;
 use CAM::PDF;
 
-our $VERSION = '1.52';
+our $VERSION = '1.53';
 
 =for stopwords framebuffer
 
@@ -65,7 +65,7 @@ sub add_string
    my $x = shift;
    my $y = shift;
    my $string = shift;
-   
+
    CAM::PDF->asciify(\$string);
 
    my $fb = $self->{fb};
