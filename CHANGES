@@ -1,6 +1,11 @@
 Revision history for Perl module CAM::PDF
 
-1.53  26 Mar 2011
+1.54  26 Mar 2011
+      [FIXES]
+      - appendPDF was broken intermittently if appended doc was bigger than main doc
+        Thanks to Charlie Katz for a sample PDF
+
+1.53  25 Mar 2011
       [FIXES]
       - Handle PDF 1.5 case where "endstream" token crosses a 1024-byte boundary
         Thanks to Charlie Katz for a sample PDF

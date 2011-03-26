@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.53';
+our $VERSION = '1.54';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -4075,8 +4075,15 @@ sub appendObject
    my $follow = shift;
 
    my $objnum = ++$self->{maxobj};
-   #$self->{xref}->{$objnum} = undef;
-   #$self->{endxref}->{$objnum} = undef if (exists $self->{endxref});
+
+   # Make sure our new object has a number higher than anything in
+   # either document, otherwise the changeRefKeys might change
+   # something twice!  We had a problem of 15 -> 134 -> 333 in 1.52
+   # (private email with Charlie Katz)
+   if ($otherdoc && $otherdoc->{maxobj} >= $objnum) {
+      $objnum = $self->{maxobj} = $otherdoc->{maxobj} + 1;
+   }
+
    $self->{versions}->{$objnum} = -1;
 
    my %refkeys = $self->replaceObject($objnum, $otherdoc, $otherkey, $follow);
