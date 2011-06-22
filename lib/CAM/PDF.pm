@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.54';
+our $VERSION = '1.55';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -4997,13 +4997,16 @@ sub save
    delete $self->{order};
 
    my %newxref;
+   my $offset = length $self->{content};
    for my $key (@objects)
    {
       next if (!$self->{changes}->{$key});
-      $newxref{$key} = length $self->{content};
+      $newxref{$key} = $offset;
 
       #print "Writing object $key\n";
-      $self->{content} .= $self->writeObject($key);
+      my $obj = $self->writeObject($key);
+      $self->{content} .= $obj;
+      $offset += length $obj;
 
       $self->{xref}->{$key} = $newxref{$key};
       $self->{versions}->{$key}++;

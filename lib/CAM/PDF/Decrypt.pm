@@ -12,7 +12,7 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '1.54';
+our $VERSION = '1.55';
 
 =for stopwords Decrypt
 

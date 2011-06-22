@@ -54,3 +54,4 @@ t/pod-coverage.t
 t/pod.t
 t/resume.pdf
 t/sample1.pdf
+META.json

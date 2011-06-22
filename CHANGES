@@ -1,9 +1,16 @@
 Revision history for Perl module CAM::PDF
 
+1.55  22 Jun 2011
+      [FIXES]
+      Performance enhancement saving large files
+      https://rt.cpan.org/Ticket/Display.html?id=69021
+      Thanks to David Porter of Audacitas Limited for the patch
+
 1.54  26 Mar 2011
       [FIXES]
       - appendPDF was broken intermittently if appended doc was bigger than main doc
         Thanks to Charlie Katz for a sample PDF
+        http://chrisdolan.net/talk/2011/03/26/cam-pdf-fixes-appendpdf-bug/
 
 1.53  25 Mar 2011
       [FIXES]
