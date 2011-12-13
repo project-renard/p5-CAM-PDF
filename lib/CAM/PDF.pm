@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.55';
+our $VERSION = '1.56';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -862,8 +862,11 @@ sub _buildxref_pdf14
          }
          if ($type eq 'n')
          {
-            $index->{$objnum} = $indexnum;
-            $versions->{$objnum} = $version;
+            if ($indexnum != 0) # if the index says it's at byte zero, pretend it's an 'f' instead of an 'n'
+            {
+               $index->{$objnum} = $indexnum;
+               $versions->{$objnum} = $version;
+            }
          }
          if ($objnum > $self->{maxobj})
          {

@@ -9,7 +9,7 @@ use Data::Dumper;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.55';
+our $VERSION = '1.56';
 
 my %opts = (
             verbose    => 0,

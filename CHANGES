@@ -1,5 +1,12 @@
 Revision history for Perl module CAM::PDF
 
+1.56  13 Dec 2011
+      [FIXES]
+      Workaround for corrupt PDFs that have 'n' records in their index that point to byte zero
+      of the file. Silently treat those as 'f' records. Yet another case of Acrobat supporting
+      broken PDFs, so the rest of us have to support them too...
+      Thanks to Mark Hunnibell for a sample PDF that demonstrated the problem
+
 1.55  22 Jun 2011
       [FIXES]
       Performance enhancement saving large files

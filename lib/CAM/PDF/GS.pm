@@ -5,7 +5,7 @@ use strict;
 use warnings;
 use base qw(CAM::PDF::GS::NoText);
 
-our $VERSION = '1.55';
+our $VERSION = '1.56';
 
 =for stopwords subclasses
 
