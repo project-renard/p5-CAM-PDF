@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.56';
+our $VERSION = '1.57';
 
 my %opts = (
             verbose    => 0,

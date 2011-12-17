@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.56';
+our $VERSION = '1.57';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -713,9 +713,9 @@ sub _buildxref_pdf15_getstream
    # Don't slurp in the whole file
    my $chunk_size = 1024;
    my @content = (substr $self->{content}, $startxref, $chunk_size);
-   # warning: this doesn't account for the case where "endstream" crosses a 1024-byte boundary
+   # warning: this doesn't account for the case where "endobj" crosses a 1024-byte boundary
    # instead, we hit the end of file and find it after concatenation -- a hack but it works
-   while ($content[-1] && $content[-1] !~ m/endstream/xms) {
+   while ($content[-1] && $content[-1] !~ m/endobj/xms) {
       my $offset = $startxref + $chunk_size * @content;
       if ($offset >= length $self->{content}) {
          # end of file
@@ -5393,7 +5393,7 @@ sub _writeObject
       $val->{value}->{StreamDataDone} = 1;
    }
    my $str = $self->writeAny($val);
-   if ($stream)
+   if (defined $stream)
    {
       $stream = $self->{crypt}->encrypt($self, $stream, $objnode->{objnum}, $objnode->{gennum});
       $str .= "\nstream\n" . $stream . 'endstream';

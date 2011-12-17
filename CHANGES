@@ -1,17 +1,26 @@
 Revision history for Perl module CAM::PDF
 
+1.57  17 Dec 2011
+      [FIXES]
+      - Test for undef streams instead of truth, to allow streams like '' or '0'
+        Thanks to Thorsten Schwander for the patch
+      - Failed to parse PDF 1.5 cross reference streams where a
+        1024-byte boundary happened to fall between "endstream" and
+        "endobj" do to a logic error.
+        Thanks to Thorsten Schwander for the report and fix suggestion
+
 1.56  13 Dec 2011
       [FIXES]
-      Workaround for corrupt PDFs that have 'n' records in their index that point to byte zero
-      of the file. Silently treat those as 'f' records. Yet another case of Acrobat supporting
-      broken PDFs, so the rest of us have to support them too...
-      Thanks to Mark Hunnibell for a sample PDF that demonstrated the problem
+      - Workaround for corrupt PDFs that have 'n' records in their index that point to byte zero
+        of the file. Silently treat those as 'f' records. Yet another case of Acrobat supporting
+        broken PDFs, so the rest of us have to support them too...
+        Thanks to Mark Hunnibell for a sample PDF that demonstrated the problem
 
 1.55  22 Jun 2011
       [FIXES]
-      Performance enhancement saving large files
-      https://rt.cpan.org/Ticket/Display.html?id=69021
-      Thanks to David Porter of Audacitas Limited for the patch
+      - Performance enhancement saving large files
+        https://rt.cpan.org/Ticket/Display.html?id=69021
+        Thanks to David Porter of Audacitas Limited for the patch
 
 1.54  26 Mar 2011
       [FIXES]
