@@ -1,5 +1,23 @@
 Revision history for Perl module CAM::PDF
 
+1.58  28 May 2012
+      Many thanks for Vadim Repin for numerous excellent bug reports!
+      [FIXES]
+      - Appended pdf revisions incorrectly incremented object generation numbers
+        https://rt.cpan.org/Ticket/Display.html?id=76513
+      - Appending pdf revisions was broken for non-linearized PDFs
+        https://rt.cpan.org/Ticket/Display.html?id=76514
+      - Allow multiple "startxref" statements in the last 1024 bytes -- unlikely, but possible
+        https://rt.cpan.org/Ticket/Display.html?id=77508
+      - Allow whitespace at the beginning of an indirect object (I think the PDF spec is
+        ambiguous about this)
+        https://rt.cpan.org/Ticket/Display.html?id=76512
+      - Allow backspace character
+        https://rt.cpan.org/Ticket/Display.html?id=76151
+      [DOCUMENTATION]
+      - mention $pdf->setPageContent($pagenum, $tree->toString());
+        Leo Lapworth and http://cpanforum.com/posts/13228
+
 1.57  17 Dec 2011
       [FIXES]
       - Test for undef streams instead of truth, to allow streams like '' or '0'

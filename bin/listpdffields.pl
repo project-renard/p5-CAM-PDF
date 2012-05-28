@@ -8,7 +8,7 @@ use CAM::PDF;
 use Getopt::Long;
 use Pod::Usage;
 
-our $VERSION = '1.57';
+our $VERSION = '1.58';
 
 my %opts = (
             sort       => 0,

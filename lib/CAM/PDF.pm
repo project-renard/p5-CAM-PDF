@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.57';
+our $VERSION = '1.58';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -45,6 +45,7 @@ under the same terms as Perl itself.
     
     my @prefs = $pdf->getPrefs();
     $prefs[$CAM::PDF::PREF_OPASS] = 'mypassword';
+    $prefs[$CAM::PDF::PREF_UPASS] = 'mypassword';
     $pdf->setPrefs(@prefs);
     
     $pdf->cleanoutput('out1.pdf');
@@ -489,11 +490,12 @@ sub _startdoc
    my $startxref;
    if ($doc_length > 1024)
    {
-      ($startxref) = (substr $self->{content}, $doc_length - 1024, 1024) =~ m/ startxref\s*(\d+)\s*%%EOF.*?\z /xms;
+      # The initial ".*" is for the unlikely case that there are two "startxref" statements in the last 1024 bytes
+      ($startxref) = (substr $self->{content}, $doc_length - 1024, 1024) =~ m/ .* startxref\s*(\d+)\s*%%EOF.*?\z /xms;
    }
    else
    {
-      ($startxref) = $self->{content} =~ m/ startxref\s*(\d+)\s*%%EOF.*?\z /xms;
+      ($startxref) = $self->{content} =~ m/ .* startxref\s*(\d+)\s*%%EOF.*?\z /xms;
    }
 
    if (!$startxref)
@@ -1028,7 +1030,7 @@ sub parseObj
    my $self = shift;
    my $c = shift;
 
-   if (${$c} !~ m/ \G(\d+)\s+(\d+)\s+obj\s* /cgxms) ##no critic(ProhibitUnusedCapture)
+   if (${$c} !~ m/ \G\s*(\d+)\s+(\d+)\s+obj\s* /cgxms) ##no critic(ProhibitUnusedCapture)
    {
       die "Expected object open tag\n" . $self->trimstr(${$c});
    }
@@ -1445,8 +1447,7 @@ sub parseString
       s/ \\r /\r/gxms;
       s/ \\t /\t/gxms;
       s/ \\f /\f/gxms;
-      # TODO: handle backspace char
-      #s/ \\b /???/gxms;
+      s/ \\b /\x{8}/gxms;
 
       # octal numbers
       s/ \\(\d{1,3}) /chr oct $1/gexms;
@@ -3068,9 +3069,14 @@ sub pageAddName
 
 =item $doc->setPageContent($pagenum, $content)
 
+=item $doc->setPageContent($pagenum, $tree->toString)
+
 Replace the content of the specified page with a new version.  This
 function is often used after the getPageContent() function and some
 manipulation of the returned string from that function.
+
+If your content is a parsed tree (i.e. the result of
+getPageContentTree) then you should serialize it via toString first.
 
 =cut
 
@@ -4087,7 +4093,11 @@ sub appendObject
       $objnum = $self->{maxobj} = $otherdoc->{maxobj} + 1;
    }
 
-   $self->{versions}->{$objnum} = -1;
+   if (exists $self->{versions}->{$objnum}) {
+      $self->{versions}->{$objnum}++;
+   } else {
+      $self->{versions}->{$objnum} = 0;
+   }
 
    my %refkeys = $self->replaceObject($objnum, $otherdoc, $otherkey, $follow);
    if (wantarray)
@@ -4196,7 +4206,8 @@ sub deleteObject
    my $self = shift;
    my $objnum = shift;
 
-   delete $self->{versions}->{$objnum};
+   # DON'T clear versuion number! We need to keep this to increment later
+   #delete $self->{versions}->{$objnum};
    delete $self->{objcache}->{$objnum};
    delete $self->{xref}->{$objnum};
    delete $self->{endxref}->{$objnum};
@@ -4909,7 +4920,7 @@ sub clean
    # Mark everything new
    %{$self->{versions}} = (
                           %{$self->{versions}},
-                          map { $_ => -1 } keys %{$self->{xref}},
+                          map { $_ => 0 } keys %{$self->{xref}},
                           );
 
    $self->{xref} = {};
@@ -5012,7 +5023,6 @@ sub save
       $offset += length $obj;
 
       $self->{xref}->{$key} = $newxref{$key};
-      $self->{versions}->{$key}++;
       delete $self->{changes}->{$key};
    }
 
@@ -5034,9 +5044,9 @@ sub save
    }
 
    # If there is only one version of the document, there must be no
-   # holes in the xref.  Test for versions by checking the Prev record
-   # in the trailer
-   if (!$self->{trailer}->{Prev})
+   # holes in the xref.  Test for versions by checking if there's already an xref.
+   # If clean() has been called, it will be absent
+   if (!$self->{startxref})
    {
       # Fill in holes
       my $prevfreeblock = 0;
