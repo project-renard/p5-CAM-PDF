@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.58';
+our $VERSION = '1.59';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -1435,7 +1435,7 @@ sub parseString
    }
 
    # Unescape slash-escaped characters.  Treat \\ specially.
-   my @parts = split /\\\\/xms, $value, -1;
+   my @parts = split /\\\\|\\134/xms, $value, -1;
    for (@parts)
    {
       # concatenate continued lines

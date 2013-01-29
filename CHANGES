@@ -1,5 +1,11 @@
 Revision history for Perl module CAM::PDF
 
+1.59  28 Jan 2013
+      [FIXES]
+      - Added support for the \134 escape, synonymous with \\
+        Thanks to Zakariyya Mughal for the patch
+        https://rt.cpan.org/Ticket/Display.html?id=83018
+
 1.58  28 May 2012
       Many thanks for Vadim Repin for numerous excellent bug reports!
       [FIXES]

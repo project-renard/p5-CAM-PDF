@@ -6,7 +6,7 @@ use strict;
 use CAM::PDF::Renderer::TextFB;
 use base qw(CAM::PDF::GS);
 
-our $VERSION = '1.58';
+our $VERSION = '1.59';
 
 =for stopwords framebuffer
 

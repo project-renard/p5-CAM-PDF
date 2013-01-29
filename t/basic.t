@@ -4,7 +4,7 @@ use warnings;
 use strict;
 use Carp;
 
-use Test::More tests => 32;
+use Test::More tests => 36;
 use_ok('CAM::PDF');
 
 is_deeply([CAM::PDF->rangeToArray(0,10)],
@@ -44,6 +44,10 @@ foreach my $strtest (
    ['(foo\\t)', 'foo'."\t"],
    ['(octal\\040)', 'octal '],
    ['(octal\\40)', 'octal '],
+   ['(\134\\\\)', '\\\\'],
+   ['(\134\\\\\\))', '\\\\)'],
+   ['(\134a\\\\\\))', '\\a\\)'],
+   ['(\(\134\\\\\\))', '(\\\\)'],
 )
 {
    my $orig = $strtest->[0];
