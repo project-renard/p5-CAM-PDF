@@ -8,7 +8,7 @@ use English qw(-no_match_vars);
 use CAM::PDF::Node;
 use CAM::PDF::Decrypt;
 
-our $VERSION = '1.59';
+our $VERSION = '1.60';
 
 ## no critic(Bangs::ProhibitCommentedOutCode)
 ## no critic(ControlStructures::ProhibitDeepNests)
@@ -4330,6 +4330,15 @@ options for how to render the filled data:
 
 Specify the background color for the text field.
 
+=item max_autoscale_fontsize =E<lt> $size
+
+=item min_autoscale_fontsize =E<lt> $size
+
+If the form field is set to auto-size the text to fit, then you may
+use these options to constrain the limits of that
+autoscaling. Otherwise, for example, a very long string will become
+arbitrarily small to fit in the box.
+
 =back
 
 =cut
@@ -4513,6 +4522,15 @@ sub fillFormFields  ## no critic(Subroutines::ProhibitExcessComplexity, Unpack)
             {
                $fontsize *= $maxwidth / $fontwidth;
             }
+
+            # allow for user override
+            if (exists $opts->{max_autoscale_fontsize} && $fontsize > $opts->{max_autoscale_fontsize}) {
+               $fontsize = $opts->{max_autoscale_fontsize};
+            }
+            if (exists $opts->{min_autoscale_fontsize} && $fontsize < $opts->{min_autoscale_fontsize}) {
+               $fontsize = $opts->{min_autoscale_fontsize};
+            }
+
             $da =~ s/ \/$fontname\s+0\s+Tf\b /\/$fontname $fontsize Tf/gxms;
          }
          if ($fontsize)

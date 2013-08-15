@@ -1,5 +1,10 @@
 Revision history for Perl module CAM::PDF
 
+1.60  14 Aug 2013
+      [ENHANCEMENTS]
+      - Added min/max font size for form field filling.
+        Thanks to Gareth Tunley for the idea and the initial code
+
 1.59  28 Jan 2013
       [FIXES]
       - Added support for the \134 escape, synonymous with \\
